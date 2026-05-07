@@ -32,7 +32,11 @@ export function Sidebar() {
   const pathname = usePathname();
   return (
     <aside className="flex h-screen w-60 shrink-0 flex-col border-r border-border bg-card">
-      <div className="flex items-center gap-3 border-b border-border px-5 py-4">
+      <a
+        href="/"
+        className="flex items-center gap-3 border-b border-border px-5 py-4 transition-opacity hover:opacity-80"
+        title="Go to MF Superior landing page"
+      >
         <div className="relative size-9 shrink-0 overflow-hidden rounded-md bg-slate-950">
           <Image
             src="/logo.png"
@@ -51,7 +55,7 @@ export function Sidebar() {
             Freight Box Trucks
           </p>
         </div>
-      </div>
+      </a>
 
       <nav className="flex-1 overflow-y-auto px-3 py-4">
         <ul className="flex flex-col gap-0.5">
