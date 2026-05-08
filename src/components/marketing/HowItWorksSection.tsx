@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { CascadeText } from './CascadeText';
 
 interface FormState {
   firstName: string;
@@ -171,7 +172,6 @@ export function HowItWorksSection() {
         </p>
         <h2
           style={{
-            color: '#111111',
             fontSize: 'clamp(28px, 3.5vw, 52px)',
             fontWeight: 400,
             textAlign: 'center',
@@ -180,9 +180,17 @@ export function HowItWorksSection() {
             lineHeight: 1.2,
             fontFamily: 'var(--font-primary)',
             padding: '0 24px',
+            color: '#111111',
           }}
         >
-          Tell us your freight needs — we&apos;ll handle the rest
+          <CascadeText
+            text="Tell us your freight needs — we'll handle the rest"
+            stagger={0.022}
+            duration={0.5}
+            finalColor="#111111"
+            flashColor="#A0B41E"
+            restColor="rgba(17,17,17,0.2)"
+          />
         </h2>
       </div>
 

@@ -1,21 +1,68 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef } from 'react';
+import { CascadeText } from './CascadeText';
 
 export function HeroSection() {
-  const [scrollY, setScrollY] = useState(0);
+  const sectionRef = useRef<HTMLElement>(null);
+  const layerARef = useRef<HTMLDivElement>(null);
+  const layerBRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
-    const onScroll = () => setScrollY(window.scrollY);
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
-  }, []);
+    const section = sectionRef.current;
+    const video = videoRef.current;
+    if (!section || !video) return;
 
-  const layerAOpacity = Math.max(0, Math.min(1, 1 - scrollY / 600));
-  const layerBOpacity = Math.max(0, Math.min(1, scrollY / 600));
+    // Keep paused — we drive currentTime from scroll.
+    video.pause();
+
+    let raf = 0;
+
+    const tick = () => {
+      const rect = section.getBoundingClientRect();
+      const viewH = window.innerHeight;
+
+      // How far the user has scrolled into the section (px), clamped to [0, maxScroll].
+      const scrolled = Math.max(0, -rect.top);
+      const maxScroll = section.offsetHeight - viewH;
+      const progress = maxScroll > 0 ? Math.min(1, scrolled / maxScroll) : 0;
+
+      // Gradient → video crossfade (first ~30% of scroll range).
+      const fade = Math.min(1, scrolled / 600);
+      if (layerARef.current) layerARef.current.style.opacity = String(1 - fade);
+      if (layerBRef.current) layerBRef.current.style.opacity = String(fade);
+
+      // Scrub video frame-by-frame with scroll.
+      if (video.readyState >= 2 && video.duration > 0) {
+        video.currentTime = progress * video.duration;
+      }
+
+      raf = requestAnimationFrame(tick);
+    };
+
+    // Only run the loop while the section is visible.
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          raf = requestAnimationFrame(tick);
+        } else {
+          cancelAnimationFrame(raf);
+        }
+      },
+      { threshold: 0 }
+    );
+    io.observe(section);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      io.disconnect();
+    };
+  }, []);
 
   return (
     <section
+      ref={sectionRef}
       style={{
         position: 'relative',
         minHeight: '200vh',
@@ -23,17 +70,16 @@ export function HeroSection() {
         backgroundColor: '#000',
       }}
     >
-      {/* Layer A: dark navy/steel gradient (visible at top) */}
+      {/* Layer A: dark gradient — visible at top, fades out as user scrolls */}
       <div
+        ref={layerARef}
         style={{
           position: 'absolute',
           inset: 0,
           background: 'linear-gradient(to bottom, #1c1c1c, #161616, #111111)',
-          opacity: layerAOpacity,
-          transition: 'none',
+          willChange: 'opacity',
         }}
       >
-        {/* Dark overlay at bottom for text legibility */}
         <div
           style={{
             position: 'absolute',
@@ -44,22 +90,23 @@ export function HeroSection() {
         />
       </div>
 
-      {/* Layer B: near-black with wireframe truck video */}
+      {/* Layer B: video — fades in as user scrolls, scrubs frame-by-frame */}
       <div
+        ref={layerBRef}
         style={{
           position: 'absolute',
           inset: 0,
           backgroundColor: '#0a0a0a',
-          opacity: layerBOpacity,
-          transition: 'none',
+          opacity: 0,
+          willChange: 'opacity',
         }}
       >
         <video
+          ref={videoRef}
           src="/videos/features-01.mp4"
-          autoPlay
           muted
-          loop
           playsInline
+          preload="auto"
           style={{
             width: '100%',
             height: '100%',
@@ -67,7 +114,6 @@ export function HeroSection() {
             display: 'block',
           }}
         />
-        {/* Dark overlay for text legibility over video */}
         <div
           style={{
             position: 'absolute',
@@ -78,7 +124,7 @@ export function HeroSection() {
         />
       </div>
 
-      {/* Sticky text container — stays visible within the 200vh scroll space */}
+      {/* Sticky text — stays in viewport for the full 200vh scroll */}
       <div
         style={{
           position: 'sticky',
@@ -90,7 +136,6 @@ export function HeroSection() {
           pointerEvents: 'none',
         }}
       >
-        {/* Main text block */}
         <div
           style={{
             position: 'absolute',
@@ -100,39 +145,57 @@ export function HeroSection() {
             padding: '0 5.128vw 80px',
           }}
         >
-          {/* Small label above heading */}
           <p
             style={{
               fontSize: '16px',
-              color: 'rgba(255, 255, 255, 0.6)',
               marginBottom: '8px',
               fontFamily: 'var(--font-primary)',
               fontWeight: 400,
               lineHeight: 1.4,
             }}
           >
-            Colorado&apos;s most trusted freight delivery partner
+            <CascadeText
+              text="Colorado's most trusted freight delivery partner"
+              stagger={0.018}
+              duration={0.45}
+              finalColor="rgba(255,255,255,0.6)"
+              flashColor="#D4E030"
+              restColor="rgba(255,255,255,0.10)"
+            />
           </p>
-
-          {/* Large display heading */}
           <h1
             style={{
               fontSize: 'clamp(48px, 6vw, 96px)',
               fontWeight: 400,
-              color: '#fff',
               lineHeight: 1.05,
               letterSpacing: '-0.02em',
               fontFamily: 'var(--font-primary)',
               margin: 0,
+              color: '#fff',
             }}
           >
-            Built for the work ahead.
+            <CascadeText
+              text="Built for the work ahead."
+              delay={0.25}
+              stagger={0.025}
+              duration={0.55}
+              finalColor="#fff"
+              flashColor="#D4E030"
+              restColor="rgba(255,255,255,0.18)"
+            />
             <br />
-            Delivery that doesn&apos;t quit.
+            <CascadeText
+              text="Delivery that doesn't quit."
+              delay={0.85}
+              stagger={0.025}
+              duration={0.55}
+              finalColor="#fff"
+              flashColor="#D4E030"
+              restColor="rgba(255,255,255,0.18)"
+            />
           </h1>
         </div>
 
-        {/* SCROLL TO EXPLORE label */}
         <div
           style={{
             position: 'absolute',

@@ -9,7 +9,7 @@ export function MFLogo({ className, width = 110, height = 66 }: { className?: st
       alt="MF Superior Products"
       width={width}
       height={height}
-      className={className}
+      className={`logo-neon-glow ${className ?? ''}`.trim()}
       style={{ objectFit: 'contain' }}
     />
   );
@@ -22,7 +22,7 @@ export function MFMark({ className, width = 60, height = 60 }: { className?: str
       alt="MF Superior Products"
       width={width}
       height={height}
-      className={className}
+      className={`logo-neon-glow ${className ?? ''}`.trim()}
       style={{ objectFit: 'contain' }}
     />
   );

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { CascadeText } from './CascadeText';
 
 export function CtaSection() {
   const [hovered, setHovered] = useState(false);
@@ -68,16 +69,23 @@ export function CtaSection() {
           style={{
             fontSize: 'clamp(40px, 6vw, 96px)',
             fontWeight: 400,
-            color: '#fff',
             textAlign: 'center',
             lineHeight: 1.1,
             letterSpacing: '-0.02em',
             maxWidth: '900px',
             margin: '0 auto 48px',
             fontFamily: 'var(--font-primary, SuisseIntl, sans-serif)',
+            color: '#fff',
           }}
         >
-          Your freight moves today.
+          <CascadeText
+            text="Your freight moves today."
+            stagger={0.028}
+            duration={0.55}
+            finalColor="#fff"
+            flashColor="#D4E030"
+            restColor="rgba(255,255,255,0.15)"
+          />
         </h2>
 
         <button

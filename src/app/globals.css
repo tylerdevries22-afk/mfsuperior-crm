@@ -294,6 +294,44 @@ html.lenis body {
   background: radial-gradient(circle at 50% 50%, rgba(212, 224, 48, 0.8), transparent 15rem);
 }
 
+/* ── Neon glow on transparent MF logo ─────────────────────────── */
+/*
+ * Subtle lime halo. Two stacked drop-shadows fake a soft outer glow
+ * (filter: drop-shadow follows the alpha channel of the transparent
+ * PNG, so it glows ONLY around the logo silhouette, not the bounding
+ * box). Animated pulse is dialed down so it doesn't fight body copy.
+ */
+@keyframes mf-logo-pulse {
+  0%, 100% {
+    filter:
+      drop-shadow(0 0 4px rgba(212, 224, 48, 0.45))
+      drop-shadow(0 0 14px rgba(212, 224, 48, 0.25));
+  }
+  50% {
+    filter:
+      drop-shadow(0 0 6px rgba(212, 224, 48, 0.65))
+      drop-shadow(0 0 22px rgba(212, 224, 48, 0.4));
+  }
+}
+.logo-neon-glow {
+  animation: mf-logo-pulse 4.5s ease-in-out infinite;
+}
+/* On light backgrounds (e.g. login card), drop the halo intensity
+ * because the lime over white reads loud. */
+.logo-neon-glow-soft {
+  filter:
+    drop-shadow(0 0 3px rgba(212, 224, 48, 0.35))
+    drop-shadow(0 0 9px rgba(160, 180, 30, 0.2));
+}
+@media (prefers-reduced-motion: reduce) {
+  .logo-neon-glow {
+    animation: none;
+    filter:
+      drop-shadow(0 0 4px rgba(212, 224, 48, 0.45))
+      drop-shadow(0 0 14px rgba(212, 224, 48, 0.25));
+  }
+}
+
 /* ── Marketing mobile responsive overrides ───────────────────── */
 @media (max-width: 768px) {
   /* Navbar */

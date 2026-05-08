@@ -31,7 +31,7 @@ export default async function LoginPage() {
       <Card className="w-full max-w-md">
         <CardHeader className="border-b-0 pb-0">
           <div className="flex items-center gap-3">
-            <div className="relative size-12 shrink-0 overflow-hidden rounded-md">
+            <div className="logo-neon-glow-soft relative size-12 shrink-0 overflow-hidden rounded-md">
               <Image
                 src="/logo.png"
                 alt="MF Superior Products"

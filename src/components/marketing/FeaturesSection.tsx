@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef } from 'react';
+import { CascadeText } from './CascadeText';
 
 interface FeatureItem {
   num: string;
@@ -19,104 +20,112 @@ const items: FeatureItem[] = [
 ];
 
 export function FeaturesSection() {
-  const [activeIndex, setActiveIndex] = useState(0);
-  const [videoOpacity, setVideoOpacity] = useState(1);
-  const [displayedVideo, setDisplayedVideo] = useState(items[0].video);
-  const [displayedOverlay, setDisplayedOverlay] = useState<string | null>(items[0].overlay);
-
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const sectionRef = useRef<HTMLElement>(null);
   const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
-  const pendingIndexRef = useRef<number | null>(null);
-  const isTransitioningRef = useRef(false);
-
-  // Crossfade to new video when active index changes
-  const transitionToIndex = useCallback((newIndex: number) => {
-    if (isTransitioningRef.current) {
-      pendingIndexRef.current = newIndex;
-      return;
-    }
-
-    if (displayedVideo === items[newIndex].video) return;
-
-    isTransitioningRef.current = true;
-
-    // Fade out
-    setVideoOpacity(0);
-
-    setTimeout(() => {
-      setDisplayedVideo(items[newIndex].video);
-      setDisplayedOverlay(items[newIndex].overlay);
-
-      // Allow one frame for the src to update, then fade in
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          setVideoOpacity(1);
-          setTimeout(() => {
-            isTransitioningRef.current = false;
-            // If a pending index was queued, run it now
-            if (pendingIndexRef.current !== null && pendingIndexRef.current !== newIndex) {
-              const pending = pendingIndexRef.current;
-              pendingIndexRef.current = null;
-              transitionToIndex(pending);
-            } else {
-              pendingIndexRef.current = null;
-            }
-          }, 400);
-        });
-      });
-    }, 400);
-  }, [displayedVideo]);
+  const videoRefs = useRef<(HTMLVideoElement | null)[]>([]);
+  const overlayRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const headingRefs = useRef<(HTMLHeadingElement | null)[]>([]);
+  const activeRef = useRef(0);
 
   useEffect(() => {
-    transitionToIndex(activeIndex);
-  }, [activeIndex, transitionToIndex]);
+    const section = sectionRef.current;
+    if (!section) return;
 
-  // IntersectionObserver: activate item when it crosses the middle of the viewport
-  useEffect(() => {
-    const observers: IntersectionObserver[] = [];
-
-    itemRefs.current.forEach((el, index) => {
-      if (!el) return;
-
-      const observer = new IntersectionObserver(
-        (entries) => {
-          entries.forEach((entry) => {
-            if (entry.isIntersecting) {
-              setActiveIndex(index);
-            }
-          });
-        },
-        {
-          threshold: 0.5,
-          rootMargin: '-20% 0px -20% 0px',
-        }
-      );
-
-      observer.observe(el);
-      observers.push(observer);
+    // Pause all videos — we drive currentTime from scroll.
+    videoRefs.current.forEach((v, i) => {
+      if (!v) return;
+      v.pause();
+      // Set initial state: first video visible, rest hidden.
+      v.style.opacity = i === 0 ? '1' : '0';
+    });
+    headingRefs.current.forEach((h, i) => {
+      if (h) h.style.color = i === 0 ? '#111111' : '#ddd';
+    });
+    overlayRefs.current.forEach((o, i) => {
+      if (o) o.style.opacity = i === 0 ? '1' : '0';
     });
 
+    let raf = 0;
+
+    const tick = () => {
+      const viewH = window.innerHeight;
+
+      // Find the item whose center is closest to 40% from top (the "focus" row).
+      let bestIndex = activeRef.current;
+      let bestDist = Infinity;
+      itemRefs.current.forEach((el, i) => {
+        if (!el) return;
+        const rect = el.getBoundingClientRect();
+        if (rect.bottom < 0 || rect.top > viewH) return; // off-screen
+        const center = (rect.top + rect.bottom) / 2;
+        const dist = Math.abs(center - viewH * 0.4);
+        if (dist < bestDist) {
+          bestDist = dist;
+          bestIndex = i;
+        }
+      });
+
+      // Swap active item when it changes — pure DOM, no React state.
+      if (bestIndex !== activeRef.current) {
+        const prev = activeRef.current;
+
+        const pv = videoRefs.current[prev];
+        if (pv) { pv.style.opacity = '0'; pv.pause(); }
+        const ph = headingRefs.current[prev];
+        if (ph) ph.style.color = '#ddd';
+        const po = overlayRefs.current[prev];
+        if (po) po.style.opacity = '0';
+
+        const nv = videoRefs.current[bestIndex];
+        if (nv) { nv.style.opacity = '1'; nv.pause(); }
+        const nh = headingRefs.current[bestIndex];
+        if (nh) nh.style.color = '#111111';
+        const no = overlayRefs.current[bestIndex];
+        if (no) no.style.opacity = '1';
+
+        activeRef.current = bestIndex;
+      }
+
+      // Scrub the active video frame-by-frame.
+      // Progress: 0 when item center at 75% of viewport, 1 when center at 25%.
+      const activeEl = itemRefs.current[bestIndex];
+      const activeVideo = videoRefs.current[bestIndex];
+      if (activeEl && activeVideo && activeVideo.readyState >= 2 && activeVideo.duration > 0) {
+        const rect = activeEl.getBoundingClientRect();
+        const center = (rect.top + rect.bottom) / 2;
+        const progress = 1 - (center - viewH * 0.25) / (viewH * 0.5);
+        activeVideo.currentTime = Math.max(0, Math.min(1, progress)) * activeVideo.duration;
+      }
+
+      raf = requestAnimationFrame(tick);
+    };
+
+    // Gate the RAF loop on section visibility — saves CPU when off-screen.
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          raf = requestAnimationFrame(tick);
+        } else {
+          cancelAnimationFrame(raf);
+        }
+      },
+      { threshold: 0 }
+    );
+    io.observe(section);
+
     return () => {
-      observers.forEach((obs) => obs.disconnect());
+      cancelAnimationFrame(raf);
+      io.disconnect();
     };
   }, []);
 
   return (
     <section
-      style={{
-        width: '100%',
-        backgroundColor: '#fff',
-        paddingTop: '120px',
-      }}
+      ref={sectionRef}
+      style={{ width: '100%', backgroundColor: '#fff', paddingTop: '120px' }}
     >
-      {/* Section heading block — centered above two-column layout */}
-      <div
-        style={{
-          textAlign: 'center',
-          paddingLeft: '5.128vw',
-          paddingRight: '5.128vw',
-        }}
-      >
+      {/* Section heading */}
+      <div style={{ textAlign: 'center', paddingLeft: '5.128vw', paddingRight: '5.128vw' }}>
         <p
           style={{
             fontSize: '20px',
@@ -127,55 +136,45 @@ export function FeaturesSection() {
             marginBottom: '24px',
           }}
         >
-          Reliable freight delivery built for Colorado's toughest routes.
+          Reliable freight delivery built for Colorado&apos;s toughest routes.
         </p>
-
         <h2
           style={{
             fontSize: 'clamp(32px, 4vw, 56px)',
             fontWeight: 400,
-            color: '#111111',
             lineHeight: 1.15,
             letterSpacing: '-0.02em',
             fontFamily: 'var(--font-primary)',
             maxWidth: '900px',
             margin: '0 auto 80px',
+            color: '#111111',
           }}
         >
-          Imagine a delivery partner that works as hard as you do — from pickup to final mile.
+          <CascadeText
+            text="Imagine a delivery partner that works as hard as you do — from pickup to final mile."
+            stagger={0.018}
+            duration={0.5}
+            finalColor="#111111"
+            flashColor="#A0B41E"
+            restColor="rgba(17,17,17,0.18)"
+          />
         </h2>
       </div>
 
       {/* Two-column layout */}
       <div
         className="mkt-features-grid"
-        style={{
-          display: 'flex',
-          alignItems: 'flex-start',
-          width: '100%',
-        }}
+        style={{ display: 'flex', alignItems: 'flex-start', width: '100%' }}
       >
-        {/* Left column — scrollable, 42% width */}
-        <div
-          className="mkt-features-left"
-          style={{
-            width: '42%',
-            flexShrink: 0,
-          }}
-        >
+        {/* Left: scrollable item list */}
+        <div className="mkt-features-left" style={{ width: '42%', flexShrink: 0 }}>
           {items.map((item, index) => (
             <div
               key={item.num}
-              ref={(el) => {
-                itemRefs.current[index] = el;
-              }}
+              ref={(el) => { itemRefs.current[index] = el; }}
               className="mkt-features-item"
-              style={{
-                padding: '80px 5.128vw 80px 5.128vw',
-                minHeight: '280px',
-              }}
+              style={{ padding: '80px 5.128vw 80px 5.128vw', minHeight: '280px' }}
             >
-              {/* Item number */}
               <p
                 style={{
                   fontSize: '11px',
@@ -188,17 +187,17 @@ export function FeaturesSection() {
               >
                 {item.num}
               </p>
-
-              {/* Item heading */}
               <h3
+                ref={(el) => { headingRefs.current[index] = el; }}
                 style={{
                   fontSize: 'clamp(24px, 2.5vw, 38px)',
                   fontWeight: 400,
                   lineHeight: 1.15,
                   letterSpacing: '-0.02em',
                   fontFamily: 'var(--font-primary)',
-                  color: activeIndex === index ? '#111111' : '#ddd',
-                  transition: 'color 0.5s ease',
+                  // Initial color set in JS after mount — avoid hydration mismatch
+                  color: '#ddd',
+                  transition: 'color 0.4s ease',
                   margin: 0,
                 }}
               >
@@ -208,7 +207,7 @@ export function FeaturesSection() {
           ))}
         </div>
 
-        {/* Right column — sticky panel, 58% width */}
+        {/* Right: sticky video stack — all 6 pre-rendered, only active visible */}
         <div
           className="mkt-features-right"
           style={{
@@ -229,43 +228,55 @@ export function FeaturesSection() {
               overflow: 'hidden',
             }}
           >
-            {/* Video element */}
-            <video
-              ref={videoRef}
-              key={displayedVideo}
-              src={displayedVideo}
-              autoPlay
-              muted
-              loop
-              playsInline
-              style={{
-                width: '100%',
-                height: '100%',
-                objectFit: 'cover',
-                display: 'block',
-                opacity: videoOpacity,
-                transition: 'opacity 0.4s ease',
-              }}
-            />
-
-            {/* Overlay badge */}
-            {displayedOverlay && (
-              <div
+            {items.map((item, index) => (
+              <video
+                key={item.video}
+                ref={(el) => { videoRefs.current[index] = el; }}
+                src={item.video}
+                muted
+                playsInline
+                preload="auto"
                 style={{
                   position: 'absolute',
-                  top: '16px',
-                  right: '16px',
-                  backgroundColor: 'rgba(0, 0, 0, 0.7)',
-                  color: '#D4E030',
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: '12px',
-                  letterSpacing: '0.15em',
-                  padding: '6px 12px',
-                  borderRadius: '4px',
+                  inset: 0,
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                  display: 'block',
+                  // Initial opacity controlled by JS after mount
+                  opacity: 0,
+                  transition: 'opacity 0.35s ease',
+                  willChange: 'opacity',
                 }}
-              >
-                {displayedOverlay}
-              </div>
+              />
+            ))}
+
+            {/* Overlay badges — one per overlay item, CSS crossfaded */}
+            {items.map((item, index) =>
+              item.overlay ? (
+                <div
+                  key={item.overlay}
+                  ref={(el) => { overlayRefs.current[index] = el; }}
+                  style={{
+                    position: 'absolute',
+                    top: '16px',
+                    right: '16px',
+                    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                    color: '#D4E030',
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: '12px',
+                    letterSpacing: '0.15em',
+                    padding: '6px 12px',
+                    borderRadius: '4px',
+                    opacity: 0,
+                    transition: 'opacity 0.35s ease',
+                    willChange: 'opacity',
+                    pointerEvents: 'none',
+                  }}
+                >
+                  {item.overlay}
+                </div>
+              ) : null
             )}
           </div>
         </div>

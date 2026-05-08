@@ -77,7 +77,7 @@ export function Sidebar() {
           href="/dashboard"
           className="flex items-center gap-2 transition-opacity hover:opacity-80"
         >
-          <div className="relative size-8 shrink-0 overflow-hidden rounded-md">
+          <div className="logo-neon-glow relative size-8 shrink-0 overflow-hidden rounded-md">
             <Image
               src="/logo.png"
               alt="MF Superior Products"
@@ -145,7 +145,7 @@ export function Sidebar() {
               className="flex items-center gap-3 transition-opacity hover:opacity-80"
               onClick={() => setOpen(false)}
             >
-              <div className="relative size-9 shrink-0 overflow-hidden rounded-md">
+              <div className="logo-neon-glow relative size-9 shrink-0 overflow-hidden rounded-md">
                 <Image
                   src="/logo.png"
                   alt="MF Superior Products"
@@ -190,7 +190,7 @@ function SidebarBrand() {
       className="flex items-center gap-3 border-b border-border px-5 py-4 transition-opacity hover:opacity-80"
       title="Go to MF Superior landing page"
     >
-      <div className="relative size-9 shrink-0 overflow-hidden rounded-md">
+      <div className="logo-neon-glow relative size-9 shrink-0 overflow-hidden rounded-md">
         <Image
           src="/logo.png"
           alt="MF Superior Products"
