@@ -24,6 +24,7 @@ export function TypewriterSection() {
 
   return (
     <section
+      className="mkt-typewriter-section"
       style={{
         background: '#000',
         minHeight: '100vh',
@@ -52,7 +53,7 @@ export function TypewriterSection() {
         style={{
           position: 'relative',
           zIndex: 1,
-          fontSize: 'clamp(32px, 5.5vw, 88px)',
+          fontSize: 'clamp(28px, 5.5vw, 88px)',
           fontWeight: 400,
           lineHeight: 1.1,
           textAlign: 'center',

@@ -16,6 +16,7 @@ export function HeroSection() {
 
   return (
     <section
+      className="mkt-hero-section"
       style={{
         position: 'relative',
         minHeight: '200vh',
@@ -92,6 +93,7 @@ export function HeroSection() {
       >
         {/* Main text block */}
         <div
+          className="mkt-hero-text"
           style={{
             position: 'absolute',
             bottom: 0,
@@ -102,6 +104,7 @@ export function HeroSection() {
         >
           {/* Small label above heading */}
           <p
+            className="mkt-hero-label"
             style={{
               fontSize: '16px',
               color: 'rgba(255, 255, 255, 0.6)',
@@ -117,7 +120,7 @@ export function HeroSection() {
           {/* Large display heading */}
           <h1
             style={{
-              fontSize: 'clamp(48px, 6vw, 96px)',
+              fontSize: 'clamp(36px, 6vw, 96px)',
               fontWeight: 400,
               color: '#fff',
               lineHeight: 1.05,

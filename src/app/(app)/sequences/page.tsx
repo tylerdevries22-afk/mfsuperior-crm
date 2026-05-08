@@ -32,9 +32,9 @@ export default async function SequencesPage() {
   void eq;
 
   return (
-    <div className="px-8 py-8">
-      <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
-        <div>
+    <div className="px-4 py-6 sm:px-8 sm:py-8">
+      <header className="mb-6 flex flex-wrap items-end justify-between gap-3">
+        <div className="min-w-0">
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">
             Sequences
           </h1>
@@ -44,8 +44,8 @@ export default async function SequencesPage() {
           </p>
         </div>
         {rows.length === 0 && (
-          <form action={seedKitTemplatesAction}>
-            <Button type="submit" variant="secondary">
+          <form action={seedKitTemplatesAction} className="w-full sm:w-auto">
+            <Button type="submit" variant="secondary" className="w-full sm:w-auto">
               <Sparkles /> Seed kit (Day 0/4/10)
             </Button>
           </form>
@@ -76,9 +76,9 @@ export default async function SequencesPage() {
                 href={`/sequences/${s.id}`}
                 className="group block rounded-md border border-border bg-card transition-colors active:translate-y-[1px] hover:border-brand-300"
               >
-                <div className="flex items-start justify-between gap-3 px-5 py-4">
+                <div className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-start sm:justify-between sm:px-5">
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <GitBranch className="size-4 text-muted-foreground" />
                       <h3 className="truncate text-sm font-semibold text-foreground transition-colors group-hover:text-primary">
                         {s.name}
@@ -91,7 +91,7 @@ export default async function SequencesPage() {
                       {s.stepCount} step{s.stepCount === 1 ? "" : "s"}
                     </p>
                   </div>
-                  <div className="grid grid-cols-3 gap-3 text-right">
+                  <div className="grid grid-cols-3 gap-3 sm:text-right">
                     <Stat label="Active" value={s.activeEnrollments} accent />
                     <Stat label="Paused" value={s.pausedEnrollments} muted />
                     <Stat label="Done" value={s.completedEnrollments} muted />

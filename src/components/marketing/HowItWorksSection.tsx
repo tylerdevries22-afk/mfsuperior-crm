@@ -170,9 +170,10 @@ export function HowItWorksSection() {
           How It Works
         </p>
         <h2
+          className="mkt-howitworks-heading"
           style={{
             color: '#111111',
-            fontSize: 'clamp(28px, 3.5vw, 52px)',
+            fontSize: 'clamp(24px, 3.5vw, 52px)',
             fontWeight: 400,
             textAlign: 'center',
             maxWidth: '800px',
@@ -217,6 +218,7 @@ export function HowItWorksSection() {
           <form onSubmit={(e) => e.preventDefault()}>
             {/* First name + Last name */}
             <div
+              className="mkt-howitworks-form-row"
               style={{
                 display: 'grid',
                 gridTemplateColumns: '1fr 1fr',
@@ -308,6 +310,7 @@ export function HowItWorksSection() {
 
         {/* RIGHT — Floating dark contact card */}
         <div
+          className="mkt-howitworks-card"
           style={{
             position: 'sticky',
             top: '120px',
@@ -419,7 +422,7 @@ export function HowItWorksSection() {
                 href="tel:+12564680751"
                 style={{
                   fontFamily: 'var(--font-primary)',
-                  fontSize: '28px',
+                  fontSize: 'clamp(22px, 4vw, 28px)',
                   fontWeight: 500,
                   color: '#fff',
                   textDecoration: 'none',

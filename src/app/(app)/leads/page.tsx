@@ -74,9 +74,9 @@ export default async function LeadsPage({
   const totalPages = Math.max(1, Math.ceil(count / PAGE_SIZE));
 
   return (
-    <div className="px-8 py-8">
-      <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
-        <div>
+    <div className="px-4 py-6 sm:px-8 sm:py-8">
+      <header className="mb-6 flex flex-wrap items-end justify-between gap-3">
+        <div className="min-w-0">
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">
             Leads
           </h1>
@@ -85,14 +85,14 @@ export default async function LeadsPage({
             ranked by score
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Link href="/leads/import">
-            <Button variant="secondary">
+        <div className="flex w-full items-center gap-2 sm:w-auto">
+          <Link href="/leads/import" className="flex-1 sm:flex-initial">
+            <Button variant="secondary" className="w-full sm:w-auto">
               <Upload /> Import
             </Button>
           </Link>
-          <Link href="/leads/new">
-            <Button>
+          <Link href="/leads/new" className="flex-1 sm:flex-initial">
+            <Button className="w-full sm:w-auto">
               <Plus /> New lead
             </Button>
           </Link>
@@ -104,7 +104,7 @@ export default async function LeadsPage({
         method="get"
         className="mb-5 flex flex-wrap items-center gap-2"
       >
-        <div className="relative flex-1 min-w-[220px]">
+        <div className="relative w-full min-w-0 sm:flex-1 sm:min-w-[220px]">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             name="q"
@@ -113,7 +113,7 @@ export default async function LeadsPage({
             className="pl-9"
           />
         </div>
-        <Select name="stage" defaultValue={stage ?? ""} className="w-40">
+        <Select name="stage" defaultValue={stage ?? ""} className="flex-1 sm:flex-initial sm:w-40">
           <option value="">All stages</option>
           {STAGES.map((s) => (
             <option key={s} value={s}>
@@ -121,7 +121,7 @@ export default async function LeadsPage({
             </option>
           ))}
         </Select>
-        <Select name="tier" defaultValue={tier ?? ""} className="w-32">
+        <Select name="tier" defaultValue={tier ?? ""} className="flex-1 sm:flex-initial sm:w-32">
           <option value="">All tiers</option>
           {TIERS.map((t) => (
             <option key={t} value={t}>

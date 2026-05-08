@@ -1,6 +1,7 @@
 export function TestimonialSection() {
   return (
     <section
+      className="mkt-testimonial-section"
       style={{
         position: 'relative',
         width: '100%',
@@ -36,6 +37,7 @@ export function TestimonialSection() {
 
       {/* Top-left white notch cutout */}
       <div
+        className="mkt-testimonial-notch"
         style={{
           position: 'absolute',
           top: 0,
@@ -49,6 +51,7 @@ export function TestimonialSection() {
 
       {/* Top-right white notch cutout */}
       <div
+        className="mkt-testimonial-notch mkt-testimonial-notch-right"
         style={{
           position: 'absolute',
           top: 0,
@@ -62,6 +65,7 @@ export function TestimonialSection() {
 
       {/* Content */}
       <div
+        className="mkt-testimonial-content"
         style={{
           position: 'relative',
           zIndex: 10,
@@ -74,7 +78,7 @@ export function TestimonialSection() {
       >
         <blockquote
           style={{
-            fontSize: 'clamp(20px, 2.5vw, 36px)',
+            fontSize: 'clamp(18px, 2.5vw, 36px)',
             fontWeight: 400,
             color: '#fff',
             textAlign: 'center',

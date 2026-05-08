@@ -288,35 +288,93 @@ html.lenis body {
 
 /* ── Marketing mobile responsive overrides ───────────────────── */
 @media (max-width: 768px) {
-  /* Navbar */
+  /* Prevent horizontal page overflow on small screens */
+  html, body { overflow-x: hidden; }
+
+  /* Navbar — only show actions on mobile */
+  .mkt-navbar { padding: 8px 10px !important; width: calc(100% - 24px) !important; }
+  .mkt-nav-logo { display: none !important; }
   .mkt-nav-links-desktop { display: none !important; }
   .mkt-nav-actions-desktop { display: none !important; }
   .mkt-nav-mobile-actions { display: flex !important; }
 
+  /* Hero — relax 200vh scroll on mobile so the section is faster to clear */
+  .mkt-hero-section { min-height: 140vh !important; }
+  .mkt-hero-text { padding: 0 6vw 64px !important; }
+  .mkt-hero-label { font-size: 13px !important; }
+
+  /* Typewriter section — tighter padding on mobile */
+  .mkt-typewriter-section { min-height: 60vh !important; padding: 80px 0 !important; }
+
   /* Features section */
+  .mkt-features-section { padding-top: 64px !important; }
+  .mkt-features-intro-padding { padding-left: 6vw !important; padding-right: 6vw !important; }
+  .mkt-features-intro-lead { font-size: 16px !important; margin-bottom: 16px !important; }
+  .mkt-features-intro-heading { margin-bottom: 48px !important; }
   .mkt-features-grid { flex-direction: column !important; }
   .mkt-features-left { width: 100% !important; }
   .mkt-features-right { display: none !important; }
-  .mkt-features-item { padding: 40px 6vw !important; min-height: unset !important; }
+  .mkt-features-item {
+    padding: 32px 6vw !important;
+    min-height: unset !important;
+  }
+  /* On mobile every item is fully readable — no greyed-out states */
+  .mkt-features-item h3 { color: #111111 !important; }
+
+  /* YOS section — shorter sticky run on mobile */
+  .mkt-yos-section { height: 160vh !important; }
 
   /* Benefits section */
-  .mkt-benefits-strip { grid-template-columns: 1fr !important; gap: 16px !important; padding: 32px 6vw !important; }
-  .mkt-benefits-video { height: 56vw !important; min-height: 220px !important; }
+  .mkt-benefits-header { padding: 56px 6vw !important; }
+  .mkt-benefits-strip {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+    padding: 28px 6vw !important;
+  }
+  .mkt-benefits-strip-right { padding-top: 0 !important; }
+  .mkt-benefits-video { height: 56vw !important; min-height: 220px !important; max-height: 360px !important; }
 
-  /* HowItWorks section */
-  .mkt-howitworks-grid { grid-template-columns: 1fr !important; }
-  .mkt-howitworks-svg { display: none !important; }
+  /* Testimonial */
+  .mkt-testimonial-section { min-height: 60vh !important; }
+  .mkt-testimonial-content { padding: 64px 6vw !important; }
+  .mkt-testimonial-notch { width: 80px !important; height: 36px !important; border-bottom-right-radius: 24px !important; }
+  .mkt-testimonial-notch-right { border-bottom-left-radius: 24px !important; }
 
   /* Logos section */
-  .mkt-logos-grid { grid-template-columns: repeat(4, 1fr) !important; }
+  .mkt-logos-section { padding: 56px 6vw !important; }
+  .mkt-logos-grid { grid-template-columns: repeat(3, 1fr) !important; }
+  .mkt-logos-cell { padding: 20px 12px !important; }
+
+  /* HowItWorks section */
+  .mkt-howitworks-grid {
+    grid-template-columns: 1fr !important;
+    gap: 32px !important;
+    padding: 0 6vw 80px !important;
+  }
+  .mkt-howitworks-svg { display: none !important; }
+  .mkt-howitworks-card { position: static !important; padding: 28px !important; border-radius: 16px !important; }
+  .mkt-howitworks-form-row { grid-template-columns: 1fr !important; }
+  .mkt-howitworks-heading { padding: 0 6vw !important; margin-bottom: 40px !important; }
+
+  /* CTA section */
+  .mkt-cta-section { padding: 80px 6vw 56px !important; }
+  .mkt-cta-notch { width: 80px !important; height: 36px !important; border-bottom-right-radius: 24px !important; }
+  .mkt-cta-notch-right { border-bottom-left-radius: 24px !important; }
 
   /* Footer */
   .mkt-footer-grid { grid-template-columns: 1fr 1fr !important; gap: 32px !important; padding: 48px 6vw 32px !important; }
   .mkt-footer-brand { grid-column: 1 / -1 !important; }
-  .mkt-footer-bottom { flex-direction: column !important; gap: 8px !important; text-align: center !important; align-items: center !important; padding: 20px 6vw !important; }
+  .mkt-footer-bottom {
+    flex-direction: column !important;
+    gap: 8px !important;
+    text-align: center !important;
+    align-items: center !important;
+    padding: 20px 6vw !important;
+  }
 }
 
 @media (max-width: 480px) {
+  .mkt-nav-mobile-actions a[aria-label="Login"] { display: none !important; }
   .mkt-footer-grid { grid-template-columns: 1fr !important; }
-  .mkt-logos-grid { grid-template-columns: repeat(3, 1fr) !important; }
+  .mkt-logos-grid { grid-template-columns: repeat(2, 1fr) !important; }
 }
