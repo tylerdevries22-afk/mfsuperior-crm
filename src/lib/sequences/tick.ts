@@ -390,9 +390,16 @@ async function processOne(input: ProcessOneInput): Promise<Outcome> {
       .where(eq(leadSequenceEnrollments.id, enrollment.id));
 
     if (template.sendMode === "auto_send") {
+      // Move stage new -> contacted on first send so the lead drops out of
+      // the /leads worklist and the operator picks up the conversation in
+      // /inbox instead. Guarded so we never downgrade replied / won / lost.
       await db
         .update(leads)
-        .set({ lastContactedAt: sql`now()`, updatedAt: sql`now()` })
+        .set({
+          lastContactedAt: sql`now()`,
+          stage: sql`CASE WHEN ${leads.stage} = 'new' THEN 'contacted'::stage ELSE ${leads.stage} END`,
+          updatedAt: sql`now()`,
+        })
         .where(eq(leads.id, lead.id));
     }
 

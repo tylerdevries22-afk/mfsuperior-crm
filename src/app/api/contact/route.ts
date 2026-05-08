@@ -4,8 +4,6 @@ import { leads, notifications } from "@/lib/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { env } from "@/lib/env";
 
-const APP_URL = env().APP_URL;
-const RESEND_API_KEY = env().RESEND_API_KEY;
 const FROM_ADDRESS = "MF Superior Solutions <info@mfsuperiorproducts.com>";
 const NOTIFY_ADDRESS = "info@mfsuperiorproducts.com";
 
@@ -28,7 +26,8 @@ function escHtml(s: string): string {
 }
 
 async function sendEmail(to: string, subject: string, html: string, text: string) {
-  if (!RESEND_API_KEY) {
+  const apiKey = env().RESEND_API_KEY;
+  if (!apiKey) {
     // Log but don't fail — DB write is more important than email in dev
     console.warn("[contact/route] RESEND_API_KEY not set; skipping email send.");
     return;
@@ -36,7 +35,7 @@ async function sendEmail(to: string, subject: string, html: string, text: string
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${RESEND_API_KEY}`,
+      Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ from: FROM_ADDRESS, to: [to], subject, html, text }),
@@ -48,6 +47,7 @@ async function sendEmail(to: string, subject: string, html: string, text: string
 }
 
 export async function POST(req: NextRequest) {
+  const APP_URL = env().APP_URL;
   let body: ContactBody;
   try {
     body = (await req.json()) as ContactBody;

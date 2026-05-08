@@ -31,8 +31,24 @@ export type Env = z.infer<typeof schema>;
 
 let cached: Env | undefined;
 
+// During `next build` Next imports every route module to collect page data.
+// On Vercel the build environment frequently lacks the runtime secrets that
+// only get injected into serverless functions, so a hard schema throw at
+// import time aborts the deployment. Detect the build phase (or an explicit
+// SKIP_ENV_VALIDATION flag) and fall back to an unvalidated view of
+// process.env — runtime callers still get full validation.
+function shouldSkipValidation(): boolean {
+  return (
+    process.env.SKIP_ENV_VALIDATION === "1" ||
+    process.env.NEXT_PHASE === "phase-production-build"
+  );
+}
+
 export function env(): Env {
   if (cached) return cached;
+  if (shouldSkipValidation()) {
+    return process.env as unknown as Env;
+  }
   const parsed = schema.safeParse(process.env);
   if (!parsed.success) {
     const msg = parsed.error.issues

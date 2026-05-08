@@ -8,7 +8,6 @@ import {
   users,
   verificationTokens,
 } from "@/lib/db/schema";
-import { env } from "@/lib/env";
 
 const SCOPES = [
   "openid",
@@ -20,6 +19,10 @@ const SCOPES = [
   "https://www.googleapis.com/auth/drive.file",
 ].join(" ");
 
+// NextAuth() runs at module load. Read provider creds straight from
+// process.env so build-time page-data collection never trips strict env
+// validation; serverless cold starts always re-evaluate this module with the
+// runtime env present.
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: DrizzleAdapter(db, {
     usersTable: users,
@@ -29,8 +32,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   }),
   providers: [
     Google({
-      clientId: env().AUTH_GOOGLE_ID,
-      clientSecret: env().AUTH_GOOGLE_SECRET,
+      clientId: process.env.AUTH_GOOGLE_ID ?? "",
+      clientSecret: process.env.AUTH_GOOGLE_SECRET ?? "",
       authorization: {
         params: {
           scope: SCOPES,

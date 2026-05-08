@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { and, asc, desc, eq, ilike, isNotNull, isNull, or, sql, type SQL } from "drizzle-orm";
-import { Plus, Upload, Search } from "lucide-react";
+import { Plus, Upload, Search, CheckCircle2, AlertTriangle } from "lucide-react";
 import { db } from "@/lib/db/client";
-import { leads } from "@/lib/db/schema";
+import { emailSequences, leads } from "@/lib/db/schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import { StageChip, TierChip } from "@/components/leads/stage-chip";
 import { Card, CardContent } from "@/components/ui/card";
+import { LeadsTable } from "@/components/leads/leads-table";
 
 export const metadata = { title: "Leads" };
 
@@ -21,7 +21,27 @@ type Search = {
   stage?: string;
   tier?: string;
   page?: string;
+  // Bulk-send result banner params (from bulkSendAction redirect).
+  sent?: string;
+  requested?: string;
+  enrolled?: string;
+  already?: string;
+  suppressed?: string;
+  no_step?: string;
+  no_lead?: string;
+  tick_sent?: string;
+  tick_drafted?: string;
+  tick_failed?: string;
+  tick_capped?: string;
+  tick_no_email?: string;
+  tick_notes?: string;
 };
+
+// /leads is the worklist of leads still to contact. Once a lead has been
+// emailed, its stage advances to "contacted" (see lib/sequences/tick.ts) and
+// the conversation lives in /inbox. Default the filter to stage=new; the
+// dropdown still exposes every stage and an "All stages" opt-in.
+const DEFAULT_STAGE: (typeof STAGES)[number] = "new";
 
 export default async function LeadsPage({
   searchParams,
@@ -30,9 +50,14 @@ export default async function LeadsPage({
 }) {
   const sp = await searchParams;
   const q = (sp.q ?? "").trim();
-  const stage = STAGES.includes((sp.stage ?? "") as (typeof STAGES)[number])
-    ? (sp.stage as (typeof STAGES)[number])
-    : undefined;
+  const stageParam = sp.stage ?? "";
+  const showAllStages = stageParam === "all";
+  const stage =
+    !showAllStages && STAGES.includes(stageParam as (typeof STAGES)[number])
+      ? (stageParam as (typeof STAGES)[number])
+      : !showAllStages && stageParam === ""
+        ? DEFAULT_STAGE
+        : undefined;
   const tier = TIERS.includes((sp.tier ?? "") as (typeof TIERS)[number])
     ? (sp.tier as (typeof TIERS)[number])
     : undefined;
@@ -55,24 +80,31 @@ export default async function LeadsPage({
 
   const where = filters.length === 1 ? filters[0] : and(...filters);
 
-  const [{ count }] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(leads)
-    .where(where);
-
-  const rows = await db
-    .select()
-    .from(leads)
-    .where(where)
-    .orderBy(
-      desc(isNotNull(leads.score)),
-      desc(leads.score),
-      asc(leads.companyName),
-    )
-    .limit(PAGE_SIZE)
-    .offset((page - 1) * PAGE_SIZE);
+  const [[{ count }], rows, sequenceRows] = await Promise.all([
+    db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(leads)
+      .where(where),
+    db
+      .select()
+      .from(leads)
+      .where(where)
+      .orderBy(
+        desc(isNotNull(leads.score)),
+        desc(leads.score),
+        asc(leads.companyName),
+      )
+      .limit(PAGE_SIZE)
+      .offset((page - 1) * PAGE_SIZE),
+    db
+      .select({ id: emailSequences.id, name: emailSequences.name })
+      .from(emailSequences)
+      .where(eq(emailSequences.status, "active"))
+      .orderBy(asc(emailSequences.name)),
+  ]);
 
   const totalPages = Math.max(1, Math.ceil(count / PAGE_SIZE));
+  const showSentBanner = sp.sent === "1";
 
   return (
     <div className="px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
@@ -82,8 +114,13 @@ export default async function LeadsPage({
             Leads
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            <span className="font-mono tabular-nums">{count}</span> active ·
-            ranked by score
+            <span className="font-mono tabular-nums">{count}</span>
+            {stage === "new"
+              ? " unworked"
+              : stage
+                ? ` · stage ${stage}`
+                : " active"}
+            {" · "}ranked by score
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -114,13 +151,18 @@ export default async function LeadsPage({
             className="pl-9"
           />
         </div>
-        <Select name="stage" defaultValue={stage ?? ""} className="w-40">
-          <option value="">All stages</option>
+        <Select
+          name="stage"
+          defaultValue={showAllStages ? "all" : stage ?? DEFAULT_STAGE}
+          className="w-40"
+        >
           {STAGES.map((s) => (
             <option key={s} value={s}>
               {s[0].toUpperCase() + s.slice(1)}
+              {s === DEFAULT_STAGE ? " (default)" : ""}
             </option>
           ))}
+          <option value="all">All stages</option>
         </Select>
         <Select name="tier" defaultValue={tier ?? ""} className="w-32">
           <option value="">All tiers</option>
@@ -141,16 +183,20 @@ export default async function LeadsPage({
         )}
       </form>
 
+      {showSentBanner && <SendResultBanner sp={sp} />}
+
       {rows.length === 0 ? (
-        <EmptyState hasFilters={!!(q || stage || tier)} />
+        <EmptyState hasFilters={!!(q || stage || tier || showAllStages)} />
       ) : (
         <>
-          <DesktopTable rows={rows} />
-          <MobileCardList rows={rows} />
+          {/* pb-24 leaves room for the sticky bulk-action bar. */}
+          <div className="pb-24">
+            <LeadsTable rows={rows} sequences={sequenceRows} />
+          </div>
           <Pagination
             page={page}
             totalPages={totalPages}
-            params={{ q, stage, tier }}
+            params={{ q, stage: showAllStages ? "all" : stage, tier }}
           />
         </>
       )}
@@ -158,120 +204,80 @@ export default async function LeadsPage({
   );
 }
 
-/* ───── Desktop table ────────────────────────────────────────── */
+/* ───── Send-result banner ───────────────────────────────────── */
 
-function DesktopTable({
-  rows,
-}: {
-  rows: Array<typeof leads.$inferSelect>;
-}) {
+function SendResultBanner({ sp }: { sp: Search }) {
+  const requested = Number(sp.requested ?? 0);
+  const enrolled = Number(sp.enrolled ?? 0);
+  const already = Number(sp.already ?? 0);
+  const suppressed = Number(sp.suppressed ?? 0);
+  const noStep = Number(sp.no_step ?? 0);
+  const tickSent = Number(sp.tick_sent ?? 0);
+  const tickDrafted = Number(sp.tick_drafted ?? 0);
+  const tickFailed = Number(sp.tick_failed ?? 0);
+  const tickCapped = Number(sp.tick_capped ?? 0);
+  const tickNoEmail = Number(sp.tick_no_email ?? 0);
+
+  const hasIssue =
+    tickFailed > 0 || suppressed > 0 || noStep > 0 || tickCapped > 0 || tickNoEmail > 0;
+  const Icon = hasIssue ? AlertTriangle : CheckCircle2;
+  const color = hasIssue ? "warning" : "success";
+
   return (
-    <div className="hidden md:block overflow-hidden rounded-md border border-border">
-      <div className="max-h-[calc(100vh-260px)] overflow-y-auto">
-        <table className="w-full text-sm">
-          <thead className="sticky top-0 z-10 bg-card text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            <tr className="border-b border-border">
-              <th className="px-3 py-2.5 text-right font-medium w-12">#</th>
-              <th className="px-2 py-2.5 font-medium w-12">Tier</th>
-              <th className="px-2 py-2.5 text-right font-medium w-16">Score</th>
-              <th className="px-3 py-2.5 font-medium">Company</th>
-              <th className="px-3 py-2.5 font-medium">Vertical</th>
-              <th className="px-3 py-2.5 font-medium">City</th>
-              <th className="px-3 py-2.5 font-medium">Stage</th>
-              <th className="px-3 py-2.5 font-medium">Last contacted</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border bg-background">
-            {rows.map((lead, i) => (
-              <tr
-                key={lead.id}
-                className="group transition-colors hover:bg-secondary/40"
-              >
-                <td className="px-3 py-2.5 text-right font-mono text-xs tabular-nums text-muted-foreground">
-                  {i + 1}
-                </td>
-                <td className="px-2 py-2.5">
-                  <TierChip tier={lead.tier} />
-                </td>
-                <td className="px-2 py-2.5 text-right font-mono text-sm tabular-nums text-foreground">
-                  {lead.score ?? <span className="text-muted-foreground">—</span>}
-                </td>
-                <td className="px-3 py-2.5">
-                  <Link
-                    href={`/leads/${lead.id}`}
-                    className="font-medium text-foreground transition-colors hover:text-primary"
-                  >
-                    {lead.companyName ?? "—"}
-                  </Link>
-                  {lead.email && (
-                    <p className="font-mono text-xs text-muted-foreground">
-                      {lead.email}
-                    </p>
-                  )}
-                </td>
-                <td className="px-3 py-2.5 text-muted-foreground">
-                  {lead.vertical ?? "—"}
-                </td>
-                <td className="px-3 py-2.5 text-muted-foreground">
-                  {lead.city ?? "—"}
-                  {lead.state ? `, ${lead.state}` : ""}
-                </td>
-                <td className="px-3 py-2.5">
-                  <StageChip stage={lead.stage} />
-                </td>
-                <td className="px-3 py-2.5 font-mono text-xs tabular-nums text-muted-foreground">
-                  {lead.lastContactedAt
-                    ? new Date(lead.lastContactedAt).toISOString().slice(0, 10)
-                    : "—"}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+    <div
+      className={
+        "mb-5 flex items-start gap-3 rounded-md border px-4 py-3 text-sm " +
+        (color === "warning"
+          ? "border-warning/40 bg-warning/10"
+          : "border-success/40 bg-success/10")
+      }
+    >
+      <Icon
+        className={
+          "mt-0.5 size-4 shrink-0 " +
+          (color === "warning" ? "text-warning" : "text-success")
+        }
+      />
+      <div className="min-w-0 flex-1 space-y-1">
+        <p className="font-medium text-foreground">
+          Send fired for {requested} lead{requested === 1 ? "" : "s"}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          {[
+            tickSent > 0 ? `${tickSent} sent` : null,
+            tickDrafted > 0 ? `${tickDrafted} drafted` : null,
+            enrolled > 0 ? `${enrolled} newly enrolled` : null,
+            already > 0 ? `${already} already enrolled` : null,
+            suppressed > 0 ? `${suppressed} suppressed` : null,
+            noStep > 0 ? `${noStep} sequence has no active step` : null,
+            tickCapped > 0 ? `${tickCapped} held by daily cap` : null,
+            tickNoEmail > 0 ? `${tickNoEmail} skipped (no email)` : null,
+            tickFailed > 0 ? `${tickFailed} failed` : null,
+          ]
+            .filter(Boolean)
+            .join(" · ") || "No work to do."}
+        </p>
+        {sp.tick_notes && (
+          <ul className="text-xs text-muted-foreground">
+            {decodeURIComponent(sp.tick_notes)
+              .split("|")
+              .filter(Boolean)
+              .map((n) => (
+                <li key={n}>· {n}</li>
+              ))}
+          </ul>
+        )}
+        <p className="text-xs text-muted-foreground">
+          Successful sends advanced from{" "}
+          <span className="font-mono">stage=new</span> to{" "}
+          <span className="font-mono">contacted</span> and now live in{" "}
+          <Link href="/inbox" className="underline hover:text-foreground">
+            /inbox
+          </Link>
+          .
+        </p>
       </div>
     </div>
-  );
-}
-
-/* ───── Mobile card list ─────────────────────────────────────── */
-
-function MobileCardList({
-  rows,
-}: {
-  rows: Array<typeof leads.$inferSelect>;
-}) {
-  return (
-    <ul className="md:hidden space-y-2">
-      {rows.map((lead) => (
-        <li key={lead.id}>
-          <Link
-            href={`/leads/${lead.id}`}
-            className="block rounded-md border border-border bg-card px-4 py-3 transition-colors active:translate-y-[1px] hover:bg-secondary/40"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="truncate font-medium text-foreground">
-                  {lead.companyName ?? "—"}
-                </p>
-                <p className="truncate text-xs text-muted-foreground">
-                  {lead.vertical ?? "—"}
-                  {lead.city ? ` · ${lead.city}` : ""}
-                </p>
-              </div>
-              <div className="flex shrink-0 items-center gap-2">
-                <TierChip tier={lead.tier} />
-                <span className="font-mono text-sm tabular-nums">
-                  {lead.score ?? "—"}
-                </span>
-              </div>
-            </div>
-            <div className="mt-2">
-              <StageChip stage={lead.stage} />
-            </div>
-          </Link>
-        </li>
-      ))}
-    </ul>
   );
 }
 

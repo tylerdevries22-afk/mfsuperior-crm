@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import {
   addSuppressionAction,
   manualPollAction,
@@ -113,10 +114,36 @@ export default async function AdminPage({
               <span className="font-mono">/api/cron/tick-sequences</span>.
               You can run it manually here for local testing.
             </p>
-            <form action={manualTickAction}>
+            <form action={manualTickAction} className="flex flex-wrap items-center gap-2">
               <Button type="submit">
                 <Play /> Run tick now
               </Button>
+              <InfoTooltip label="What does Run tick do?">
+                <p className="font-medium text-foreground">Run tick now</p>
+                <p className="mt-1 text-muted-foreground">
+                  Fires the cold-pitch send pipeline. Scans every active
+                  enrollment whose <span className="font-mono">nextSendAt</span>{" "}
+                  is due, picks the right template step, personalizes it with
+                  the lead&apos;s fields, then injects:
+                </p>
+                <ul className="mt-1.5 ml-4 list-disc space-y-0.5 text-muted-foreground">
+                  <li>compliance footer + unsubscribe link</li>
+                  <li>open-tracking pixel</li>
+                  <li>click-tracking on every link</li>
+                </ul>
+                <p className="mt-2 text-muted-foreground">
+                  On a successful auto-send: lead stage advances{" "}
+                  <span className="font-mono">new → contacted</span>,{" "}
+                  <span className="font-mono">lastContactedAt</span> is stamped,
+                  and the enrollment moves to the next step. Templates set to{" "}
+                  <span className="font-mono">draft</span> mode stage a Gmail
+                  draft instead of sending.
+                </p>
+                <p className="mt-2 text-muted-foreground">
+                  Production: cron every 15 min via{" "}
+                  <span className="font-mono">/api/cron/tick-sequences</span>.
+                </p>
+              </InfoTooltip>
             </form>
 
             {ranTick && (
@@ -160,10 +187,40 @@ export default async function AdminPage({
               Detects replies and bounces on every active enrollment's Gmail
               thread, idempotently.
             </p>
-            <form action={manualPollAction}>
+            <form action={manualPollAction} className="flex flex-wrap items-center gap-2">
               <Button type="submit" variant="secondary">
                 <Inbox /> Run poll now
               </Button>
+              <InfoTooltip label="What does Run poll do?">
+                <p className="font-medium text-foreground">Run poll now</p>
+                <p className="mt-1 text-muted-foreground">
+                  Sweeps the Gmail thread of every active enrollment for new{" "}
+                  <span className="font-medium text-foreground">replies</span>{" "}
+                  and{" "}
+                  <span className="font-medium text-foreground">bounces</span>.
+                </p>
+                <ul className="mt-1.5 ml-4 list-disc space-y-0.5 text-muted-foreground">
+                  <li>
+                    Reply → enrollment paused, lead stage{" "}
+                    <span className="font-mono">→ replied</span>, surfaces in{" "}
+                    <span className="font-mono">/inbox</span>.
+                  </li>
+                  <li>
+                    Bounce → enrollment paused, address added to suppression
+                    list, <span className="font-mono">bounced</span> event
+                    emitted.
+                  </li>
+                </ul>
+                <p className="mt-2 text-muted-foreground">
+                  Idempotent — re-running won&apos;t double-handle a thread.
+                  Only works for users who&apos;ve connected Gmail (uses their
+                  OAuth token).
+                </p>
+                <p className="mt-2 text-muted-foreground">
+                  Production: cron every 5 min via{" "}
+                  <span className="font-mono">/api/cron/poll-replies</span>.
+                </p>
+              </InfoTooltip>
             </form>
 
             {ranPoll && (
@@ -204,10 +261,37 @@ export default async function AdminPage({
               are confirmed, and DB rows missing from the sheet are flagged
               as orphans (never deleted).
             </p>
-            <form action={manualSyncAction}>
+            <form action={manualSyncAction} className="flex flex-wrap items-center gap-2">
               <Button type="submit" variant="secondary">
                 <FolderSync /> Run sync now
               </Button>
+              <InfoTooltip label="What does Run sync do?">
+                <p className="font-medium text-foreground">Run sync now</p>
+                <p className="mt-1 text-muted-foreground">
+                  Pulls the canonical lead workbook from your configured Drive
+                  folder and reconciles it with the{" "}
+                  <span className="font-mono">leads</span> table:
+                </p>
+                <ul className="mt-1.5 ml-4 list-disc space-y-0.5 text-muted-foreground">
+                  <li>New rows → inserted as fresh leads.</li>
+                  <li>
+                    Existing matches (by email) → confirmed,{" "}
+                    <span className="font-mono">driveSyncedAt</span> stamped.
+                  </li>
+                  <li>
+                    DB rows missing from the sheet → flagged as orphans
+                    (visible in Health, never auto-deleted).
+                  </li>
+                </ul>
+                <p className="mt-2 text-muted-foreground">
+                  Pull-only for v1 — no writes back to Drive. Requires a Drive
+                  folder ID in <span className="font-mono">/settings</span>.
+                </p>
+                <p className="mt-2 text-muted-foreground">
+                  Production: cron hourly via{" "}
+                  <span className="font-mono">/api/cron/sync-drive</span>.
+                </p>
+              </InfoTooltip>
             </form>
 
             {ranSync && (
