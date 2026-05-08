@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "MF Superior Products | Freight Box Trucks — Colorado's Premier Fleet Source",
+  title: "MF Superior Solutions | Freight Delivery — Colorado's Most Trusted Carrier",
   description:
-    "Denver's most trusted source for freight box trucks. 16ft to 26ft, same-day availability, fast financing, and white-glove delivery across Colorado.",
+    "Colorado's most trusted freight delivery company. Same-day and next-day dispatch across Denver and beyond — professional drivers, transparent rates, and white-glove service.",
   icons: {
     icon: [
       { url: "/seo/favicon.ico" },

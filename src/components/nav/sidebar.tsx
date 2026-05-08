@@ -37,7 +37,7 @@ export function Sidebar() {
         className="flex items-center gap-3 border-b border-border px-5 py-4 transition-opacity hover:opacity-80"
         title="Go to MF Superior landing page"
       >
-        <div className="relative size-9 shrink-0 overflow-hidden rounded-md bg-slate-950">
+        <div className="relative size-9 shrink-0 overflow-hidden rounded-md">
           <Image
             src="/logo.png"
             alt="MF Superior Products"

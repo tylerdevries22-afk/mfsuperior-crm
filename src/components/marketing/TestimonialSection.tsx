@@ -85,9 +85,9 @@ export function TestimonialSection() {
             fontStyle: 'normal',
           }}
         >
-          &ldquo;MF Superior made the whole process painless. We needed two
-          26-footers fast, and they had them ready in three days — clean,
-          inspected, and exactly what we ordered.&rdquo;
+          &ldquo;MF Superior made our distribution seamless. We needed multiple
+          deliveries across Denver in a tight window and they came through every
+          time — professional drivers, on time, no excuses.&rdquo;
         </blockquote>
 
         <p
@@ -111,7 +111,7 @@ export function TestimonialSection() {
             fontFamily: 'var(--font-primary, SuisseIntl, sans-serif)',
           }}
         >
-          Fleet Manager
+          Operations Manager
         </p>
 
         <p

@@ -166,7 +166,7 @@ export function HowItWorksSection() {
             margin: '0 0 16px 0',
           }}
         >
-          How to Get Your Truck
+          How It Works
         </p>
         <h2
           style={{
@@ -181,7 +181,7 @@ export function HowItWorksSection() {
             padding: '0 24px',
           }}
         >
-          Tell us what you need — we&apos;ll have it ready
+          Tell us your freight needs — we&apos;ll handle the rest
         </h2>
       </div>
 
@@ -209,7 +209,7 @@ export function HowItWorksSection() {
             }}
           >
             Fill out the form and a member of our team will reach out same day
-            to discuss your fleet needs and current inventory:
+            to discuss your freight needs and build a custom quote:
           </p>
 
           <form onSubmit={(e) => e.preventDefault()}>
@@ -379,7 +379,7 @@ export function HowItWorksSection() {
                 margin: '0 0 16px 0',
               }}
             >
-              Ready to put trucks on the road?
+              Ready to move your freight?
             </h3>
 
             <p
@@ -391,8 +391,7 @@ export function HowItWorksSection() {
                 marginBottom: '32px',
               }}
             >
-              MF Superior Products keeps your fleet moving with inspected,
-              ready-to-roll box trucks available same week.
+              MF Superior Solutions handles your freight from pickup to final mile — professionally and on time, every time.
             </p>
 
             {/* Divider */}
@@ -455,9 +454,9 @@ export function HowItWorksSection() {
                 }}
               >
                 {[
-                  'Inspected and road-ready inventory',
-                  'Same-week availability on most units',
-                  'In-house financing — no dealership markup',
+                  'Professional, licensed, and insured drivers',
+                  'Same-day and next-day scheduling available',
+                  'Transparent rates — no hidden fees',
                 ].map((item) => (
                   <li
                     key={item}

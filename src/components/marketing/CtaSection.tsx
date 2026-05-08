@@ -77,7 +77,7 @@ export function CtaSection() {
             fontFamily: 'var(--font-primary, SuisseIntl, sans-serif)',
           }}
         >
-          Your next truck is ready today.
+          Your freight moves today.
         </h2>
 
         <button

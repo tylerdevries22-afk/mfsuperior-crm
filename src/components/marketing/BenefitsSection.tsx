@@ -14,22 +14,22 @@ const benefits: Benefit[] = [
   {
     num: '01',
     label: 'Benefit 01',
-    heading: 'One source for your entire box truck fleet',
-    description: "From single-unit purchases to full fleet buildouts, MF Superior Products stocks the sizes and configurations Colorado operators actually need. We carry 16ft, 20ft, 22ft, and 26ft box trucks with immediate availability — so your operation never waits on inventory.",
+    heading: 'One reliable partner for all your Colorado freight runs',
+    description: "From single pickups to recurring routes, MF Superior Solutions handles the freight loads Colorado businesses actually need moved. We run 16ft to 26ft capacity across the Denver metro and beyond — so your operation never waits on a carrier.",
     wideVideo: '/videos/benefit-01-wide.mp4',
   },
   {
     num: '02',
     label: 'Benefit 02',
-    heading: 'Drive away the same week',
-    description: "Every truck in our inventory is inspected, detailed, and road-ready before it ever reaches a customer. Our streamlined paperwork process and in-house financing options mean you can go from inquiry to keys in hand without the dealership runaround.",
+    heading: 'Dispatched and on the road the same week',
+    description: "Every run is handled by professional, insured drivers who treat your freight like their own. Our streamlined scheduling process means you can go from inquiry to confirmed dispatch without the back-and-forth of traditional carriers.",
     wideVideo: '/videos/benefit-02-wide.mp4',
   },
   {
     num: '03',
     label: 'Benefit 03',
-    heading: 'Pricing that works for your margins',
-    description: "We work directly with fleet operators, not middlemen. Competitive pricing on all units, flexible financing terms, and no hidden fees. Whether you're buying one truck or building a fleet, we price it so it pencils for your business from day one.",
+    heading: 'Transparent rates that work for your budget',
+    description: "We work directly with your business, not through brokers. Competitive rates, clear billing, and no hidden fees. Whether you need a one-time haul or an ongoing delivery contract, we price it so it makes sense for your operation from day one.",
     wideVideo: '/videos/benefit-03-wide.mp4',
   },
 ];
@@ -230,7 +230,7 @@ export function BenefitsSection() {
             maxWidth: '600px',
           }}
         >
-          Built for operators who need trucks that show up and stay running
+          Built for businesses that need freight delivered on time, every time
         </p>
       </div>
 

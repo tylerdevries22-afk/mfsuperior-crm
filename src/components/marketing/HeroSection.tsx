@@ -111,7 +111,7 @@ export function HeroSection() {
               lineHeight: 1.4,
             }}
           >
-            Colorado&apos;s most trusted freight box truck source
+            Colorado&apos;s most trusted freight delivery partner
           </p>
 
           {/* Large display heading */}
@@ -128,7 +128,7 @@ export function HeroSection() {
           >
             Built for the work ahead.
             <br />
-            Box trucks that don&apos;t quit.
+            Delivery that doesn&apos;t quit.
           </h1>
         </div>
 

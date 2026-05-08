@@ -10,12 +10,12 @@ interface FeatureItem {
 }
 
 const items: FeatureItem[] = [
-  { num: '01', heading: 'Box trucks from 16ft to 26ft — the right size for every job', video: '/videos/features-01.mp4', overlay: null },
-  { num: '02', heading: 'Fleet-ready inventory with same-day availability in Denver', video: '/videos/features-03.mp4', overlay: 'IN STOCK ✓' },
-  { num: '03', heading: 'Financing and lease options with fast same-week approvals', video: '/videos/features-02.mp4', overlay: 'APPROVED ✓' },
-  { num: '04', heading: 'Every truck inspected, maintained, and road-tested before delivery', video: '/videos/features-04.mp4', overlay: null },
-  { num: '05', heading: 'Liftgate, GPS, and refrigeration-ready configurations available', video: '/videos/features-05.mp4', overlay: null },
-  { num: '06', heading: 'White-glove delivery and ongoing support across Colorado', video: '/videos/features-06.mp4', overlay: 'DELIVERED ✓' },
+  { num: '01', heading: '16ft to 26ft capacity — the right truck for any freight load', video: '/videos/features-01.mp4', overlay: null },
+  { num: '02', heading: 'Same-day and next-day dispatch across the Denver metro area', video: '/videos/features-03.mp4', overlay: 'ON TIME ✓' },
+  { num: '03', heading: 'Fast scheduling with same-week dispatch — no delays, no runaround', video: '/videos/features-02.mp4', overlay: 'SCHEDULED ✓' },
+  { num: '04', heading: 'Every run handled by professional, insured, experienced drivers', video: '/videos/features-04.mp4', overlay: null },
+  { num: '05', heading: 'Liftgate service, GPS tracking, and temperature-sensitive freight options', video: '/videos/features-05.mp4', overlay: null },
+  { num: '06', heading: 'White-glove delivery and dedicated support across all of Colorado', video: '/videos/features-06.mp4', overlay: 'DELIVERED ✓' },
 ];
 
 export function FeaturesSection() {
@@ -127,7 +127,7 @@ export function FeaturesSection() {
             marginBottom: '24px',
           }}
         >
-          Reliable box trucks built for Colorado's toughest routes.
+          Reliable freight delivery built for Colorado's toughest routes.
         </p>
 
         <h2
@@ -142,7 +142,7 @@ export function FeaturesSection() {
             margin: '0 auto 80px',
           }}
         >
-          Imagine a fleet that works as hard as you do — from pickup to final mile delivery.
+          Imagine a delivery partner that works as hard as you do — from pickup to final mile.
         </h2>
       </div>
 
