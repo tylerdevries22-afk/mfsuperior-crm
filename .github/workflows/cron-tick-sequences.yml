@@ -1,0 +1,37 @@
+name: cron · tick-sequences
+
+# Replaces the Pro-only Vercel Cron. Hits the existing
+# /api/cron/tick-sequences route with the same Bearer auth Vercel Cron
+# would use, so the route handler doesn't have to know who called it.
+#
+# GitHub-hosted cron is best-effort — runs may slip by a few minutes
+# under load. That's acceptable for the tick engine; idempotency in
+# tick.ts means a delayed or doubled fire doesn't double-send.
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"   # every 15 minutes
+  workflow_dispatch:           # manual trigger from the Actions tab
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: POST /api/cron/tick-sequences
+        env:
+          APP_URL: ${{ vars.APP_URL || 'https://www.mfsuperiorproducts.com' }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CRON_SECRET}" ]; then
+            echo "::error::CRON_SECRET secret is missing on this repo"
+            exit 1
+          fi
+          curl -fsS -X POST \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            "${APP_URL}/api/cron/tick-sequences" \
+            -o /tmp/response.json
+          echo "Response:"
+          cat /tmp/response.json | head -c 4000
+          echo
