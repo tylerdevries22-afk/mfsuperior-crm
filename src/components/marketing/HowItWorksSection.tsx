@@ -110,10 +110,12 @@ export function HowItWorksSection() {
 
   return (
     <section
+      id="contact"
       style={{
         backgroundColor: '#fff',
         position: 'relative',
         overflow: 'hidden',
+        scrollMarginTop: '80px',
       }}
     >
       {/* Decorative SVG — curved left-rail line */}

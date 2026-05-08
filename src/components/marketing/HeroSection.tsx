@@ -103,7 +103,7 @@ export function HeroSection() {
       >
         <video
           ref={videoRef}
-          src="/videos/features-01.mp4"
+          src="/videos/benefit-01-wide.mp4"
           muted
           playsInline
           preload="auto"

@@ -1,42 +1,53 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
+import { CascadeText } from './CascadeText';
 
 export function YosSection() {
   const sectionRef = useRef<HTMLElement>(null);
-  const [scrollProgress, setScrollProgress] = useState(0);
+  const phase1Ref = useRef<HTMLDivElement>(null);
+  const phase2Ref = useRef<HTMLDivElement>(null);
+  const mfTextRef = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => {
-    const handleScroll = () => {
-      const section = sectionRef.current;
-      if (!section) return;
+    const section = sectionRef.current;
+    if (!section) return;
 
+    let raf = 0;
+
+    const tick = () => {
       const rect = section.getBoundingClientRect();
       const sectionHeight = section.offsetHeight;
-      // How far the top of the section has scrolled above the viewport top
       const scrolled = -rect.top;
       const progress = Math.max(0, Math.min(1, scrolled / (sectionHeight - window.innerHeight)));
-      setScrollProgress(progress);
+
+      const phase1Opacity = progress < 0.4
+        ? 1
+        : Math.max(0, 1 - (progress - 0.4) / 0.2);
+      const phase2Opacity = progress < 0.4
+        ? 0
+        : Math.min(1, (progress - 0.4) / 0.2);
+      const yosProgress = progress < 0.4 ? 0 : Math.min(1, (progress - 0.4) / 0.6);
+      const yosFontSize = 48 + (240 - 48) * yosProgress;
+
+      if (phase1Ref.current) phase1Ref.current.style.opacity = String(phase1Opacity);
+      if (phase2Ref.current) phase2Ref.current.style.opacity = String(phase2Opacity);
+      if (mfTextRef.current) mfTextRef.current.style.fontSize = `${yosFontSize}px`;
+
+      raf = requestAnimationFrame(tick);
     };
 
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    handleScroll(); // Initial call
-    return () => window.removeEventListener('scroll', handleScroll);
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) raf = requestAnimationFrame(tick);
+        else cancelAnimationFrame(raf);
+      },
+      { threshold: 0 }
+    );
+    io.observe(section);
+
+    return () => { cancelAnimationFrame(raf); io.disconnect(); };
   }, []);
-
-  // Phase 1: full opacity until 0.4, then fade to 0
-  const phase1Opacity = scrollProgress < 0.4
-    ? 1
-    : Math.max(0, 1 - (scrollProgress - 0.4) / 0.2);
-
-  // Phase 2: invisible until 0.4, then fade to 1
-  const phase2Opacity = scrollProgress < 0.4
-    ? 0
-    : Math.min(1, (scrollProgress - 0.4) / 0.2);
-
-  // MF. font size: interpolate from 48px to 240px as scrollProgress goes 0.4 → 1.0
-  const yosProgress = scrollProgress < 0.4 ? 0 : Math.min(1, (scrollProgress - 0.4) / 0.6);
-  const yosFontSize = 48 + (240 - 48) * yosProgress;
 
   const darkGridStyle: React.CSSProperties = {
     backgroundImage:
@@ -69,12 +80,12 @@ export function YosSection() {
       >
         {/* Phase 1 — Dark */}
         <div
+          ref={phase1Ref}
           style={{
             position: 'absolute',
             inset: 0,
             backgroundColor: '#111111',
-            opacity: phase1Opacity,
-            transition: 'none',
+            opacity: 1,
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
@@ -82,7 +93,6 @@ export function YosSection() {
             ...darkGridStyle,
           }}
         >
-          {/* Label */}
           <p
             style={{
               fontSize: '16px',
@@ -97,32 +107,39 @@ export function YosSection() {
             That&apos;s the
           </p>
 
-          {/* Main heading */}
           <h2
             style={{
               fontSize: 'clamp(48px, 7vw, 112px)',
               fontWeight: 400,
-              color: '#fff',
               fontFamily: 'var(--font-primary)',
               textAlign: 'center',
               margin: 0,
               lineHeight: 1.05,
               letterSpacing: '-0.02em',
               padding: '0 5.128vw',
+              color: '#fff',
             }}
           >
-            MF Superior Difference.
+            <CascadeText
+              text="MF Superior Difference."
+              scrollLinked
+              spread={0.6}
+              offset={['start 85%', 'start 35%']}
+              finalColor="#fff"
+              flashColor="#D4E030"
+              restColor="rgba(255,255,255,0.18)"
+            />
           </h2>
         </div>
 
         {/* Phase 2 — Light */}
         <div
+          ref={phase2Ref}
           style={{
             position: 'absolute',
             inset: 0,
             backgroundColor: '#fff',
-            opacity: phase2Opacity,
-            transition: 'none',
+            opacity: 0,
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
@@ -130,7 +147,6 @@ export function YosSection() {
             ...lightGridStyle,
           }}
         >
-          {/* Label remains */}
           <p
             style={{
               fontSize: '16px',
@@ -145,10 +161,10 @@ export function YosSection() {
             That&apos;s the
           </p>
 
-          {/* MF. — zooms in */}
           <h2
+            ref={mfTextRef}
             style={{
-              fontSize: `${yosFontSize}px`,
+              fontSize: '48px',
               fontWeight: 400,
               color: '#000',
               fontFamily: 'var(--font-primary)',
@@ -156,7 +172,6 @@ export function YosSection() {
               margin: 0,
               lineHeight: 1,
               letterSpacing: '-0.02em',
-              transition: 'none',
               whiteSpace: 'nowrap',
             }}
           >

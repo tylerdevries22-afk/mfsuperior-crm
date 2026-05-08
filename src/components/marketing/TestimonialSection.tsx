@@ -1,6 +1,44 @@
+'use client';
+
+import { useEffect, useRef } from 'react';
+import { CascadeText } from './CascadeText';
+
 export function TestimonialSection() {
+  const sectionRef = useRef<HTMLElement>(null);
+  const imgRef = useRef<HTMLImageElement>(null);
+
+  useEffect(() => {
+    const section = sectionRef.current;
+    const img = imgRef.current;
+    if (!section || !img) return;
+
+    let raf = 0;
+
+    const tick = () => {
+      const rect = section.getBoundingClientRect();
+      const viewH = window.innerHeight;
+      const progress = (viewH - rect.top) / (viewH + rect.height);
+      const clamped = Math.max(0, Math.min(1, progress));
+      img.style.transform = `translateY(${(0.5 - clamped) * 14}%)`;
+      raf = requestAnimationFrame(tick);
+    };
+
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) raf = requestAnimationFrame(tick);
+        else cancelAnimationFrame(raf);
+      },
+      { threshold: 0 }
+    );
+    io.observe(section);
+
+    return () => { cancelAnimationFrame(raf); io.disconnect(); };
+  }, []);
+
   return (
     <section
+      id="about"
+      ref={sectionRef}
       style={{
         position: 'relative',
         width: '100%',
@@ -10,18 +48,22 @@ export function TestimonialSection() {
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
+        scrollMarginTop: '80px',
       }}
     >
-      {/* Background photo */}
+      {/* Background photo — extra tall for parallax travel */}
       <img
+        ref={imgRef}
         src="/images/quote-image.jpg"
         alt="Winter forest with truck"
         style={{
           position: 'absolute',
-          inset: 0,
+          top: '-10%',
+          left: 0,
           width: '100%',
-          height: '100%',
+          height: '120%',
           objectFit: 'cover',
+          willChange: 'transform',
         }}
       />
 
@@ -30,7 +72,7 @@ export function TestimonialSection() {
         style={{
           position: 'absolute',
           inset: 0,
-          background: 'rgba(0,0,0,0.45)',
+          background: 'rgba(0,0,0,0.48)',
         }}
       />
 
@@ -65,7 +107,7 @@ export function TestimonialSection() {
         style={{
           position: 'relative',
           zIndex: 10,
-          padding: '80px 5.128vw',
+          padding: '100px 5.128vw',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
@@ -80,23 +122,38 @@ export function TestimonialSection() {
             textAlign: 'center',
             lineHeight: 1.45,
             maxWidth: '900px',
-            margin: '0 auto 40px',
+            margin: '0 auto 48px',
             fontFamily: 'var(--font-primary, SuisseIntl, sans-serif)',
             fontStyle: 'normal',
           }}
         >
-          &ldquo;MF Superior made our distribution seamless. We needed multiple
-          deliveries across Denver in a tight window and they came through every
-          time — professional drivers, on time, no excuses.&rdquo;
+          <CascadeText
+            text="“MF Superior made our distribution seamless. We needed multiple deliveries across Denver in a tight window and they came through every time — professional drivers, on time, no excuses.”"
+            stagger={0.012}
+            duration={0.45}
+            finalColor="#fff"
+            flashColor="#D4E030"
+            restColor="rgba(255,255,255,0.15)"
+          />
         </blockquote>
+
+        <div
+          style={{
+            width: '40px',
+            height: '1px',
+            backgroundColor: 'rgba(255,255,255,0.3)',
+            marginBottom: '32px',
+          }}
+        />
 
         <p
           style={{
             color: '#fff',
-            fontSize: '16px',
+            fontSize: '15px',
             textAlign: 'center',
             marginBottom: '4px',
             fontFamily: 'var(--font-primary, SuisseIntl, sans-serif)',
+            letterSpacing: '0.01em',
           }}
         >
           Marcus Webb
@@ -104,11 +161,12 @@ export function TestimonialSection() {
 
         <p
           style={{
-            color: 'rgba(255,255,255,0.6)',
-            fontSize: '14px',
+            color: 'rgba(255,255,255,0.55)',
+            fontSize: '13px',
             textAlign: 'center',
-            marginBottom: '4px',
-            fontFamily: 'var(--font-primary, SuisseIntl, sans-serif)',
+            marginBottom: '2px',
+            fontFamily: 'var(--font-mono, "Geist Mono", monospace)',
+            letterSpacing: '0.08em',
           }}
         >
           Operations Manager
@@ -116,10 +174,11 @@ export function TestimonialSection() {
 
         <p
           style={{
-            color: 'rgba(255,255,255,0.6)',
-            fontSize: '14px',
+            color: 'rgba(255,255,255,0.55)',
+            fontSize: '13px',
             textAlign: 'center',
-            fontFamily: 'var(--font-primary, SuisseIntl, sans-serif)',
+            fontFamily: 'var(--font-mono, "Geist Mono", monospace)',
+            letterSpacing: '0.08em',
           }}
         >
           Denver Direct Logistics

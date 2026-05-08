@@ -25,6 +25,7 @@ export function FeaturesSection() {
   const videoRefs = useRef<(HTMLVideoElement | null)[]>([]);
   const overlayRefs = useRef<(HTMLDivElement | null)[]>([]);
   const headingRefs = useRef<(HTMLHeadingElement | null)[]>([]);
+  const dotRefs = useRef<(HTMLDivElement | null)[]>([]);
   const activeRef = useRef(0);
 
   useEffect(() => {
@@ -43,6 +44,9 @@ export function FeaturesSection() {
     });
     overlayRefs.current.forEach((o, i) => {
       if (o) o.style.opacity = i === 0 ? '1' : '0';
+    });
+    dotRefs.current.forEach((d, i) => {
+      if (d) d.style.backgroundColor = i === 0 ? '#D4E030' : 'rgba(255,255,255,0.3)';
     });
 
     let raf = 0;
@@ -83,6 +87,12 @@ export function FeaturesSection() {
         const no = overlayRefs.current[bestIndex];
         if (no) no.style.opacity = '1';
 
+        // Update progress dots
+        const pd = dotRefs.current[prev];
+        if (pd) pd.style.backgroundColor = 'rgba(255,255,255,0.3)';
+        const nd = dotRefs.current[bestIndex];
+        if (nd) nd.style.backgroundColor = '#D4E030';
+
         activeRef.current = bestIndex;
       }
 
@@ -121,8 +131,9 @@ export function FeaturesSection() {
 
   return (
     <section
+      id="fleet"
       ref={sectionRef}
-      style={{ width: '100%', backgroundColor: '#fff', paddingTop: '120px' }}
+      style={{ width: '100%', backgroundColor: '#fff', paddingTop: '120px', scrollMarginTop: '80px' }}
     >
       {/* Section heading */}
       <div style={{ textAlign: 'center', paddingLeft: '5.128vw', paddingRight: '5.128vw' }}>
@@ -250,6 +261,34 @@ export function FeaturesSection() {
                 }}
               />
             ))}
+
+            {/* Progress dots */}
+            <div
+              style={{
+                position: 'absolute',
+                bottom: '24px',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                display: 'flex',
+                gap: '8px',
+                zIndex: 10,
+                pointerEvents: 'none',
+              }}
+            >
+              {items.map((_, i) => (
+                <div
+                  key={i}
+                  ref={(el) => { dotRefs.current[i] = el; }}
+                  style={{
+                    width: '6px',
+                    height: '6px',
+                    borderRadius: '50%',
+                    backgroundColor: i === 0 ? '#D4E030' : 'rgba(255,255,255,0.3)',
+                    transition: 'background-color 0.35s ease',
+                  }}
+                />
+              ))}
+            </div>
 
             {/* Overlay badges — one per overlay item, CSS crossfaded */}
             {items.map((item, index) =>

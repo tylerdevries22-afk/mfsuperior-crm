@@ -3,16 +3,82 @@
 import { useEffect, useState } from 'react';
 import { MFLogo, LockIcon } from './icons';
 
-const NAV_LINKS = ['Fleet', 'Financing', 'Industries', 'About', 'Contact'];
+/**
+ * Each label is paired with the in-page section id it scrolls to.
+ * Section ids are added to the matching component wrappers; the
+ * scroll-spy below watches them via IntersectionObserver and lights
+ * up the active label as it enters/leaves the viewport.
+ */
+const NAV_LINKS: Array<{ label: string; id: string }> = [
+  { label: 'Fleet', id: 'fleet' },
+  { label: 'Industries', id: 'industries' },
+  { label: 'About', id: 'about' },
+  { label: 'Contact', id: 'contact' },
+];
+
+/** Smooth-scroll helper. Honours Lenis if present (window.lenis), else
+ *  falls back to native CSS scrollIntoView. The fixed-nav offset gets
+ *  baked in via scroll-margin-top on the section. */
+function scrollToSection(id: string) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  // window.__mfsLenis is set by LenisProvider (renamed off `lenis` to
+  // avoid colliding with Lenis's own Window augmentation). Use its
+  // scrollTo if available for smoother sync with Lenis's frame loop;
+  // fall back to native scrollIntoView when Lenis isn't mounted.
+  const lenis = window.__mfsLenis;
+  if (lenis?.scrollTo) {
+    lenis.scrollTo(el, { offset: -80, duration: 1.2 });
+  } else {
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+}
 
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [activeId, setActiveId] = useState<string | null>(null);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 50);
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  // Scroll-spy: pick whichever tracked section is currently most visible.
+  useEffect(() => {
+    const ids = NAV_LINKS.map((n) => n.id);
+    const targets = ids
+      .map((id) => document.getElementById(id))
+      .filter((el): el is HTMLElement => !!el);
+    if (targets.length === 0) return;
+
+    // Use a long top-margin so the section becomes "active" only once
+    // its top has crossed roughly the upper third of the viewport —
+    // the same point where it visually dominates the screen.
+    const io = new IntersectionObserver(
+      (entries) => {
+        // Find the entry with the largest intersectionRatio that's
+        // currently intersecting. If multiple match (overlapping), pick
+        // the topmost (smallest top).
+        const visible = entries.filter((e) => e.isIntersecting);
+        if (visible.length === 0) return;
+        visible.sort(
+          (a, b) =>
+            b.intersectionRatio - a.intersectionRatio ||
+            a.boundingClientRect.top - b.boundingClientRect.top,
+        );
+        setActiveId(visible[0].target.id);
+      },
+      {
+        // Trigger when section's top is at 30% of viewport, bottom at 60%.
+        rootMargin: '-30% 0px -60% 0px',
+        threshold: [0, 0.25, 0.5, 0.75, 1],
+      },
+    );
+
+    targets.forEach((t) => io.observe(t));
+    return () => io.disconnect();
   }, []);
 
   useEffect(() => {
@@ -65,28 +131,48 @@ export default function Navbar() {
             transform: 'translateX(-50%)',
           }}
         >
-          {NAV_LINKS.map((label) => (
-            <button
-              key={label}
-              style={{
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                color: 'white',
-                fontSize: '14px',
-                fontWeight: 500,
-                fontFamily: 'inherit',
-                padding: '4px 0',
-                opacity: 0.9,
-                transition: 'opacity 0.2s ease',
-                minHeight: '44px',
-              }}
-              onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.opacity = '1')}
-              onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.opacity = '0.9')}
-            >
-              {label}
-            </button>
-          ))}
+          {NAV_LINKS.map(({ label, id }) => {
+            const active = activeId === id;
+            return (
+              <button
+                key={id}
+                onClick={() => scrollToSection(id)}
+                aria-current={active ? 'page' : undefined}
+                style={{
+                  position: 'relative',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: active ? 'var(--c-lime)' : 'white',
+                  fontSize: '14px',
+                  fontWeight: active ? 600 : 500,
+                  fontFamily: 'inherit',
+                  padding: '4px 0',
+                  opacity: active ? 1 : 0.85,
+                  transition: 'opacity 0.2s ease, color 0.25s ease',
+                  minHeight: '44px',
+                }}
+                onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.opacity = '1')}
+                onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.opacity = active ? '1' : '0.85')}
+              >
+                {label}
+                <span
+                  aria-hidden
+                  style={{
+                    position: 'absolute',
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    height: '2px',
+                    background: 'var(--c-lime)',
+                    transformOrigin: 'left center',
+                    transform: `scaleX(${active ? 1 : 0})`,
+                    transition: 'transform 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
+                  }}
+                />
+              </button>
+            );
+          })}
         </div>
 
         {/* Desktop: right actions */}
@@ -230,15 +316,19 @@ export default function Navbar() {
           overflowY: 'auto',
         }}
       >
-        {NAV_LINKS.map((label) => (
+        {NAV_LINKS.map(({ label, id }) => (
           <button
-            key={label}
-            onClick={() => setMenuOpen(false)}
+            key={id}
+            onClick={() => {
+              setMenuOpen(false);
+              // Wait for the body-scroll-lock release before scrolling.
+              setTimeout(() => scrollToSection(id), 320);
+            }}
             style={{
               background: 'none',
               border: 'none',
               borderBottom: '1px solid rgba(255,255,255,0.1)',
-              color: 'white',
+              color: activeId === id ? 'var(--c-lime)' : 'white',
               fontSize: '28px',
               fontWeight: 400,
               fontFamily: 'var(--font-primary)',
