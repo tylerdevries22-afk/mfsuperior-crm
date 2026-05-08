@@ -23,6 +23,12 @@ type Search = {
   page?: string;
 };
 
+// /leads is the worklist of leads still to contact. Once a lead has been
+// emailed, its stage advances to "contacted" (see lib/sequences/tick.ts) and
+// the conversation lives in /inbox. Default the filter to stage=new; the
+// dropdown still exposes every stage and an "All stages" opt-in.
+const DEFAULT_STAGE: (typeof STAGES)[number] = "new";
+
 export default async function LeadsPage({
   searchParams,
 }: {
@@ -30,9 +36,14 @@ export default async function LeadsPage({
 }) {
   const sp = await searchParams;
   const q = (sp.q ?? "").trim();
-  const stage = STAGES.includes((sp.stage ?? "") as (typeof STAGES)[number])
-    ? (sp.stage as (typeof STAGES)[number])
-    : undefined;
+  const stageParam = sp.stage ?? "";
+  const showAllStages = stageParam === "all";
+  const stage =
+    !showAllStages && STAGES.includes(stageParam as (typeof STAGES)[number])
+      ? (stageParam as (typeof STAGES)[number])
+      : !showAllStages && stageParam === ""
+        ? DEFAULT_STAGE
+        : undefined;
   const tier = TIERS.includes((sp.tier ?? "") as (typeof TIERS)[number])
     ? (sp.tier as (typeof TIERS)[number])
     : undefined;
@@ -82,8 +93,13 @@ export default async function LeadsPage({
             Leads
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            <span className="font-mono tabular-nums">{count}</span> active ·
-            ranked by score
+            <span className="font-mono tabular-nums">{count}</span>
+            {stage === "new"
+              ? " unworked"
+              : stage
+                ? ` · stage ${stage}`
+                : " active"}
+            {" · "}ranked by score
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -114,13 +130,18 @@ export default async function LeadsPage({
             className="pl-9"
           />
         </div>
-        <Select name="stage" defaultValue={stage ?? ""} className="w-40">
-          <option value="">All stages</option>
+        <Select
+          name="stage"
+          defaultValue={showAllStages ? "all" : stage ?? DEFAULT_STAGE}
+          className="w-40"
+        >
           {STAGES.map((s) => (
             <option key={s} value={s}>
               {s[0].toUpperCase() + s.slice(1)}
+              {s === DEFAULT_STAGE ? " (default)" : ""}
             </option>
           ))}
+          <option value="all">All stages</option>
         </Select>
         <Select name="tier" defaultValue={tier ?? ""} className="w-32">
           <option value="">All tiers</option>
@@ -142,7 +163,7 @@ export default async function LeadsPage({
       </form>
 
       {rows.length === 0 ? (
-        <EmptyState hasFilters={!!(q || stage || tier)} />
+        <EmptyState hasFilters={!!(q || stage || tier || showAllStages)} />
       ) : (
         <>
           <DesktopTable rows={rows} />
@@ -150,7 +171,7 @@ export default async function LeadsPage({
           <Pagination
             page={page}
             totalPages={totalPages}
-            params={{ q, stage, tier }}
+            params={{ q, stage: showAllStages ? "all" : stage, tier }}
           />
         </>
       )}
