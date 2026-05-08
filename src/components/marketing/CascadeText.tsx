@@ -56,6 +56,15 @@ type Props = {
    *  Default ["start 85%", "start 30%"] — the cascade is fully complete
    *  by the time the headline reaches the upper third of the viewport. */
   offset?: [string, string];
+  /** Optional shared scroll source. When supplied, the cascade is driven
+   *  by this MotionValue instead of running its own `useScroll` against
+   *  the wrapper. Use with `range` to give multiple cascades non-
+   *  overlapping slices of a parent's scroll progress so they run
+   *  sequentially (e.g. one per line of a stacked headline). */
+  progress?: MotionValue<number>;
+  /** Sub-range of the shared `progress` (0–1) within which this cascade
+   *  plays. Defaults to [0, 1] — the full source range. */
+  range?: [number, number];
   /** When NOT scrollLinked: per-character stagger in seconds. Default 0.03. */
   stagger?: number;
   /** When NOT scrollLinked: animation duration. Default 0.5. */
@@ -74,12 +83,35 @@ export function CascadeText({
   restColor = "rgba(255,255,255,0.18)",
   scrollLinked = true,
   offset = ["start 85%", "start 30%"],
+  progress,
+  range,
   stagger = 0.03,
   duration = 0.5,
   delay = 0,
 }: Props) {
   const chars = useMemo(() => Array.from(text), [text]);
   const ref = useRef<HTMLElement>(null);
+
+  // Shared-progress mode: parent supplies a MotionValue (e.g., from a
+  // section-level useScroll) and a [start, end] sub-range. Each call
+  // can claim a non-overlapping slice so multiple cascades within the
+  // same scroll runway play sequentially, not in parallel.
+  if (progress) {
+    return (
+      <SharedProgressCascade
+        chars={chars}
+        progress={progress}
+        range={range ?? [0, 1]}
+        spread={spread}
+        Tag={Tag}
+        className={className}
+        text={text}
+        finalColor={finalColor}
+        flashColor={flashColor}
+        restColor={restColor}
+      />
+    );
+  }
 
   if (scrollLinked) {
     return (
@@ -312,6 +344,143 @@ function ScrollChar({
     >
       {char}
     </motion.span>
+  );
+}
+
+/* ─── Mode 3: shared parent-progress with sub-range ───────────────── */
+
+type SharedProps = {
+  chars: string[];
+  progress: MotionValue<number>;
+  range: [number, number];
+  spread: number;
+  Tag: "span" | "h1" | "h2" | "h3" | "p";
+  className?: string;
+  text: string;
+  finalColor: string;
+  flashColor: string;
+  restColor: string;
+};
+
+/**
+ * Drives the cascade off a parent-supplied MotionValue (e.g., a section's
+ * scrollYProgress) constrained to a [rangeStart, rangeEnd] sub-window of
+ * 0–1. Multiple SharedProgressCascade instances under the same parent
+ * pick non-overlapping ranges to chain — `range=[0, 0.25]` for line A,
+ * `[0.3, 0.55]` for line B, `[0.6, 0.85]` for line C — so only one line
+ * cascades at a time.
+ *
+ * Each character then maps its own slice within the line's range using
+ * the same scheme as the per-element scroll-linked mode.
+ */
+function SharedProgressCascade({
+  chars,
+  progress,
+  range,
+  spread,
+  Tag,
+  className,
+  text,
+  finalColor,
+  flashColor,
+  restColor,
+}: SharedProps) {
+  const Container =
+    Tag === "h1"
+      ? "h1"
+      : Tag === "h2"
+        ? "h2"
+        : Tag === "h3"
+          ? "h3"
+          : Tag === "p"
+            ? "p"
+            : "span";
+
+  // Word/space tokenisation — same as ScrollLinkedCascade. Words become
+  // inline-block wrappers so line breaks happen only at whitespace.
+  type Token =
+    | { kind: "space"; ch: string; idx: number }
+    | { kind: "word"; chars: string[]; startIdx: number };
+  const tokens: Token[] = [];
+  let cursor = 0;
+  let buffer: string[] = [];
+  let bufferStart = 0;
+  const flushWord = () => {
+    if (buffer.length > 0) {
+      tokens.push({ kind: "word", chars: buffer, startIdx: bufferStart });
+      buffer = [];
+    }
+  };
+  for (let i = 0; i < chars.length; i++) {
+    const ch = chars[i];
+    if (/\s/.test(ch)) {
+      flushWord();
+      tokens.push({ kind: "space", ch, idx: cursor });
+    } else {
+      if (buffer.length === 0) bufferStart = cursor;
+      buffer.push(ch);
+    }
+    cursor++;
+  }
+  flushWord();
+
+  const total = chars.length;
+  const [rangeStart, rangeEnd] = range;
+  const rangeWidth = Math.max(0.001, rangeEnd - rangeStart);
+  // Map a normalized 0–spread fraction inside this cascade's local
+  // window onto the parent's global progress range.
+  const localToGlobal = (local: number) =>
+    rangeStart + (local / spread) * (rangeWidth * spread);
+  // Equivalent simplification: rangeStart + local * rangeWidth.
+  // We keep the explicit form so it's clear where `spread` enters.
+
+  return (
+    <Container
+      aria-label={text}
+      className={className}
+    >
+      {tokens.map((tok, ti) => {
+        if (tok.kind === "space") {
+          const i = tok.idx;
+          const charStart = localToGlobal((i / total) * spread);
+          const charEnd = localToGlobal(((i + 1) / total) * spread);
+          return (
+            <ScrollChar
+              key={`s-${ti}`}
+              progress={progress}
+              charStart={charStart}
+              charEnd={charEnd}
+              char={tok.ch}
+              restColor={restColor}
+              flashColor={flashColor}
+              finalColor={finalColor}
+              inline
+            />
+          );
+        }
+        return (
+          <span key={`w-${ti}`} style={{ display: "inline-block" }}>
+            {tok.chars.map((ch, ci) => {
+              const i = tok.startIdx + ci;
+              const charStart = localToGlobal((i / total) * spread);
+              const charEnd = localToGlobal(((i + 1) / total) * spread);
+              return (
+                <ScrollChar
+                  key={`${ti}-${ci}`}
+                  progress={progress}
+                  charStart={charStart}
+                  charEnd={charEnd}
+                  char={ch}
+                  restColor={restColor}
+                  flashColor={flashColor}
+                  finalColor={finalColor}
+                />
+              );
+            })}
+          </span>
+        );
+      })}
+    </Container>
   );
 }
 

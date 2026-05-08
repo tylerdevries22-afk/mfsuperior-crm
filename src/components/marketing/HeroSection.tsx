@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import { useScroll } from 'motion/react';
 import { CascadeText } from './CascadeText';
 
 export function HeroSection() {
@@ -8,6 +9,18 @@ export function HeroSection() {
   const layerARef = useRef<HTMLDivElement>(null);
   const layerBRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+
+  // ONE shared scroll source for the whole hero. Each headline line gets
+  // a non-overlapping slice of this progress so they cascade
+  // sequentially (line A, then B, then C) instead of all running on
+  // their own per-element useScroll concurrently. Offset chosen so the
+  // first cascade starts the moment the section begins scrolling and
+  // the last finishes well before the section exits, leaving a settled
+  // beat before the next section appears.
+  const { scrollYProgress: heroProgress } = useScroll({
+    target: sectionRef,
+    offset: ['start start', 'end start'],
+  });
 
   useEffect(() => {
     const section = sectionRef.current;
@@ -64,8 +77,13 @@ export function HeroSection() {
     <section
       ref={sectionRef}
       style={{
+        // Scroll runway. Reduced from 200vh — was creating a long
+        // "dead scroll" stretch between hero and the next section. The
+        // sticky frame inside still keeps the visual at exactly 100vh
+        // on every device; this just controls how long the user has
+        // to scroll before the next section comes in.
         position: 'relative',
-        minHeight: '200vh',
+        minHeight: '160vh',
         overflow: 'hidden',
         backgroundColor: '#000',
       }}
@@ -181,9 +199,9 @@ export function HeroSection() {
           >
             <CascadeText
               text="Colorado's most trusted freight delivery partner"
-              scrollLinked
-              spread={0.55}
-              offset={['start 95%', 'start 55%']}
+              progress={heroProgress}
+              range={[0.0, 0.18]}
+              spread={1}
               finalColor="rgba(255,255,255,0.85)"
               flashColor="#D4E030"
               restColor="rgba(255,255,255,0.10)"
@@ -202,9 +220,12 @@ export function HeroSection() {
           >
             <CascadeText
               text="Built for the work ahead."
-              scrollLinked
-              spread={0.6}
-              offset={['start 90%', 'start 40%']}
+              progress={heroProgress}
+              // Line 2 starts AFTER the pretitle finishes (0.18) with a
+              // 0.04 settle gap, runs through 0.50. Strictly non-
+              // overlapping with the other two cascades.
+              range={[0.22, 0.5]}
+              spread={1}
               finalColor="#fff"
               flashColor="#D4E030"
               restColor="rgba(255,255,255,0.18)"
@@ -212,9 +233,12 @@ export function HeroSection() {
             <br />
             <CascadeText
               text="Delivery that doesn't quit."
-              scrollLinked
-              spread={0.6}
-              offset={['start 80%', 'start 30%']}
+              progress={heroProgress}
+              // Line 3 starts after line 2 settles, runs to ~0.85,
+              // leaving the last 15% of section scroll as a settled
+              // beat before the next section enters.
+              range={[0.55, 0.85]}
+              spread={1}
               finalColor="#fff"
               flashColor="#D4E030"
               restColor="rgba(255,255,255,0.18)"
