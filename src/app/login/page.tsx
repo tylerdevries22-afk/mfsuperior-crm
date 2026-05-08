@@ -33,7 +33,7 @@ export default async function LoginPage() {
           <div className="flex items-center gap-3">
             <div className="logo-neon-glow-soft relative size-12 shrink-0 overflow-hidden rounded-md">
               <Image
-                src="/logo.png?v=2"
+                src="/logo.png"
                 alt="MF Superior Products"
                 fill
                 sizes="48px"

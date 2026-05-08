@@ -32,12 +32,14 @@ function FormInput({
   value,
   onChange,
   name,
+  required,
 }: {
   type?: string;
   placeholder: string;
   value: string;
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   name: string;
+  required?: boolean;
 }) {
   const [focused, setFocused] = useState(false);
   return (
@@ -47,6 +49,7 @@ function FormInput({
       placeholder={placeholder}
       value={value}
       onChange={onChange}
+      required={required}
       onFocus={() => setFocused(true)}
       onBlur={() => setFocused(false)}
       style={{
@@ -89,6 +92,8 @@ function FormTextarea({
   );
 }
 
+type SubmitState = 'idle' | 'submitting' | 'success' | 'error';
+
 export function HowItWorksSection() {
   const [form, setForm] = useState<FormState>({
     firstName: '',
@@ -99,6 +104,8 @@ export function HowItWorksSection() {
     message: '',
   });
 
+  const [submitState, setSubmitState] = useState<SubmitState>('idle');
+  const [errorMsg, setErrorMsg] = useState('');
   const [submitHovered, setSubmitHovered] = useState(false);
 
   function handleChange(
@@ -106,6 +113,36 @@ export function HowItWorksSection() {
   ) {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (submitState === 'submitting') return;
+    setSubmitState('submitting');
+    setErrorMsg('');
+
+    try {
+      const res = await fetch('/api/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: `${form.firstName} ${form.lastName}`.trim(),
+          email: form.email,
+          phone: form.phone,
+          company: form.company,
+          message: form.message,
+        }),
+      });
+      const json = await res.json() as { success?: boolean; error?: string };
+      if (!res.ok || json.error) {
+        throw new Error(json.error ?? 'Something went wrong. Please try again.');
+      }
+      setSubmitState('success');
+      setForm({ firstName: '', lastName: '', company: '', email: '', phone: '', message: '' });
+    } catch (err) {
+      setSubmitState('error');
+      setErrorMsg(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
+    }
   }
 
   return (
@@ -224,7 +261,75 @@ export function HowItWorksSection() {
             to discuss your freight needs and build a custom quote:
           </p>
 
-          <form onSubmit={(e) => e.preventDefault()}>
+          {submitState === 'success' ? (
+            <div
+              style={{
+                border: '1px solid #e5e5e5',
+                borderRadius: '12px',
+                padding: '40px',
+                textAlign: 'center',
+              }}
+            >
+              <div
+                style={{
+                  width: '48px',
+                  height: '48px',
+                  borderRadius: '50%',
+                  background: 'rgba(212,224,48,0.12)',
+                  border: '1px solid rgba(212,224,48,0.4)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  margin: '0 auto 20px',
+                  fontSize: '20px',
+                  color: '#A0B41E',
+                }}
+              >
+                &#10003;
+              </div>
+              <h3
+                style={{
+                  fontFamily: 'var(--font-primary)',
+                  fontSize: '20px',
+                  fontWeight: 400,
+                  color: '#111111',
+                  marginBottom: '8px',
+                }}
+              >
+                Request received
+              </h3>
+              <p
+                style={{
+                  fontFamily: 'var(--font-primary)',
+                  fontSize: '14px',
+                  color: '#7f7f7f',
+                  lineHeight: 1.6,
+                  marginBottom: '24px',
+                }}
+              >
+                Tyler will reach out within 24 hours to build your custom quote.
+                You can also call directly at (256) 468-0751.
+              </p>
+              <button
+                onClick={() => setSubmitState('idle')}
+                style={{
+                  background: 'none',
+                  border: '1px solid #e5e5e5',
+                  borderRadius: '6px',
+                  color: '#7f7f7f',
+                  fontSize: '12px',
+                  letterSpacing: '0.1em',
+                  textTransform: 'uppercase',
+                  fontFamily: 'var(--font-mono)',
+                  padding: '10px 20px',
+                  cursor: 'pointer',
+                }}
+              >
+                Submit another
+              </button>
+            </div>
+          ) : (
+          <form onSubmit={handleSubmit}>
             {/* First name + Last name */}
             <div
               style={{
@@ -239,6 +344,7 @@ export function HowItWorksSection() {
                 placeholder="First name"
                 value={form.firstName}
                 onChange={handleChange}
+                required
               />
               <FormInput
                 name="lastName"
@@ -266,6 +372,7 @@ export function HowItWorksSection() {
                 placeholder="Email"
                 value={form.email}
                 onChange={handleChange}
+                required
               />
             </div>
 
@@ -291,14 +398,32 @@ export function HowItWorksSection() {
               />
             </div>
 
+            {submitState === 'error' && (
+              <p
+                style={{
+                  fontFamily: 'var(--font-primary)',
+                  fontSize: '13px',
+                  color: '#ff6b6b',
+                  padding: '10px 14px',
+                  background: 'rgba(255,107,107,0.08)',
+                  borderRadius: '6px',
+                  border: '1px solid rgba(255,107,107,0.2)',
+                  marginBottom: '16px',
+                }}
+              >
+                {errorMsg}
+              </p>
+            )}
+
             {/* Submit button */}
             <button
               type="submit"
+              disabled={submitState === 'submitting'}
               onMouseEnter={() => setSubmitHovered(true)}
               onMouseLeave={() => setSubmitHovered(false)}
               style={{
                 width: '100%',
-                background: submitHovered ? '#1a1a1a' : '#111111',
+                background: submitState === 'submitting' ? '#555' : submitHovered ? '#1a1a1a' : '#111111',
                 color: '#fff',
                 padding: '16px',
                 fontSize: '12px',
@@ -307,13 +432,14 @@ export function HowItWorksSection() {
                 fontFamily: 'var(--font-mono)',
                 border: 'none',
                 borderRadius: '8px',
-                cursor: 'pointer',
+                cursor: submitState === 'submitting' ? 'not-allowed' : 'pointer',
                 transition: 'background 0.2s ease',
               }}
             >
-              SUBMIT
+              {submitState === 'submitting' ? 'SENDING…' : 'SUBMIT'}
             </button>
           </form>
+          )}
         </div>
 
         {/* RIGHT — Floating dark contact card */}

@@ -358,3 +358,24 @@ export const driveSyncState = pgTable("drive_sync_state", {
   lastSheetHash: text("last_sheet_hash"),
   conflictsPending: integer("conflicts_pending").notNull().default(0),
 });
+
+/* ───── Notifications ─────────────────────────────────────────── */
+
+export const notificationTypeEnum = pgEnum("notification_type", [
+  "lead_submitted",
+  "email_sent",
+  "email_opened",
+  "email_replied",
+  "sequence_completed",
+]);
+
+export const notifications = pgTable("notifications", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  type: notificationTypeEnum("type").notNull(),
+  title: text("title").notNull(),
+  body: text("body"),
+  leadId: uuid("lead_id").references(() => leads.id, { onDelete: "set null" }),
+  readAt: timestamp("read_at", { withTimezone: true }),
+  metadataJson: jsonb("metadata_json").default({}),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});

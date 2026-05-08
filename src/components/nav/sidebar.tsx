@@ -13,6 +13,8 @@ import {
   Settings,
   Menu,
   X,
+  Bell,
+  Inbox,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -25,6 +27,8 @@ const NAV: Array<{
   { href: "/leads", label: "Leads", icon: Users },
   { href: "/sequences", label: "Sequences", icon: GitBranch },
   { href: "/templates", label: "Templates", icon: Mail },
+  { href: "/inbox", label: "Inbox", icon: Inbox },
+  { href: "/notifications", label: "Notifications", icon: Bell },
   { href: "/admin", label: "Admin", icon: Shield },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
@@ -40,7 +44,7 @@ const NAV: Array<{
  *  - The trigger lives in a mobile-only top bar so the layout is symmetric
  *    with the desktop sidebar's brand strip
  */
-export function Sidebar() {
+export function Sidebar({ unreadNotifications = 0 }: { unreadNotifications?: number }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
@@ -79,7 +83,7 @@ export function Sidebar() {
         >
           <div className="logo-neon-glow relative size-8 shrink-0 overflow-hidden rounded-md">
             <Image
-              src="/logo.png?v=2"
+              src="/logo.png"
               alt="MF Superior Products"
               fill
               sizes="32px"
@@ -106,7 +110,7 @@ export function Sidebar() {
       {/* Desktop sidebar — only on ≥md */}
       <aside className="hidden h-screen w-60 shrink-0 flex-col border-r border-border bg-card md:flex">
         <SidebarBrand />
-        <SidebarNav pathname={pathname} />
+        <SidebarNav pathname={pathname} unreadNotifications={unreadNotifications} />
         <SidebarFooter />
       </aside>
 
@@ -147,7 +151,7 @@ export function Sidebar() {
             >
               <div className="logo-neon-glow relative size-9 shrink-0 overflow-hidden rounded-md">
                 <Image
-                  src="/logo.png?v=2"
+                  src="/logo.png"
                   alt="MF Superior Products"
                   fill
                   sizes="36px"
@@ -173,7 +177,7 @@ export function Sidebar() {
               <X className="size-5" />
             </button>
           </div>
-          <SidebarNav pathname={pathname} />
+          <SidebarNav pathname={pathname} unreadNotifications={unreadNotifications} />
           <SidebarFooter />
         </div>
       </div>
@@ -192,7 +196,7 @@ function SidebarBrand() {
     >
       <div className="logo-neon-glow relative size-9 shrink-0 overflow-hidden rounded-md">
         <Image
-          src="/logo.png?v=2"
+          src="/logo.png"
           alt="MF Superior Products"
           fill
           sizes="36px"
@@ -212,13 +216,20 @@ function SidebarBrand() {
   );
 }
 
-function SidebarNav({ pathname }: { pathname: string }) {
+function SidebarNav({
+  pathname,
+  unreadNotifications = 0,
+}: {
+  pathname: string;
+  unreadNotifications?: number;
+}) {
   return (
     <nav className="flex-1 overflow-y-auto px-3 py-4">
       <ul className="flex flex-col gap-0.5">
         {NAV.map(({ href, label, icon: Icon }) => {
           const active =
             pathname === href || pathname.startsWith(`${href}/`);
+          const showBadge = href === "/notifications" && unreadNotifications > 0;
           return (
             <li key={href}>
               <Link
@@ -232,7 +243,12 @@ function SidebarNav({ pathname }: { pathname: string }) {
                 aria-current={active ? "page" : undefined}
               >
                 <Icon className="size-4 shrink-0" aria-hidden />
-                <span className="truncate">{label}</span>
+                <span className="truncate flex-1">{label}</span>
+                {showBadge && (
+                  <span className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-semibold tabular-nums text-primary-foreground">
+                    {unreadNotifications > 99 ? "99+" : unreadNotifications}
+                  </span>
+                )}
               </Link>
             </li>
           );
