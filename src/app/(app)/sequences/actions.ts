@@ -5,15 +5,9 @@ import { redirect } from "next/navigation";
 import { and, asc, eq, ilike, isNull, or, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db/client";
-import {
-  auditLog,
-  emailSequences,
-  emailTemplates,
-  leadSequenceEnrollments,
-  leads,
-  suppressionList,
-} from "@/lib/db/schema";
+import { auditLog, leads } from "@/lib/db/schema";
 import { auth } from "@/lib/auth";
+import { enrollLeadInSequence } from "@/lib/sequences/enroll";
 
 /* ─── Enroll a single lead ──────────────────────────────────── */
 
@@ -31,7 +25,7 @@ export async function enrollLeadAction(formData: FormData): Promise<void> {
     sequenceId: formData.get("sequenceId"),
   });
 
-  const result = await enrollLeadInternal(leadId, sequenceId, session.user.id);
+  const result = await enrollLeadInSequence(leadId, sequenceId);
 
   await db.insert(auditLog).values({
     actorUserId: session.user.id,
@@ -109,7 +103,7 @@ export async function enrollByFilterAction(formData: FormData): Promise<void> {
   let created = 0;
   let skipped = 0;
   for (const c of candidates) {
-    const r = await enrollLeadInternal(c.id, parsed.sequenceId, session.user.id);
+    const r = await enrollLeadInSequence(c.id, parsed.sequenceId);
     if (r.created) created++;
     else skipped++;
   }
@@ -138,71 +132,3 @@ export async function enrollByFilterAction(formData: FormData): Promise<void> {
   );
 }
 
-/* ─── Internal: idempotent enroll ───────────────────────────── */
-
-type EnrollResult = {
-  created: boolean;
-  enrollmentId: string | null;
-  reason?: "already_enrolled" | "suppressed" | "no_active_step" | "ok";
-};
-
-async function enrollLeadInternal(
-  leadId: string,
-  sequenceId: string,
-  _actorUserId: string,
-): Promise<EnrollResult> {
-  // Look up the lead (we need email for suppression check).
-  const [lead] = await db
-    .select({ id: leads.id, email: leads.email })
-    .from(leads)
-    .where(eq(leads.id, leadId))
-    .limit(1);
-  if (!lead) return { created: false, enrollmentId: null, reason: "ok" };
-
-  // Suppression: never enroll a suppressed email.
-  if (lead.email) {
-    const [supp] = await db
-      .select({ email: suppressionList.email })
-      .from(suppressionList)
-      .where(eq(suppressionList.email, lead.email))
-      .limit(1);
-    if (supp) {
-      return { created: false, enrollmentId: null, reason: "suppressed" };
-    }
-  }
-
-  // Find the lowest active step's template.
-  const [firstTemplate] = await db
-    .select({ step: emailTemplates.sequenceStep })
-    .from(emailTemplates)
-    .where(
-      and(
-        eq(emailTemplates.sequenceId, sequenceId),
-        eq(emailTemplates.isActive, true),
-      ),
-    )
-    .orderBy(asc(emailTemplates.sequenceStep))
-    .limit(1);
-  if (firstTemplate?.step == null) {
-    return { created: false, enrollmentId: null, reason: "no_active_step" };
-  }
-
-  // Idempotent insert: the unique index on (lead_id, sequence_id) catches dupes.
-  const [inserted] = await db
-    .insert(leadSequenceEnrollments)
-    .values({
-      leadId,
-      sequenceId,
-      currentStep: firstTemplate.step,
-      status: "active",
-      // Send the first message on the next tick (we don't honor delay_days for step 1).
-      nextSendAt: sql`now()`,
-    })
-    .onConflictDoNothing()
-    .returning({ id: leadSequenceEnrollments.id });
-
-  if (!inserted) {
-    return { created: false, enrollmentId: null, reason: "already_enrolled" };
-  }
-  return { created: true, enrollmentId: inserted.id, reason: "ok" };
-}
