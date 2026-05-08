@@ -1,10 +1,39 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef } from 'react';
 import { CascadeText } from './CascadeText';
 
 export function CtaSection() {
-  const [hovered, setHovered] = useState(false);
+  const btnRef = useRef<HTMLButtonElement>(null);
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLButtonElement>) => {
+    const btn = btnRef.current;
+    if (!btn) return;
+    const rect = btn.getBoundingClientRect();
+    const dx = (e.clientX - (rect.left + rect.width / 2)) * 0.28;
+    const dy = (e.clientY - (rect.top + rect.height / 2)) * 0.28;
+    btn.style.transform = `translate(${dx}px, ${dy}px)`;
+    btn.style.transition = 'transform 0.08s ease';
+  };
+
+  const handleMouseEnter = () => {
+    const btn = btnRef.current;
+    if (!btn) return;
+    // On hover the lime brightens slightly and the button's box-shadow
+    // grows a soft lime halo — primary CTAs deserve a visible "warmth"
+    // bump on intent.
+    btn.style.background = '#E8F040';
+    btn.style.boxShadow = '0 0 0 2px rgba(212,224,48,0.25), 0 12px 32px rgba(212,224,48,0.35)';
+  };
+
+  const handleMouseLeave = () => {
+    const btn = btnRef.current;
+    if (!btn) return;
+    btn.style.transform = 'translate(0, 0)';
+    btn.style.transition = 'transform 0.55s cubic-bezier(0.25, 0.46, 0.45, 0.94), background 0.3s, box-shadow 0.3s';
+    btn.style.background = '#D4E030';
+    btn.style.boxShadow = '0 0 0 2px rgba(212,224,48,0), 0 6px 18px rgba(212,224,48,0.18)';
+  };
 
   return (
     <section
@@ -89,23 +118,36 @@ export function CtaSection() {
         </h2>
 
         <button
-          onMouseEnter={() => setHovered(true)}
-          onMouseLeave={() => setHovered(false)}
+          ref={btnRef}
+          onMouseMove={handleMouseMove}
+          onMouseEnter={handleMouseEnter}
+          onMouseLeave={handleMouseLeave}
+          onClick={() => {
+            const el = document.getElementById('contact');
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }}
           style={{
-            border: '2px solid rgba(255,255,255,0.4)',
-            color: '#fff',
-            background: hovered ? 'rgba(255,255,255,0.1)' : 'transparent',
-            padding: '18px 40px',
+            // Filled lime primary. Was an outline button competing for
+            // attention with surrounding white space — primary CTAs at
+            // the bottom of a long page benefit from a high-contrast
+            // fill that matches the brand mark.
+            border: 'none',
+            color: '#0A0A0A',
+            background: '#D4E030',
+            padding: '20px 56px',
             fontSize: '12px',
+            fontWeight: 700,
             letterSpacing: '0.18em',
             fontFamily: 'var(--font-mono, "Geist Mono", monospace)',
             textTransform: 'uppercase',
-            borderRadius: '8px',
+            borderRadius: '999px',
             cursor: 'pointer',
-            transition: 'background 0.3s',
+            transition: 'transform 0.55s cubic-bezier(0.25, 0.46, 0.45, 0.94), background 0.3s, box-shadow 0.3s',
+            willChange: 'transform',
+            boxShadow: '0 6px 18px rgba(212,224,48,0.18)',
           }}
         >
-          GET A QUOTE TODAY
+          Get a Quote Today →
         </button>
       </div>
     </section>

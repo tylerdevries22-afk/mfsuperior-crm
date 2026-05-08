@@ -114,10 +114,18 @@ export default function Navbar() {
           transition: 'background 0.4s ease, backdrop-filter 0.4s ease',
         }}
       >
-        {/* Logo */}
-        <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+        {/* Logo — clickable home link with a responsive width-cap so the
+            mark stays proportionate on phones without crowding the
+            mobile call/menu cluster. CSS controls width on each
+            breakpoint via .mkt-nav-logo (defined in globals.css). */}
+        <a
+          href="/"
+          aria-label="MF Superior — home"
+          className="mkt-nav-logo"
+          style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}
+        >
           <MFLogo width={90} height={54} />
-        </div>
+        </a>
 
         {/* Desktop: center nav links */}
         <div
@@ -212,6 +220,7 @@ export default function Navbar() {
             Login
           </a>
           <button
+            onClick={() => scrollToSection('contact')}
             style={{
               padding: '10px 16px',
               borderRadius: '8px',

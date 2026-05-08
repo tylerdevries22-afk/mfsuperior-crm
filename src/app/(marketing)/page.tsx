@@ -11,6 +11,11 @@ import { HowItWorksSection } from "@/components/marketing/HowItWorksSection";
 import { CtaSection } from "@/components/marketing/CtaSection";
 import { Footer } from "@/components/marketing/Footer";
 
+// HowItWorksSection owns the #contact form anchor for the navbar
+// scroll-spy. ContactSection.tsx is left in src for reference but is
+// not mounted — rendering both produced two stacked contact forms at
+// the page bottom.
+
 export default function Home() {
   return (
     <LenisProvider>

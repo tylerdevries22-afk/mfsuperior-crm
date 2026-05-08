@@ -175,24 +175,26 @@ export function Footer() {
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
+          gap: '16px',
         }}
       >
         <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '12px' }}>
-          Copyright MF Superior Solutions &copy; 2026 All Rights Reserved
+          &copy; 2026 MF Superior Solutions. All rights reserved.
         </span>
+        {/* Address removed here — already lives in the brand column above. */}
         <a
-          href="/sitemap"
+          href="mailto:info@mfsuperiorproducts.com"
           style={{
             color: 'rgba(255,255,255,0.4)',
             fontSize: '12px',
             textDecoration: 'none',
+            transition: 'color 0.2s ease',
           }}
+          onMouseEnter={(e) => ((e.currentTarget as HTMLAnchorElement).style.color = 'var(--c-lime)')}
+          onMouseLeave={(e) => ((e.currentTarget as HTMLAnchorElement).style.color = 'rgba(255,255,255,0.4)')}
         >
-          Sitemap
+          info@mfsuperiorproducts.com
         </a>
-        <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '12px' }}>
-          15321 E Louisiana Ave, Aurora, CO 80017
-        </span>
       </div>
     </footer>
   );
