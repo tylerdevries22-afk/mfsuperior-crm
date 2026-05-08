@@ -79,15 +79,22 @@ export function HeroSection() {
     <section
       ref={sectionRef}
       style={{
-        // Scroll runway. 260vh = the sticky frame stays pinned for
-        // ~160vh of user scroll (260 minus the visible 100vh), and
-        // that 160vh maps linearly to video.currentTime via the rAF
-        // tick — so the user has to scrub ALL the way through the
-        // video before the section releases and the next section
-        // enters. This is the "scroll-jack" effect requested: the
-        // hero stays in place until the video finishes.
+        // Scroll runway sized to the video's duration. The hero video
+        // (benefit-01-vert.mp4) is 6.25s long; we map the scroll
+        // progress to video.currentTime in the rAF tick, and we want
+        // ~50vh of scroll per second of video for a deliberate
+        // scrub-through feel.
+        //
+        //   visible frame (sticky)   100vh
+        //   scrub runway   6.25s × 50vh ≈ 315vh
+        //   total section            ≈ 420vh
+        //
+        // The section stays pinned for the entire 320vh of scroll
+        // while the video plays through frame-by-frame. Only after
+        // the user has scrubbed the full clip does the section
+        // release and the next section come in.
         position: 'relative',
-        minHeight: '260vh',
+        minHeight: '420vh',
         overflow: 'hidden',
         backgroundColor: '#000',
       }}
@@ -177,18 +184,17 @@ export function HeroSection() {
           }}
         >
           {/*
-            Pretitle removed per user direction — hero is just the h1
-            now. Each line's FIRST WORD ("Built", "Delivery") is plain
-            final-color text, always visible at scroll=0. Everything
-            after each first word cascades in as the user scrolls
-            through the section.
+            Headline cascades fire in the first ~40% of section scroll
+            so they settle while there's still plenty of video left to
+            scrub. The back 60% is pure video appreciation — both lines
+            already revealed, user just scrolls through the truck
+            reveal.
 
-            Ranges (against the section's 0→1 scrollYProgress):
-               line 1 remainder → [0.05, 0.40]
-               line 2 remainder → [0.45, 0.80]
-            The remaining 20% (0.80→1.0) is settled-tail: both lines
-            fully revealed, video still scrubbing to its final frame
-            before the section releases.
+            Ranges against scrollYProgress (0–1) for the 420vh section:
+               line 1 remainder → [0.04, 0.22]   ≈ scroll 17vh→92vh
+               line 2 remainder → [0.25, 0.42]   ≈ scroll 105vh→176vh
+               settled tail     → [0.42, 1.00]   ≈ scroll 176vh→420vh
+                                                   (video keeps scrubbing)
           */}
           <h1
             style={{
@@ -205,7 +211,7 @@ export function HeroSection() {
             <CascadeText
               text="for the work ahead."
               progress={heroProgress}
-              range={[0.05, 0.40]}
+              range={[0.04, 0.22]}
               spread={1}
               finalColor="#fff"
               flashColor="#D4E030"
@@ -216,7 +222,7 @@ export function HeroSection() {
             <CascadeText
               text="that doesn't quit."
               progress={heroProgress}
-              range={[0.45, 0.80]}
+              range={[0.25, 0.42]}
               spread={1}
               finalColor="#fff"
               flashColor="#D4E030"
