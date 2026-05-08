@@ -79,7 +79,7 @@ export function InfoTooltip({
         <span
           role="tooltip"
           className={cn(
-            "absolute z-30 w-80 max-w-[calc(100vw-2rem)] rounded-md border border-border bg-card p-3 text-xs leading-relaxed text-foreground shadow-lg sm:w-96",
+            "absolute z-30 w-72 max-w-[calc(100vw-1rem)] rounded-md border border-border bg-card p-3 text-xs leading-relaxed text-foreground shadow-lg sm:w-80 md:w-96",
             sideClass,
             alignClass,
             panelClassName,

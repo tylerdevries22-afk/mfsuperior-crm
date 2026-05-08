@@ -147,7 +147,7 @@ export default async function AdminPage({
             </form>
 
             {ranTick && (
-              <div className="grid grid-cols-3 gap-2 rounded-md border border-border bg-secondary/30 px-4 py-3">
+              <div className="grid grid-cols-2 gap-2 rounded-md border border-border bg-secondary/30 px-4 py-3 sm:grid-cols-3">
                 <Stat label="Due" value={Number(sp.due ?? 0)} />
                 <Stat label="Drafted" value={Number(sp.drafted ?? 0)} accent />
                 <Stat label="Sent" value={Number(sp.sent ?? 0)} accent />
@@ -157,11 +157,11 @@ export default async function AdminPage({
                 <Stat label="Suppressed" value={Number(sp.suppressed ?? 0)} muted />
                 <Stat label="No email" value={Number(sp.no_email ?? 0)} muted />
                 <Stat label="Capped" value={Number(sp.capped ?? 0)} muted />
-                <p className="col-span-3 mt-1 font-mono text-xs tabular-nums text-muted-foreground">
+                <p className="col-span-full mt-1 font-mono text-xs tabular-nums text-muted-foreground">
                   {Number(sp.dur ?? 0)}ms
                 </p>
                 {sp.notes && (
-                  <ul className="col-span-3 mt-1 space-y-0.5 text-xs text-muted-foreground">
+                  <ul className="col-span-full mt-1 space-y-0.5 text-xs text-muted-foreground">
                     {decodeURIComponent(sp.notes)
                       .split("|")
                       .filter(Boolean)
@@ -224,17 +224,17 @@ export default async function AdminPage({
             </form>
 
             {ranPoll && (
-              <div className="grid grid-cols-3 gap-2 rounded-md border border-border bg-secondary/30 px-4 py-3">
+              <div className="grid grid-cols-2 gap-2 rounded-md border border-border bg-secondary/30 px-4 py-3 sm:grid-cols-3">
                 <Stat label="Threads" value={Number(sp.threads ?? 0)} />
                 <Stat label="Replies" value={Number(sp.replies ?? 0)} accent />
                 <Stat label="Bounces" value={Number(sp.bounces ?? 0)} accent />
                 <Stat label="Already handled" value={Number(sp.handled ?? 0)} muted />
                 <Stat label="Errors" value={Number(sp.poll_errors ?? 0)} muted />
-                <p className="col-span-3 mt-1 font-mono text-xs tabular-nums text-muted-foreground">
+                <p className="col-span-full mt-1 font-mono text-xs tabular-nums text-muted-foreground">
                   {Number(sp.poll_dur ?? 0)}ms
                 </p>
                 {sp.poll_notes && (
-                  <ul className="col-span-3 mt-1 space-y-0.5 text-xs text-muted-foreground">
+                  <ul className="col-span-full mt-1 space-y-0.5 text-xs text-muted-foreground">
                     {decodeURIComponent(sp.poll_notes)
                       .split("|")
                       .filter(Boolean)
@@ -295,9 +295,9 @@ export default async function AdminPage({
             </form>
 
             {ranSync && (
-              <div className="grid grid-cols-3 gap-2 rounded-md border border-border bg-secondary/30 px-4 py-3">
+              <div className="grid grid-cols-2 gap-2 rounded-md border border-border bg-secondary/30 px-4 py-3 sm:grid-cols-3">
                 {sp.sync_file && (
-                  <p className="col-span-3 truncate font-mono text-xs text-muted-foreground">
+                  <p className="col-span-full truncate font-mono text-xs text-muted-foreground">
                     {sp.sync_file}
                   </p>
                 )}
@@ -310,7 +310,7 @@ export default async function AdminPage({
                   {Number(sp.sync_dur ?? 0)}ms
                 </p>
                 {sp.sync_notes && (
-                  <ul className="col-span-3 mt-1 space-y-0.5 text-xs text-muted-foreground">
+                  <ul className="col-span-full mt-1 space-y-0.5 text-xs text-muted-foreground">
                     {decodeURIComponent(sp.sync_notes)
                       .split("|")
                       .filter(Boolean)
@@ -395,7 +395,8 @@ export default async function AdminPage({
           {suppressionRows.length === 0 ? (
             <p className="text-sm text-muted-foreground">No suppressed addresses.</p>
           ) : (
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto">
+            <table className="w-full min-w-[480px] text-sm">
               <thead className="border-b border-border text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
                 <tr>
                   <th className="pb-2 pr-4 font-medium">Email</th>
@@ -424,6 +425,7 @@ export default async function AdminPage({
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </CardContent>
       </Card>
@@ -439,7 +441,8 @@ export default async function AdminPage({
               No audit entries yet.
             </p>
           ) : (
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto">
+            <table className="w-full min-w-[680px] text-sm">
               <thead className="border-b border-border bg-card text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
                 <tr>
                   <th className="px-6 py-2.5 font-medium">When</th>
@@ -467,6 +470,7 @@ export default async function AdminPage({
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </CardContent>
       </Card>
