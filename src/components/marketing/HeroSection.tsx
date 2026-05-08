@@ -1,23 +1,33 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import { useScroll } from 'motion/react';
 import { CascadeText } from './CascadeText';
 
 export function HeroSection() {
   const sectionRef = useRef<HTMLElement>(null);
-  const layerARef = useRef<HTMLDivElement>(null);
-  const layerBRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  // The hero is the first thing the user sees — no scroll runway has
-  // accumulated yet, so a scroll-linked cascade leaves the headline
-  // mostly invisible on page load (rest state is faint by design). We
-  // use the trigger / whileInView path of CascadeText with explicit
-  // per-line delays instead, so the three lines reveal sequentially in
-  // TIME (not scroll) within ~4 seconds of the hero entering view, then
-  // sit settled for the rest of the section. Mid-page sections keep the
-  // scroll-linked cascade — that's where the per-letter scroll reveal
-  // feels right.
+  // Shared scroll source for the hero — drives both the scroll-linked
+  // cascade (per-line ranges below) and any future visual chained off
+  // hero progress. Offset chosen so the cascade starts the moment the
+  // section's top reaches viewport top and finishes well before the
+  // section exits.
+  const { scrollYProgress: heroProgress } = useScroll({
+    target: sectionRef,
+    offset: ['start start', 'end start'],
+  });
+
+  // Animation choice (per user direction):
+  //   • Hero text is SCROLL-DRIVEN, not time-based. Each line's cascade
+  //     ranges are non-overlapping (sequential reveal as you scroll).
+  //   • The FIRST WORD of each line is rendered as plain final-color
+  //     text — always visible at scroll=0 so the user lands on
+  //     "Colorado's / Built / Delivery" without needing to interact.
+  //   • The video is visible from page load and stays sticky-pinned at
+  //     100vh while the user scrolls (scroll-scrubs via rAF). The
+  //     gradient-A → video crossfade was removed so the video's role
+  //     as the hero backdrop is unambiguous from the first frame.
 
   useEffect(() => {
     const section = sectionRef.current;
@@ -37,11 +47,6 @@ export function HeroSection() {
       const scrolled = Math.max(0, -rect.top);
       const maxScroll = section.offsetHeight - viewH;
       const progress = maxScroll > 0 ? Math.min(1, scrolled / maxScroll) : 0;
-
-      // Gradient → video crossfade (first ~30% of scroll range).
-      const fade = Math.min(1, scrolled / 600);
-      if (layerARef.current) layerARef.current.style.opacity = String(1 - fade);
-      if (layerBRef.current) layerBRef.current.style.opacity = String(fade);
 
       // Scrub video frame-by-frame with scroll.
       if (video.readyState >= 2 && video.duration > 0) {
@@ -111,35 +116,19 @@ export function HeroSection() {
           overflow: 'hidden',
         }}
       >
-        {/* Layer A: dark gradient — visible at top, fades out as user scrolls */}
-        <div
-          ref={layerARef}
-          style={{
-            position: 'absolute',
-            inset: 0,
-            background: 'linear-gradient(to bottom, #1c1c1c, #161616, #111111)',
-            willChange: 'opacity',
-          }}
-        >
-          <div
-            style={{
-              position: 'absolute',
-              inset: 0,
-              background:
-                'linear-gradient(to top, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.2) 40%, transparent 70%)',
-            }}
-          />
-        </div>
+        {/* Video backdrop — visible from page load (no crossfade). The
+            sticky frame above keeps it pinned at 100vh while the user
+            scrolls; the rAF loop scrubs video.currentTime against
+            scroll progress so the truck wireframe animates as you go.
 
-        {/* Layer B: video — fades in as user scrolls, scrubs frame-by-frame */}
+            The dark bottom-up gradient on top of the video gives the
+            headline the contrast it needs to stay readable against a
+            potentially bright/busy frame. No animated opacity. */}
         <div
-          ref={layerBRef}
           style={{
             position: 'absolute',
             inset: 0,
             backgroundColor: '#0a0a0a',
-            opacity: 0,
-            willChange: 'opacity',
           }}
         >
           <video
@@ -160,7 +149,7 @@ export function HeroSection() {
               position: 'absolute',
               inset: 0,
               background:
-                'linear-gradient(to top, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.3) 50%, transparent 80%)',
+                'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.45) 45%, rgba(0,0,0,0.15) 75%, transparent 100%)',
             }}
           />
         </div>
@@ -186,24 +175,39 @@ export function HeroSection() {
             padding: '0 5.128vw 80px',
           }}
         >
+          {/*
+            Each line: the FIRST WORD is rendered as plain final-color
+            text — always visible at scroll=0 so the user lands on a
+            readable headline instead of an empty hero. Everything AFTER
+            the first word is wrapped in a CascadeText bound to a
+            non-overlapping slice of the section's scroll progress, so
+            the rest of each sentence cascades in left-to-right as the
+            user scrolls down through the hero.
+
+            Ranges are deliberately staged so only one line is mid-
+            cascade at a time:
+               pretitle remainder → [0.00, 0.28]
+               line 1 remainder    → [0.32, 0.58]
+               line 2 remainder    → [0.62, 0.88]
+            Last 12% is settled-tail before the next section enters.
+          */}
           <p
             style={{
-              // Was a flat 16px — too small as a hero pre-title on
-              // anything bigger than a phone. Scaled responsively now.
               fontSize: 'clamp(15px, 1.5vw, 22px)',
               marginBottom: '12px',
               fontFamily: 'var(--font-primary)',
               fontWeight: 400,
               lineHeight: 1.4,
               letterSpacing: '0.01em',
+              color: 'rgba(255,255,255,0.85)',
             }}
           >
+            <span style={{ color: 'rgba(255,255,255,0.85)' }}>Colorado&rsquo;s</span>{' '}
             <CascadeText
-              text="Colorado's most trusted freight delivery partner"
-              scrollLinked={false}
-              delay={0.25}
-              stagger={0.022}
-              duration={0.5}
+              text="most trusted freight delivery partner"
+              progress={heroProgress}
+              range={[0.0, 0.28]}
+              spread={1}
               finalColor="rgba(255,255,255,0.85)"
               flashColor="#D4E030"
               restColor="rgba(255,255,255,0.10)"
@@ -220,27 +224,23 @@ export function HeroSection() {
               color: '#fff',
             }}
           >
+            <span style={{ color: '#fff' }}>Built</span>{' '}
             <CascadeText
-              text="Built for the work ahead."
-              scrollLinked={false}
-              // Line 1 starts after the pretitle finishes
-              // (~0.25 + 0.022 × 47chars + 0.5 ≈ 1.78s).
-              delay={1.85}
-              stagger={0.028}
-              duration={0.55}
+              text="for the work ahead."
+              progress={heroProgress}
+              range={[0.32, 0.58]}
+              spread={1}
               finalColor="#fff"
               flashColor="#D4E030"
               restColor="rgba(255,255,255,0.18)"
             />
             <br />
+            <span style={{ color: '#fff' }}>Delivery</span>{' '}
             <CascadeText
-              text="Delivery that doesn't quit."
-              scrollLinked={false}
-              // Line 2 starts after line 1 finishes
-              // (1.85 + 0.028 × 25chars + 0.55 ≈ 3.10s).
-              delay={3.15}
-              stagger={0.028}
-              duration={0.55}
+              text="that doesn't quit."
+              progress={heroProgress}
+              range={[0.62, 0.88]}
+              spread={1}
               finalColor="#fff"
               flashColor="#D4E030"
               restColor="rgba(255,255,255,0.18)"
