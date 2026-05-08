@@ -264,6 +264,11 @@ html.lenis body {
   to { opacity: 1; }
 }
 
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
 /* ── Grid pattern utilities (landing page) ────────────────────── */
 .grid-pattern {
   background-image:
@@ -292,6 +297,51 @@ html.lenis body {
 }
 .lime-glow-soft {
   background: radial-gradient(circle at 50% 50%, rgba(212, 224, 48, 0.8), transparent 15rem);
+}
+
+/* ── "Superior Products" shimmer ──────────────────────────────── */
+/*
+ * Stacked over the cascading lime text via ::after, so we don't fight
+ * the per-letter color animation. The pseudo-element reproduces the
+ * text via attr(data-text) and paints a sliding bright-yellow sweep
+ * onto it using a linear-gradient mask (-webkit-background-clip:
+ * text). The cascade plays first; once the user has scrolled past the
+ * cascade's range end the text is at its settled lime, and this
+ * shimmer keeps it "alive" with a slow polished sweep.
+ *
+ * Animation is paused under prefers-reduced-motion (handled by the
+ * blanket reduce-motion rule near the top of this file).
+ */
+@keyframes mf-shimmer-sweep {
+  0% { background-position: 200% 0; }
+  60%, 100% { background-position: -200% 0; }
+}
+.mf-shimmer-text {
+  position: relative;
+  display: inline-block;
+}
+.mf-shimmer-text::after {
+  content: attr(data-text);
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  font: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+  text-align: inherit;
+  background: linear-gradient(
+    100deg,
+    transparent 35%,
+    rgba(255, 255, 255, 0.85) 50%,
+    transparent 65%
+  );
+  background-size: 250% 100%;
+  -webkit-background-clip: text;
+          background-clip: text;
+  color: transparent;
+  /* Gentle delay + cycle so the shimmer doesn't fight the cascade
+     reveal during the first few hundred ms it's on screen. */
+  animation: mf-shimmer-sweep 4.5s ease-in-out 1.4s infinite;
 }
 
 /* ── Neon glow on transparent MF logo ─────────────────────────── */

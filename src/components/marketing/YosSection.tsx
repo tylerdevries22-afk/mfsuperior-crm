@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import { useMotionValue } from 'motion/react';
 import { CascadeText } from './CascadeText';
 
 export function YosSection() {
@@ -8,6 +9,11 @@ export function YosSection() {
   const phase1Ref = useRef<HTMLDivElement>(null);
   const phase2Ref = useRef<HTMLDivElement>(null);
   const mfTextRef = useRef<HTMLHeadingElement>(null);
+
+  // Exposed scroll progress for the "Superior Products" cascade. Updated
+  // inside the RAF tick below so the cascade fires off the same scroll
+  // signal that drives phase swap + MF font-size — no double useScroll.
+  const sectionProgress = useMotionValue(0);
 
   useEffect(() => {
     const section = sectionRef.current;
@@ -27,12 +33,18 @@ export function YosSection() {
       const phase2Opacity = progress < 0.4
         ? 0
         : Math.min(1, (progress - 0.4) / 0.2);
-      const yosProgress = progress < 0.4 ? 0 : Math.min(1, (progress - 0.4) / 0.6);
+      // MF text grows from 0.4 → 0.7 of section progress (was 0.4 → 1.0).
+      // This compresses the size animation into the first 70% of the
+      // section so the LAST 30% can be reserved for the "Superior
+      // Products" cascade — kicking in only after MF has already
+      // reached its full size at progress = 0.7.
+      const yosProgress = progress < 0.4 ? 0 : Math.min(1, (progress - 0.4) / 0.3);
       const yosFontSize = 48 + (240 - 48) * yosProgress;
 
       if (phase1Ref.current) phase1Ref.current.style.opacity = String(phase1Opacity);
       if (phase2Ref.current) phase2Ref.current.style.opacity = String(phase2Opacity);
       if (mfTextRef.current) mfTextRef.current.style.fontSize = `${yosFontSize}px`;
+      sectionProgress.set(progress);
 
       raf = requestAnimationFrame(tick);
     };
@@ -47,7 +59,7 @@ export function YosSection() {
     io.observe(section);
 
     return () => { cancelAnimationFrame(raf); io.disconnect(); };
-  }, []);
+  }, [sectionProgress]);
 
   const darkGridStyle: React.CSSProperties = {
     backgroundImage:
@@ -178,30 +190,45 @@ export function YosSection() {
             MF.
           </h2>
 
-          {/* Medium-weight lime tagline beneath the giant MF. Same scroll-driven
-              cascade as the rest of the site, but with a stable lime final color
-              (instead of the usual rest→flash→white) so the lime stays as the
-              brand mark when scroll settles. */}
+          {/*
+            Lime tagline beneath the giant MF. — three coordinated effects:
+
+            1. Cascade is bound to the section's own progress MotionValue
+               with range [0.72, 0.92]. yosProgress (the MF font-size
+               curve) reaches 1.0 at section progress 0.70, so the cascade
+               starts only AFTER MF has hit its full size — no overlap.
+            2. Color is a richer, more saturated yellow (#B8C200) that
+               reads cleanly on the white phase-2 background while still
+               reading as "yellow" instead of olive.
+            3. A shimmer overlay (.mf-shimmer-text via globals.css) runs
+               a sliding hot-spot across the text continuously. It uses
+               ::after { content: attr(data-text) } and a moving
+               linear-gradient mask to paint a bright sweep on top of the
+               settled cascade text — gives the lime a polished
+               "in-motion" feel without disturbing the cascade's reveal.
+          */}
           <p
+            className="mf-shimmer-text"
+            data-text="Superior Products"
             style={{
-              fontSize: 'clamp(20px, 2.5vw, 36px)',
-              fontWeight: 500,
+              fontSize: 'clamp(22px, 2.7vw, 38px)',
+              fontWeight: 600,
               fontFamily: 'var(--font-primary)',
               textAlign: 'center',
-              margin: '24px 0 0 0',
+              margin: '32px 0 0 0',
               lineHeight: 1.1,
               letterSpacing: '0.01em',
-              color: '#A0B41E',
+              color: '#B8C200',
             }}
           >
             <CascadeText
               text="Superior Products"
-              scrollLinked
-              spread={0.55}
-              offset={['start 80%', 'start 35%']}
-              finalColor="#A0B41E"
-              flashColor="#D4E030"
-              restColor="rgba(160,180,30,0.18)"
+              progress={sectionProgress}
+              range={[0.72, 0.92]}
+              spread={1}
+              finalColor="#B8C200"
+              flashColor="#E8F040"
+              restColor="rgba(184,194,0,0.12)"
             />
           </p>
         </div>
