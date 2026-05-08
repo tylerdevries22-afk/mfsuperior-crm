@@ -10,9 +10,9 @@ interface FooterLink {
 
 const technologyLinks: FooterLink[] = [
   { label: 'Homepage', href: '/' },
-  { label: 'Box Trucks', href: '/box-trucks' },
-  { label: 'Liftgate Options', href: '/liftgate-options' },
-  { label: 'Fleet Financing', href: '/fleet-financing' },
+  { label: 'Our Services', href: '/services' },
+  { label: 'Liftgate Service', href: '/liftgate-service' },
+  { label: 'Get a Quote', href: '/contact' },
 ];
 
 const companyLinks: FooterLink[] = [
@@ -63,6 +63,7 @@ export function Footer() {
     >
       {/* Top columns */}
       <div
+        className="mkt-footer-grid"
         style={{
           display: 'grid',
           gridTemplateColumns: '280px 1fr 1fr 1fr',
@@ -71,7 +72,7 @@ export function Footer() {
         }}
       >
         {/* Column 1: Brand */}
-        <div>
+        <div className="mkt-footer-brand">
           {/* Logo + wordmark */}
           <div
             style={{
@@ -98,7 +99,7 @@ export function Footer() {
 
         {/* Column 2: Technology */}
         <div>
-          <p style={columnHeaderStyle}>Fleet</p>
+          <p style={columnHeaderStyle}>Services</p>
           {technologyLinks.map((link) => (
             <FooterLink key={link.label} href={link.href}>
               {link.label}
@@ -127,7 +128,7 @@ export function Footer() {
               fontFamily: 'var(--font-primary, SuisseIntl, sans-serif)',
             }}
           >
-            Ready to grow your fleet?
+            Ready to move your freight?
           </p>
           <p
             style={{
@@ -167,6 +168,7 @@ export function Footer() {
 
       {/* Bottom bar */}
       <div
+        className="mkt-footer-bottom"
         style={{
           borderTop: '1px solid rgba(255,255,255,0.1)',
           padding: '24px 5.128vw',
@@ -176,7 +178,7 @@ export function Footer() {
         }}
       >
         <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '12px' }}>
-          Copyright MF Superior Products &copy; 2025 All Rights Reserved
+          Copyright MF Superior Solutions &copy; 2026 All Rights Reserved
         </span>
         <a
           href="/sitemap"

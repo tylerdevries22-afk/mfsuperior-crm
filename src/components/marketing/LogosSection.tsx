@@ -91,11 +91,12 @@ export function LogosSection() {
           fontFamily: 'var(--font-primary, SuisseIntl, sans-serif)',
         }}
       >
-        Colorado&apos;s top fleet operators choose MF Superior Products
+        Colorado&apos;s top operators trust MF Superior Solutions
       </h2>
 
       {/* Logos grid */}
       <div
+        className="mkt-logos-grid"
         style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(7, 1fr)',

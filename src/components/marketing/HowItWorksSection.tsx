@@ -118,6 +118,7 @@ export function HowItWorksSection() {
       {/* Decorative SVG — curved left-rail line */}
       <svg
         aria-hidden="true"
+        className="mkt-howitworks-svg"
         style={{
           position: 'absolute',
           left: 0,
@@ -187,6 +188,7 @@ export function HowItWorksSection() {
 
       {/* ── Two-column layout ── */}
       <div
+        className="mkt-howitworks-grid"
         style={{
           display: 'grid',
           gridTemplateColumns: '1fr 1fr',

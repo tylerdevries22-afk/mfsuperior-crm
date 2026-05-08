@@ -148,6 +148,7 @@ export function FeaturesSection() {
 
       {/* Two-column layout */}
       <div
+        className="mkt-features-grid"
         style={{
           display: 'flex',
           alignItems: 'flex-start',
@@ -156,6 +157,7 @@ export function FeaturesSection() {
       >
         {/* Left column — scrollable, 42% width */}
         <div
+          className="mkt-features-left"
           style={{
             width: '42%',
             flexShrink: 0,
@@ -167,6 +169,7 @@ export function FeaturesSection() {
               ref={(el) => {
                 itemRefs.current[index] = el;
               }}
+              className="mkt-features-item"
               style={{
                 padding: '80px 5.128vw 80px 5.128vw',
                 minHeight: '280px',
@@ -207,6 +210,7 @@ export function FeaturesSection() {
 
         {/* Right column — sticky panel, 58% width */}
         <div
+          className="mkt-features-right"
           style={{
             width: '58%',
             flexShrink: 0,

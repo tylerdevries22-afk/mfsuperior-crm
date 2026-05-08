@@ -96,6 +96,7 @@ function BenefitVideo({ src, num }: BenefitVideoProps) {
 
   return (
     <div
+      className="mkt-benefits-video"
       style={{
         width: '100%',
         height: '80vh',
@@ -146,6 +147,7 @@ interface BenefitTextStripProps {
 function BenefitTextStrip({ benefit, isLast }: BenefitTextStripProps) {
   return (
     <div
+      className="mkt-benefits-strip"
       style={{
         backgroundColor: '#fff',
         display: 'grid',

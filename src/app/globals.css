@@ -285,3 +285,38 @@ html.lenis body {
 .lime-glow-soft {
   background: radial-gradient(circle at 50% 50%, rgba(212, 224, 48, 0.8), transparent 15rem);
 }
+
+/* ── Marketing mobile responsive overrides ───────────────────── */
+@media (max-width: 768px) {
+  /* Navbar */
+  .mkt-nav-links-desktop { display: none !important; }
+  .mkt-nav-actions-desktop { display: none !important; }
+  .mkt-nav-mobile-actions { display: flex !important; }
+
+  /* Features section */
+  .mkt-features-grid { flex-direction: column !important; }
+  .mkt-features-left { width: 100% !important; }
+  .mkt-features-right { display: none !important; }
+  .mkt-features-item { padding: 40px 6vw !important; min-height: unset !important; }
+
+  /* Benefits section */
+  .mkt-benefits-strip { grid-template-columns: 1fr !important; gap: 16px !important; padding: 32px 6vw !important; }
+  .mkt-benefits-video { height: 56vw !important; min-height: 220px !important; }
+
+  /* HowItWorks section */
+  .mkt-howitworks-grid { grid-template-columns: 1fr !important; }
+  .mkt-howitworks-svg { display: none !important; }
+
+  /* Logos section */
+  .mkt-logos-grid { grid-template-columns: repeat(4, 1fr) !important; }
+
+  /* Footer */
+  .mkt-footer-grid { grid-template-columns: 1fr 1fr !important; gap: 32px !important; padding: 48px 6vw 32px !important; }
+  .mkt-footer-brand { grid-column: 1 / -1 !important; }
+  .mkt-footer-bottom { flex-direction: column !important; gap: 8px !important; text-align: center !important; align-items: center !important; padding: 20px 6vw !important; }
+}
+
+@media (max-width: 480px) {
+  .mkt-footer-grid { grid-template-columns: 1fr !important; }
+  .mkt-logos-grid { grid-template-columns: repeat(3, 1fr) !important; }
+}

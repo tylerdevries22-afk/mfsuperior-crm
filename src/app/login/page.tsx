@@ -31,7 +31,7 @@ export default async function LoginPage() {
       <Card className="w-full max-w-md">
         <CardHeader className="border-b-0 pb-0">
           <div className="flex items-center gap-3">
-            <div className="relative size-12 shrink-0 overflow-hidden rounded-md bg-slate-950">
+            <div className="relative size-12 shrink-0 overflow-hidden rounded-md">
               <Image
                 src="/logo.png"
                 alt="MF Superior Products"
@@ -43,7 +43,7 @@ export default async function LoginPage() {
             </div>
             <div>
               <CardTitle className="text-lg">MF Superior</CardTitle>
-              <CardDescription>Freight box trucks · CRM</CardDescription>
+              <CardDescription>Freight delivery · CRM</CardDescription>
             </div>
           </div>
         </CardHeader>
