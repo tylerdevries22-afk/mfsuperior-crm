@@ -70,72 +70,97 @@ export function HeroSection() {
         backgroundColor: '#000',
       }}
     >
-      {/* Layer A: dark gradient — visible at top, fades out as user scrolls */}
-      <div
-        ref={layerARef}
-        style={{
-          position: 'absolute',
-          inset: 0,
-          background: 'linear-gradient(to bottom, #1c1c1c, #161616, #111111)',
-          willChange: 'opacity',
-        }}
-      >
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            background:
-              'linear-gradient(to top, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.2) 40%, transparent 70%)',
-          }}
-        />
-      </div>
+      {/*
+        Single sticky frame holds EVERY visible hero element — the video,
+        the gradient overlays, the headline, and the scroll cue. Pinning
+        at 100vh max means the video element itself is never sized larger
+        than the viewport on any device, so object-fit: cover never has
+        to crop+upscale a 200vh-tall canvas (the previous bug that read
+        as stretched/grainy).
 
-      {/* Layer B: video — fades in as user scrolls, scrubs frame-by-frame */}
-      <div
-        ref={layerBRef}
-        style={{
-          position: 'absolute',
-          inset: 0,
-          backgroundColor: '#0a0a0a',
-          opacity: 0,
-          willChange: 'opacity',
-        }}
-      >
-        <video
-          ref={videoRef}
-          src="/videos/benefit-01-vert.mp4"
-          muted
-          playsInline
-          preload="auto"
-          style={{
-            width: '100%',
-            height: '100%',
-            objectFit: 'cover',
-            display: 'block',
-          }}
-        />
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            background:
-              'linear-gradient(to top, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.3) 50%, transparent 80%)',
-          }}
-        />
-      </div>
-
-      {/* Sticky text — stays in viewport for the full 200vh scroll */}
+        The section above is still 200vh — that height is the *scroll
+        runway* that drives video.currentTime via the rAF loop. The two
+        roles are now properly separated: section = scroll length;
+        sticky frame = visual layout.
+      */}
       <div
         style={{
           position: 'sticky',
           top: 0,
+          width: '100%',
           height: '100vh',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'flex-end',
-          pointerEvents: 'none',
+          // 100dvh on supporting browsers handles iOS Safari's URL bar
+          // showing/hiding without making the hero re-resize and clip.
+          maxHeight: '100dvh',
+          overflow: 'hidden',
         }}
       >
+        {/* Layer A: dark gradient — visible at top, fades out as user scrolls */}
+        <div
+          ref={layerARef}
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: 'linear-gradient(to bottom, #1c1c1c, #161616, #111111)',
+            willChange: 'opacity',
+          }}
+        >
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background:
+                'linear-gradient(to top, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.2) 40%, transparent 70%)',
+            }}
+          />
+        </div>
+
+        {/* Layer B: video — fades in as user scrolls, scrubs frame-by-frame */}
+        <div
+          ref={layerBRef}
+          style={{
+            position: 'absolute',
+            inset: 0,
+            backgroundColor: '#0a0a0a',
+            opacity: 0,
+            willChange: 'opacity',
+          }}
+        >
+          <video
+            ref={videoRef}
+            src="/videos/benefit-01-vert.mp4"
+            muted
+            playsInline
+            preload="auto"
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              display: 'block',
+            }}
+          />
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background:
+                'linear-gradient(to top, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.3) 50%, transparent 80%)',
+            }}
+          />
+        </div>
+
+        {/* Headline + scroll cue — pointer-events disabled on the wrapper
+            so the user's scroll wheel/touch passes through to the section. */}
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'flex-end',
+            pointerEvents: 'none',
+          }}
+        >
         <div
           style={{
             position: 'absolute',
@@ -197,22 +222,23 @@ export function HeroSection() {
           </h1>
         </div>
 
-        <div
-          style={{
-            position: 'absolute',
-            bottom: '24px',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            fontSize: '11px',
-            letterSpacing: '0.2em',
-            color: 'rgba(255, 255, 255, 0.5)',
-            fontFamily: 'var(--font-mono)',
-            textTransform: 'uppercase',
-            whiteSpace: 'nowrap',
-            pointerEvents: 'auto',
-          }}
-        >
-          Scroll to Explore
+          <div
+            style={{
+              position: 'absolute',
+              bottom: '24px',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              fontSize: '11px',
+              letterSpacing: '0.2em',
+              color: 'rgba(255, 255, 255, 0.5)',
+              fontFamily: 'var(--font-mono)',
+              textTransform: 'uppercase',
+              whiteSpace: 'nowrap',
+              pointerEvents: 'auto',
+            }}
+          >
+            Scroll to Explore
+          </div>
         </div>
       </div>
     </section>
