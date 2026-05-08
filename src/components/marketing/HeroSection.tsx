@@ -79,14 +79,15 @@ export function HeroSection() {
     <section
       ref={sectionRef}
       style={{
-        // Scroll runway only — the cascades are time-driven now (play
-        // on view) so this just gates how much scroll happens before
-        // the next section enters and gives the rAF loop room to
-        // scrub the gradient → video crossfade. 140vh = ~40vh of
-        // scroll past the visible 100vh frame, enough for a
-        // perceptible crossfade without dragging.
+        // Scroll runway. 260vh = the sticky frame stays pinned for
+        // ~160vh of user scroll (260 minus the visible 100vh), and
+        // that 160vh maps linearly to video.currentTime via the rAF
+        // tick — so the user has to scrub ALL the way through the
+        // video before the section releases and the next section
+        // enters. This is the "scroll-jack" effect requested: the
+        // hero stays in place until the video finishes.
         position: 'relative',
-        minHeight: '140vh',
+        minHeight: '260vh',
         overflow: 'hidden',
         backgroundColor: '#000',
       }}
@@ -176,43 +177,19 @@ export function HeroSection() {
           }}
         >
           {/*
-            Each line: the FIRST WORD is rendered as plain final-color
-            text — always visible at scroll=0 so the user lands on a
-            readable headline instead of an empty hero. Everything AFTER
-            the first word is wrapped in a CascadeText bound to a
-            non-overlapping slice of the section's scroll progress, so
-            the rest of each sentence cascades in left-to-right as the
-            user scrolls down through the hero.
+            Pretitle removed per user direction — hero is just the h1
+            now. Each line's FIRST WORD ("Built", "Delivery") is plain
+            final-color text, always visible at scroll=0. Everything
+            after each first word cascades in as the user scrolls
+            through the section.
 
-            Ranges are deliberately staged so only one line is mid-
-            cascade at a time:
-               pretitle remainder → [0.00, 0.28]
-               line 1 remainder    → [0.32, 0.58]
-               line 2 remainder    → [0.62, 0.88]
-            Last 12% is settled-tail before the next section enters.
+            Ranges (against the section's 0→1 scrollYProgress):
+               line 1 remainder → [0.05, 0.40]
+               line 2 remainder → [0.45, 0.80]
+            The remaining 20% (0.80→1.0) is settled-tail: both lines
+            fully revealed, video still scrubbing to its final frame
+            before the section releases.
           */}
-          <p
-            style={{
-              fontSize: 'clamp(15px, 1.5vw, 22px)',
-              marginBottom: '12px',
-              fontFamily: 'var(--font-primary)',
-              fontWeight: 400,
-              lineHeight: 1.4,
-              letterSpacing: '0.01em',
-              color: 'rgba(255,255,255,0.85)',
-            }}
-          >
-            <span style={{ color: 'rgba(255,255,255,0.85)' }}>Colorado&rsquo;s</span>{' '}
-            <CascadeText
-              text="most trusted freight delivery partner"
-              progress={heroProgress}
-              range={[0.0, 0.28]}
-              spread={1}
-              finalColor="rgba(255,255,255,0.85)"
-              flashColor="#D4E030"
-              restColor="rgba(255,255,255,0.10)"
-            />
-          </p>
           <h1
             style={{
               fontSize: 'clamp(40px, 6vw, 96px)',
@@ -228,7 +205,7 @@ export function HeroSection() {
             <CascadeText
               text="for the work ahead."
               progress={heroProgress}
-              range={[0.32, 0.58]}
+              range={[0.05, 0.40]}
               spread={1}
               finalColor="#fff"
               flashColor="#D4E030"
@@ -239,7 +216,7 @@ export function HeroSection() {
             <CascadeText
               text="that doesn't quit."
               progress={heroProgress}
-              range={[0.62, 0.88]}
+              range={[0.45, 0.80]}
               spread={1}
               finalColor="#fff"
               flashColor="#D4E030"
