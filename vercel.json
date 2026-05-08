@@ -1,8 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "crons": [
-    { "path": "/api/cron/tick-sequences", "schedule": "0 14 * * *" },
-    { "path": "/api/cron/poll-replies",   "schedule": "0 15 * * *" },
-    { "path": "/api/cron/sync-drive",     "schedule": "0 16 * * *" }
+    { "path": "/api/cron/run-all", "schedule": "0 14 * * *" }
   ]
 }
