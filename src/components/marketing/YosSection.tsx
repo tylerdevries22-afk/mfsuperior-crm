@@ -233,7 +233,7 @@ export function YosSection() {
               range={[0.72, 0.92]}
               spread={1}
               finalColor="#B8C200"
-              flashColor="#E8F040"
+              flashColor="#D4E030"
               restColor="rgba(184,194,0,0.12)"
             />
           </p>

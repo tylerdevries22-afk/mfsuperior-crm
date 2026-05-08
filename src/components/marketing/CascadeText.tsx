@@ -290,7 +290,10 @@ function ScrollChar({
   charStart,
   charEnd,
   char,
-  restColor,
+  // `restColor` is intentionally unused now — see the per-letter
+  // timing comment below. We keep it on the props so existing call
+  // sites compile without changes; the visual contribution is gone.
+  restColor: _restColor,
   flashColor,
   finalColor,
   inline = false,
@@ -306,27 +309,27 @@ function ScrollChar({
    *  so a line break can occur at the whitespace. */
   inline?: boolean;
 }) {
-  // Match terminal-industries.com timing exactly. Each character has
-  // three keyframe stops within its slice of scroll progress:
-  //   0%  — rest (invisible / bg-matching color)
-  //   30% — flash (lime peak, pronounced)
-  //   100% — final (white at rest, visible at top)
+  // ONE-LETTER-AT-A-TIME cascade per user direction:
+  //   0%   — invisible (opacity 0)
+  //   1%   — snap to yellow (opacity 1, color = flash)
+  //   50%  — still yellow (color holds at flash)
+  //   100% — settled at final color
   //
-  // The letter "pops in lime, then settles white" — that's what the
-  // user wants and what the reference site does.
+  // The letter is invisible until its slice begins, then pops in
+  // YELLOW for half the slice, then fades to its final color over
+  // the remaining half. Earlier letters are already at finalColor
+  // (settled). Later letters are still invisible. So at any scroll
+  // position only ONE letter is mid-animation, and it's clearly the
+  // yellow one.
   const slice = charEnd - charStart;
-  const flashAt = charStart + slice * 0.3;
-  const opacityFull = charStart + slice * 0.15; // pop in fast, no slow fade
+  const popAt = charStart + slice * 0.02; // near-instant pop-in
+  const yellowHoldUntil = charStart + slice * 0.5; // hold yellow for half the slice
 
-  const opacity = useTransform(
-    progress,
-    [charStart, opacityFull],
-    [0, 1],
-  );
+  const opacity = useTransform(progress, [charStart, popAt], [0, 1]);
   const color = useTransform(
     progress,
-    [charStart, flashAt, charEnd],
-    [restColor, flashColor, finalColor],
+    [charStart, yellowHoldUntil, charEnd],
+    [flashColor, flashColor, finalColor],
   );
 
   return (

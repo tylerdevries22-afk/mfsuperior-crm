@@ -205,7 +205,7 @@ function BenefitTextStrip({ benefit, isLast }: BenefitTextStripProps) {
             spread={0.55}
             offset={['start 85%', 'start 35%']}
             finalColor="#111111"
-            flashColor="#A0B41E"
+            flashColor="#D4E030"
             restColor="rgba(17,17,17,0.18)"
           />
         </h3>
@@ -254,7 +254,7 @@ export function BenefitsSection() {
             spread={0.6}
             offset={['start 90%', 'start 45%']}
             finalColor="#7f7f7f"
-            flashColor="#A0B41E"
+            flashColor="#D4E030"
             restColor="rgba(127,127,127,0.25)"
           />
         </p>

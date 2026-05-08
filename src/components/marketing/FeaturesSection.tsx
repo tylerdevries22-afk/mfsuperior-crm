@@ -162,7 +162,7 @@ export function FeaturesSection() {
             stagger={0.018}
             duration={0.5}
             finalColor="#111111"
-            flashColor="#A0B41E"
+            flashColor="#D4E030"
             restColor="rgba(17,17,17,0.18)"
           />
         </h2>
@@ -217,7 +217,7 @@ export function FeaturesSection() {
                   spread={0.7}
                   offset={['start 95%', 'start 30%']}
                   finalColor="#111111"
-                  flashColor="#A0B41E"
+                  flashColor="#D4E030"
                   // Very faint rest state so the "before / during / after"
                   // contrast of the cascade is unmistakable.
                   restColor="rgba(17,17,17,0.10)"

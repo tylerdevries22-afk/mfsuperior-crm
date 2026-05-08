@@ -227,7 +227,7 @@ export function HowItWorksSection() {
             stagger={0.022}
             duration={0.5}
             finalColor="#111111"
-            flashColor="#A0B41E"
+            flashColor="#D4E030"
             restColor="rgba(17,17,17,0.2)"
           />
         </h2>

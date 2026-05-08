@@ -216,32 +216,19 @@ export function HeroSection() {
             }}
           >
             {/*
-              Hero copy ("We move freight others won't touch. / Built
-              for the long haul."): starts with "We" per user direction,
-              asserts the brand challenger-confidence, and the second
-              line's "Built for the long haul" carries a freight-
-              specific pun that ties to MF Superior's durability /
-              reliability pillars (echoes the original "Built for the
-              work ahead"). First word of each line is plain final-
-              color so the user lands on a readable brand statement at
-              scroll=0; the rest cascades in.
+              Single-line hero per user direction: "We haul what others
+              won't touch." Drops the previous second line. "We" stays
+              visible at scroll=0 (always-on first word); the rest
+              cascades in one letter at a time using the brand-yellow
+              flash. Range claims most of the section's scroll runway
+              so the cascade plays out across the user's scroll-jacked
+              video scrub.
             */}
             <span style={{ color: '#fff' }}>We</span>{' '}
             <CascadeText
               text="haul what others won't touch."
               progress={heroProgress}
-              range={[0.04, 0.22]}
-              spread={1}
-              finalColor="#fff"
-              flashColor="#D4E030"
-              restColor="rgba(255,255,255,0.18)"
-            />
-            <br />
-            <span style={{ color: '#fff' }}>Built</span>{' '}
-            <CascadeText
-              text="for the long haul."
-              progress={heroProgress}
-              range={[0.25, 0.42]}
+              range={[0.05, 0.55]}
               spread={1}
               finalColor="#fff"
               flashColor="#D4E030"

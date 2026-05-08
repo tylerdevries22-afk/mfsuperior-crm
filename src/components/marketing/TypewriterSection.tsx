@@ -100,7 +100,7 @@ export function TypewriterSection() {
           spread={0.6}
           offset={['start 90%', 'start 30%']}
           finalColor="#0F1A1A"
-          flashColor="#A0B41E"
+          flashColor="#D4E030"
           restColor="rgba(15,26,26,0.14)"
         />
         <span
