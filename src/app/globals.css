@@ -393,11 +393,12 @@ html.lenis body {
      anchor wrapper. */
   .mkt-nav-logo img { max-width: 64px !important; height: auto !important; }
 
-  /* Features section */
-  .mkt-features-grid { flex-direction: column !important; }
-  .mkt-features-left { width: 100% !important; }
-  .mkt-features-right { display: none !important; }
-  .mkt-features-item { padding: 40px 6vw !important; min-height: unset !important; }
+  /* Features section — on phones we hide the desktop two-column
+     layout entirely and switch to the .mkt-features-mobile-carousel
+     vertical carousel (terminal-industries-style: video on top, then
+     ◂ ▸ arrows + 01–06 pagination + active heading). */
+  .mkt-features-desktop { display: none !important; }
+  .mkt-features-mobile-carousel { display: block !important; }
 
   /* Benefits section */
   .mkt-benefits-strip { grid-template-columns: 1fr !important; gap: 16px !important; padding: 32px 6vw !important; }

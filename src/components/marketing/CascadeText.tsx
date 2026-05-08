@@ -570,8 +570,7 @@ function TriggerCascade({
       style={{ display: "inline-block" }}
       variants={cVariants}
       initial="hidden"
-      whileInView="visible"
-      viewport={{ once: true, amount: 0.4 }}
+      animate="visible"
     >
       {chars.map((ch, i) => (
         <motion.span

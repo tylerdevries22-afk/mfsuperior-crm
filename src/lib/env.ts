@@ -10,6 +10,7 @@ const schema = z.object({
   ENCRYPTION_KEY: z.string().min(32),
 
   RESEND_API_KEY: z.string().min(1).optional(),
+  RESEND_WEBHOOK_SECRET: z.string().min(1).optional(),
 
   GMAIL_USER: z.string().email().optional(),
   DRIVE_FOLDER_ID: z.string().optional(),

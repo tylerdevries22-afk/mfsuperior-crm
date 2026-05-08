@@ -18,6 +18,15 @@ type ContactBody = {
   message?: string;
 };
 
+function escHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#x27;");
+}
+
 async function sendEmail(to: string, subject: string, html: string, text: string) {
   if (!RESEND_API_KEY) {
     // Log but don't fail — DB write is more important than email in dev
@@ -123,6 +132,13 @@ export async function POST(req: NextRequest) {
   }
 
   // ── Confirmation email to submitter ──────────────────────────────────────
+  const eName = escHtml(name.trim());
+  const eCompany = escHtml(company.trim());
+  const eEmail = escHtml(emailLower);
+  const ePhone = escHtml(phone.trim());
+  const eService = escHtml(serviceType);
+  const eMessage = escHtml(message.trim());
+
   const confirmHtml = `
 <!DOCTYPE html>
 <html>
@@ -141,11 +157,11 @@ export async function POST(req: NextRequest) {
             <td style="padding:40px;">
               <h1 style="margin:0 0 16px;font-size:22px;font-weight:600;color:#111111;">We received your quote request</h1>
               <p style="margin:0 0 20px;font-size:15px;color:#444444;line-height:1.6;">
-                Hi ${name.trim()},<br/><br/>
+                Hi ${eName},<br/><br/>
                 Thanks for reaching out to MF Superior Solutions. Tyler will review your request and get back to you <strong>within 24 hours</strong> to discuss your freight needs and build a custom quote.
               </p>
-              ${serviceType ? `<p style="margin:0 0 20px;font-size:15px;color:#444444;line-height:1.6;"><strong>Service requested:</strong> ${serviceType}</p>` : ""}
-              ${message.trim() ? `<p style="margin:0 0 20px;font-size:15px;color:#444444;line-height:1.6;"><strong>Your message:</strong><br/><em>${message.trim()}</em></p>` : ""}
+              ${eService ? `<p style="margin:0 0 20px;font-size:15px;color:#444444;line-height:1.6;"><strong>Service requested:</strong> ${eService}</p>` : ""}
+              ${eMessage ? `<p style="margin:0 0 20px;font-size:15px;color:#444444;line-height:1.6;"><strong>Your message:</strong><br/><em>${eMessage}</em></p>` : ""}
               <p style="margin:24px 0 0;font-size:15px;color:#444444;line-height:1.6;">
                 If you need to reach us sooner, call or text:<br/>
                 <a href="tel:+12564680751" style="color:#111111;font-weight:600;">(256) 468-0751</a>
@@ -187,14 +203,14 @@ export async function POST(req: NextRequest) {
           </tr>
           <tr>
             <td style="padding:32px 40px;">
-              <h1 style="margin:0 0 24px;font-size:20px;font-weight:600;color:#111111;">${name.trim()}${company.trim() ? ` — ${company.trim()}` : ""}</h1>
+              <h1 style="margin:0 0 24px;font-size:20px;font-weight:600;color:#111111;">${eName}${eCompany ? ` — ${eCompany}` : ""}</h1>
               <table cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;">
-                <tr><td style="padding:8px 0;border-bottom:1px solid #eeeeee;font-size:13px;color:#999999;width:120px;">Name</td><td style="padding:8px 0;border-bottom:1px solid #eeeeee;font-size:14px;color:#111111;">${name.trim()}</td></tr>
-                <tr><td style="padding:8px 0;border-bottom:1px solid #eeeeee;font-size:13px;color:#999999;">Email</td><td style="padding:8px 0;border-bottom:1px solid #eeeeee;font-size:14px;color:#111111;"><a href="mailto:${emailLower}" style="color:#111111;">${emailLower}</a></td></tr>
-                ${phone.trim() ? `<tr><td style="padding:8px 0;border-bottom:1px solid #eeeeee;font-size:13px;color:#999999;">Phone</td><td style="padding:8px 0;border-bottom:1px solid #eeeeee;font-size:14px;color:#111111;"><a href="tel:${phone.trim()}" style="color:#111111;">${phone.trim()}</a></td></tr>` : ""}
-                ${company.trim() ? `<tr><td style="padding:8px 0;border-bottom:1px solid #eeeeee;font-size:13px;color:#999999;">Company</td><td style="padding:8px 0;border-bottom:1px solid #eeeeee;font-size:14px;color:#111111;">${company.trim()}</td></tr>` : ""}
-                ${serviceType ? `<tr><td style="padding:8px 0;border-bottom:1px solid #eeeeee;font-size:13px;color:#999999;">Service</td><td style="padding:8px 0;border-bottom:1px solid #eeeeee;font-size:14px;color:#111111;">${serviceType}</td></tr>` : ""}
-                ${message.trim() ? `<tr><td style="padding:8px 0;font-size:13px;color:#999999;vertical-align:top;padding-top:12px;">Message</td><td style="padding:8px 0;font-size:14px;color:#111111;line-height:1.5;padding-top:12px;">${message.trim()}</td></tr>` : ""}
+                <tr><td style="padding:8px 0;border-bottom:1px solid #eeeeee;font-size:13px;color:#999999;width:120px;">Name</td><td style="padding:8px 0;border-bottom:1px solid #eeeeee;font-size:14px;color:#111111;">${eName}</td></tr>
+                <tr><td style="padding:8px 0;border-bottom:1px solid #eeeeee;font-size:13px;color:#999999;">Email</td><td style="padding:8px 0;border-bottom:1px solid #eeeeee;font-size:14px;color:#111111;"><a href="mailto:${eEmail}" style="color:#111111;">${eEmail}</a></td></tr>
+                ${ePhone ? `<tr><td style="padding:8px 0;border-bottom:1px solid #eeeeee;font-size:13px;color:#999999;">Phone</td><td style="padding:8px 0;border-bottom:1px solid #eeeeee;font-size:14px;color:#111111;"><a href="tel:${ePhone}" style="color:#111111;">${ePhone}</a></td></tr>` : ""}
+                ${eCompany ? `<tr><td style="padding:8px 0;border-bottom:1px solid #eeeeee;font-size:13px;color:#999999;">Company</td><td style="padding:8px 0;border-bottom:1px solid #eeeeee;font-size:14px;color:#111111;">${eCompany}</td></tr>` : ""}
+                ${eService ? `<tr><td style="padding:8px 0;border-bottom:1px solid #eeeeee;font-size:13px;color:#999999;">Service</td><td style="padding:8px 0;border-bottom:1px solid #eeeeee;font-size:14px;color:#111111;">${eService}</td></tr>` : ""}
+                ${eMessage ? `<tr><td style="padding:8px 0;font-size:13px;color:#999999;vertical-align:top;padding-top:12px;">Message</td><td style="padding:8px 0;font-size:14px;color:#111111;line-height:1.5;padding-top:12px;">${eMessage}</td></tr>` : ""}
               </table>
               <div style="margin-top:28px;">
                 <a href="${crmLink}" style="display:inline-block;background:#111111;color:#D4E030;padding:12px 24px;border-radius:6px;text-decoration:none;font-size:13px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;font-family:monospace;">View in CRM</a>

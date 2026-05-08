@@ -1,10 +1,13 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { auth } from "@/lib/auth";
 import { db } from "@/lib/db/client";
 import { leads } from "@/lib/db/schema";
 
 export async function createLeadAction(formData: FormData) {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("Unauthorized");
   const get = (key: string) => (formData.get(key) as string | null)?.trim() || null;
 
   const companyName = get("company");

@@ -40,12 +40,13 @@ export default async function LeadsPage({
 
   const filters: SQL[] = [isNull(leads.archivedAt)];
   if (q) {
+    const qEsc = q.replace(/[%_\\]/g, "\\$&");
     filters.push(
       or(
-        ilike(leads.companyName, `%${q}%`),
-        ilike(leads.email, `%${q}%`),
-        ilike(leads.city, `%${q}%`),
-        ilike(leads.vertical, `%${q}%`),
+        ilike(leads.companyName, `%${qEsc}%`),
+        ilike(leads.email, `%${qEsc}%`),
+        ilike(leads.city, `%${qEsc}%`),
+        ilike(leads.vertical, `%${qEsc}%`),
       ) as SQL,
     );
   }

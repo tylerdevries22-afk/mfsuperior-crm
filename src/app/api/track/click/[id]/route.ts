@@ -28,7 +28,7 @@ export async function GET(
   }
 
   if (UUID_RE.test(id)) {
-    void recordClick(id, target);
+    await recordClick(id, target);
   }
 
   redirect(target);

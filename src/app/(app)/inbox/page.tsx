@@ -187,9 +187,9 @@ export default async function InboxPage({
               const variant = EVENT_VARIANT[row.eventType] ?? "muted";
               const label = EVENT_LABELS[row.eventType] ?? row.eventType;
               const displayName =
-                row.companyName ??
-                [row.leadFirstName].filter(Boolean).join(" ") ??
-                row.leadEmail ??
+                row.companyName ||
+                [row.leadFirstName].filter(Boolean).join(" ") ||
+                row.leadEmail ||
                 "Unknown";
 
               return (

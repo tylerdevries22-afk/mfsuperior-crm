@@ -14,6 +14,7 @@
  */
 
 import { eq, sql, and } from "drizzle-orm";
+import { env } from "@/lib/env";
 import { db } from "@/lib/db/client";
 import {
   emailEvents,
@@ -42,14 +43,14 @@ type ResendWebhookEvent = {
 };
 
 async function verifySignature(req: Request): Promise<{ ok: true; body: string } | { ok: false }> {
-  const secret = process.env.RESEND_WEBHOOK_SECRET;
+  const secret = env().RESEND_WEBHOOK_SECRET;
   if (!secret) {
     // In dev without the secret, skip verification so manual tests work
-    if (process.env.NODE_ENV !== "production") {
+    if (env().NODE_ENV !== "production") {
       const body = await req.text();
       return { ok: true, body };
     }
-    console.error("[resend-webhook] RESEND_WEBHOOK_SECRET not set");
+    console.error("[resend-webhook] RESEND_WEBHOOK_SECRET not set in production");
     return { ok: false };
   }
 

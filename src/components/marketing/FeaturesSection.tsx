@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { CascadeText } from './CascadeText';
 
 interface FeatureItem {
@@ -19,8 +19,39 @@ const items: FeatureItem[] = [
   { num: '06', heading: 'White-glove delivery and dedicated support across all of Colorado', video: '/videos/features-06.mp4', overlay: 'DELIVERED ✓' },
 ];
 
+/**
+ * Two layouts in one section, switched by CSS media query in
+ * globals.css:
+ *
+ *   Desktop (≥768px) — `.mkt-features-grid` is the existing
+ *     two-column scroll-driven layout. Left column is a stack of
+ *     all 6 items the user reads through; right column is a sticky
+ *     video panel that swaps the active video as the user scrolls.
+ *
+ *   Mobile (<768px) — `.mkt-features-mobile-carousel` is the new
+ *     terminal-industries-style vertical carousel. Big video panel
+ *     on top, then ◂ ▸ arrow nav + 01–06 pagination + the active
+ *     item's heading. Click-driven, no scroll-jacking.
+ *
+ * The two share the same items[] data and the same #fleet section
+ * id so the navbar scroll-spy still works.
+ */
 export function FeaturesSection() {
-  const sectionRef = useRef<HTMLElement>(null);
+  return (
+    <section
+      id="fleet"
+      style={{ width: '100%', backgroundColor: '#fff', paddingTop: '120px', scrollMarginTop: '80px' }}
+    >
+      <DesktopLayout />
+      <MobileCarousel />
+    </section>
+  );
+}
+
+/* ─── Desktop: original two-column scroll-driven layout ─────────── */
+
+function DesktopLayout() {
+  const sectionRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
   const videoRefs = useRef<(HTMLVideoElement | null)[]>([]);
   const overlayRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -32,16 +63,11 @@ export function FeaturesSection() {
     const section = sectionRef.current;
     if (!section) return;
 
-    // Pause all videos — we drive currentTime from scroll.
     videoRefs.current.forEach((v, i) => {
       if (!v) return;
       v.pause();
-      // Set initial state: first video visible, rest hidden.
       v.style.opacity = i === 0 ? '1' : '0';
     });
-    // Heading colors are owned by CascadeText (scroll-linked per-letter
-    // cascade). The legacy active/inactive JS color swap is removed
-    // here — kept only for video opacity, overlay, and progress dot.
     overlayRefs.current.forEach((o, i) => {
       if (o) o.style.opacity = i === 0 ? '1' : '0';
     });
@@ -53,14 +79,12 @@ export function FeaturesSection() {
 
     const tick = () => {
       const viewH = window.innerHeight;
-
-      // Find the item whose center is closest to 40% from top (the "focus" row).
       let bestIndex = activeRef.current;
       let bestDist = Infinity;
       itemRefs.current.forEach((el, i) => {
         if (!el) return;
         const rect = el.getBoundingClientRect();
-        if (rect.bottom < 0 || rect.top > viewH) return; // off-screen
+        if (rect.bottom < 0 || rect.top > viewH) return;
         const center = (rect.top + rect.bottom) / 2;
         const dist = Math.abs(center - viewH * 0.4);
         if (dist < bestDist) {
@@ -69,31 +93,23 @@ export function FeaturesSection() {
         }
       });
 
-      // Swap active item when it changes — pure DOM, no React state.
       if (bestIndex !== activeRef.current) {
         const prev = activeRef.current;
-
         const pv = videoRefs.current[prev];
         if (pv) { pv.style.opacity = '0'; pv.pause(); }
         const po = overlayRefs.current[prev];
         if (po) po.style.opacity = '0';
-
         const nv = videoRefs.current[bestIndex];
         if (nv) { nv.style.opacity = '1'; nv.pause(); }
         const no = overlayRefs.current[bestIndex];
         if (no) no.style.opacity = '1';
-
-        // Update progress dots
         const pd = dotRefs.current[prev];
         if (pd) pd.style.backgroundColor = 'rgba(255,255,255,0.3)';
         const nd = dotRefs.current[bestIndex];
         if (nd) nd.style.backgroundColor = '#D4E030';
-
         activeRef.current = bestIndex;
       }
 
-      // Scrub the active video frame-by-frame.
-      // Progress: 0 when item center at 75% of viewport, 1 when center at 25%.
       const activeEl = itemRefs.current[bestIndex];
       const activeVideo = videoRefs.current[bestIndex];
       if (activeEl && activeVideo && activeVideo.readyState >= 2 && activeVideo.duration > 0) {
@@ -106,31 +122,19 @@ export function FeaturesSection() {
       raf = requestAnimationFrame(tick);
     };
 
-    // Gate the RAF loop on section visibility — saves CPU when off-screen.
     const io = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting) {
-          raf = requestAnimationFrame(tick);
-        } else {
-          cancelAnimationFrame(raf);
-        }
+        if (entry.isIntersecting) raf = requestAnimationFrame(tick);
+        else cancelAnimationFrame(raf);
       },
-      { threshold: 0 }
+      { threshold: 0 },
     );
     io.observe(section);
-
-    return () => {
-      cancelAnimationFrame(raf);
-      io.disconnect();
-    };
+    return () => { cancelAnimationFrame(raf); io.disconnect(); };
   }, []);
 
   return (
-    <section
-      id="fleet"
-      ref={sectionRef}
-      style={{ width: '100%', backgroundColor: '#fff', paddingTop: '120px', scrollMarginTop: '80px' }}
-    >
+    <div ref={sectionRef} className="mkt-features-desktop">
       {/* Section heading */}
       <div style={{ textAlign: 'center', paddingLeft: '5.128vw', paddingRight: '5.128vw' }}>
         <p
@@ -203,23 +207,16 @@ export function FeaturesSection() {
                   letterSpacing: '-0.02em',
                   fontFamily: 'var(--font-primary)',
                   margin: 0,
-                  // CascadeText handles color animation via scroll position;
-                  // we don't need the legacy JS color toggle below for h3.
                   color: '#111111',
                 }}
               >
                 <CascadeText
                   text={item.heading}
                   scrollLinked
-                  // Wider scroll window so each item's cascade is clearly
-                  // visible as it enters the focus row — items animate
-                  // one after another as the user scrolls down.
                   spread={0.7}
                   offset={['start 95%', 'start 30%']}
                   finalColor="#111111"
                   flashColor="#D4E030"
-                  // Very faint rest state so the "before / during / after"
-                  // contrast of the cascade is unmistakable.
                   restColor="rgba(17,17,17,0.10)"
                 />
               </h3>
@@ -227,7 +224,7 @@ export function FeaturesSection() {
           ))}
         </div>
 
-        {/* Right: sticky video stack — all 6 pre-rendered, only active visible */}
+        {/* Right: sticky video stack */}
         <div
           className="mkt-features-right"
           style={{
@@ -263,15 +260,12 @@ export function FeaturesSection() {
                   height: '100%',
                   objectFit: 'cover',
                   display: 'block',
-                  // Initial opacity controlled by JS after mount
                   opacity: 0,
                   transition: 'opacity 0.35s ease',
                   willChange: 'opacity',
                 }}
               />
             ))}
-
-            {/* Progress dots */}
             <div
               style={{
                 position: 'absolute',
@@ -298,8 +292,6 @@ export function FeaturesSection() {
                 />
               ))}
             </div>
-
-            {/* Overlay badges — one per overlay item, CSS crossfaded */}
             {items.map((item, index) =>
               item.overlay ? (
                 <div
@@ -324,11 +316,253 @@ export function FeaturesSection() {
                 >
                   {item.overlay}
                 </div>
-              ) : null
+              ) : null,
             )}
           </div>
         </div>
       </div>
-    </section>
+    </div>
+  );
+}
+
+/* ─── Mobile: vertical carousel (terminal-industries layout) ───── */
+
+function MobileCarousel() {
+  const [active, setActive] = useState(0);
+  const videoRefs = useRef<(HTMLVideoElement | null)[]>([]);
+
+  useEffect(() => {
+    videoRefs.current.forEach((v, i) => {
+      if (!v) return;
+      if (i === active) {
+        v.currentTime = 0;
+        v.play().catch(() => {});
+      } else {
+        v.pause();
+      }
+    });
+  }, [active]);
+
+  const next = () => setActive((i) => (i + 1) % items.length);
+  const prev = () => setActive((i) => (i - 1 + items.length) % items.length);
+
+  return (
+    <div
+      className="mkt-features-mobile-carousel"
+      style={{
+        // Hidden by default; CSS in globals.css flips this on at <768px.
+        display: 'none',
+        background: '#0a0a0a',
+        borderTopLeftRadius: '32px',
+        borderTopRightRadius: '32px',
+        margin: '40px -5.128vw 0',
+        padding: '64px 5.128vw 80px',
+      }}
+    >
+      <p
+        style={{
+          fontSize: '11px',
+          color: 'rgba(255,255,255,0.5)',
+          fontFamily: 'var(--font-mono, "Geist Mono", monospace)',
+          fontWeight: 400,
+          letterSpacing: '0.18em',
+          textTransform: 'uppercase',
+          textAlign: 'center',
+          marginBottom: '16px',
+        }}
+      >
+        Fleet Capabilities
+      </p>
+      <h2
+        style={{
+          fontSize: 'clamp(22px, 6vw, 36px)',
+          fontWeight: 400,
+          lineHeight: 1.2,
+          letterSpacing: '-0.01em',
+          fontFamily: 'var(--font-primary)',
+          textAlign: 'center',
+          margin: '0 auto 32px',
+          color: '#fff',
+        }}
+      >
+        <CascadeText
+          text="Imagine a delivery partner that works as hard as you do."
+          scrollLinked
+          spread={0.6}
+          offset={['start 90%', 'start 35%']}
+          finalColor="#fff"
+          flashColor="#D4E030"
+          restColor="rgba(255,255,255,0.16)"
+        />
+      </h2>
+
+      {/* Video panel */}
+      <div
+        style={{
+          position: 'relative',
+          width: '100%',
+          aspectRatio: '4 / 5',
+          borderRadius: '20px',
+          overflow: 'hidden',
+          backgroundColor: '#111',
+          border: '1px solid rgba(255,255,255,0.08)',
+        }}
+      >
+        {items.map((item, i) => (
+          <video
+            key={item.num}
+            ref={(el) => { videoRefs.current[i] = el; }}
+            src={item.video}
+            muted
+            playsInline
+            loop
+            preload="auto"
+            style={{
+              position: 'absolute',
+              inset: 0,
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              opacity: i === active ? 1 : 0,
+              transition: 'opacity 0.45s cubic-bezier(0.16, 1, 0.3, 1)',
+            }}
+          />
+        ))}
+        {items[active].overlay && (
+          <div
+            style={{
+              position: 'absolute',
+              top: '16px',
+              right: '16px',
+              padding: '6px 10px',
+              background: 'rgba(212,224,48,0.92)',
+              color: '#0a0a0a',
+              fontFamily: 'var(--font-mono)',
+              fontSize: '10px',
+              fontWeight: 600,
+              letterSpacing: '0.12em',
+              borderRadius: '4px',
+            }}
+          >
+            {items[active].overlay}
+          </div>
+        )}
+      </div>
+
+      {/* Pagination row */}
+      <div
+        style={{
+          display: 'flex',
+          gap: '12px',
+          justifyContent: 'center',
+          fontFamily: 'var(--font-mono)',
+          fontSize: '12px',
+          letterSpacing: '0.08em',
+          marginTop: '24px',
+          flexWrap: 'wrap',
+        }}
+      >
+        {items.map((item, i) => (
+          <button
+            key={item.num}
+            type="button"
+            onClick={() => setActive(i)}
+            aria-label={`View feature ${item.num}`}
+            aria-current={i === active ? 'true' : undefined}
+            style={{
+              background: 'none',
+              border: 'none',
+              padding: '4px 0',
+              cursor: 'pointer',
+              color: i === active ? '#D4E030' : 'rgba(255,255,255,0.4)',
+              fontFamily: 'inherit',
+              fontSize: 'inherit',
+              letterSpacing: 'inherit',
+              fontWeight: i === active ? 600 : 400,
+              transition: 'color 0.25s',
+            }}
+          >
+            {item.num}
+          </button>
+        ))}
+      </div>
+
+      {/* Active heading */}
+      <h3
+        key={items[active].heading}
+        style={{
+          fontSize: 'clamp(18px, 5vw, 24px)',
+          fontWeight: 400,
+          lineHeight: 1.25,
+          letterSpacing: '-0.01em',
+          fontFamily: 'var(--font-primary)',
+          margin: '20px 0 32px',
+          color: '#fff',
+          textAlign: 'center',
+          minHeight: '3.6em',
+        }}
+      >
+        <CascadeText
+          text={items[active].heading}
+          scrollLinked={false}
+          stagger={0.022}
+          duration={0.45}
+          delay={0.05}
+          finalColor="#fff"
+          flashColor="#D4E030"
+          restColor="rgba(255,255,255,0.18)"
+        />
+      </h3>
+
+      {/* Arrow nav */}
+      <div
+        style={{
+          display: 'flex',
+          gap: '12px',
+          justifyContent: 'center',
+        }}
+      >
+        <button
+          type="button"
+          onClick={prev}
+          aria-label="Previous feature"
+          style={{
+            width: '52px',
+            height: '52px',
+            borderRadius: '999px',
+            border: '1px solid rgba(255,255,255,0.2)',
+            background: 'transparent',
+            color: '#fff',
+            cursor: 'pointer',
+            fontSize: '18px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          ←
+        </button>
+        <button
+          type="button"
+          onClick={next}
+          aria-label="Next feature"
+          style={{
+            width: '52px',
+            height: '52px',
+            borderRadius: '999px',
+            border: 'none',
+            background: '#D4E030',
+            color: '#0a0a0a',
+            cursor: 'pointer',
+            fontSize: '18px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          →
+        </button>
+      </div>
+    </div>
   );
 }
