@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db/client";
 import { leads, notifications } from "@/lib/db/schema";
 import { eq, sql } from "drizzle-orm";
+import { env } from "@/lib/env";
 
-const APP_URL = process.env.APP_URL ?? "http://localhost:3001";
-const RESEND_API_KEY = process.env.RESEND_API_KEY;
+const APP_URL = env().APP_URL;
+const RESEND_API_KEY = env().RESEND_API_KEY;
 const FROM_ADDRESS = "MF Superior Solutions <info@mfsuperiorproducts.com>";
 const NOTIFY_ADDRESS = "info@mfsuperiorproducts.com";
 
