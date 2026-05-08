@@ -170,25 +170,25 @@ export function HeroSection() {
           />
         </div>
 
-        {/* Headline + scroll cue — pointer-events disabled on the wrapper
-            so the user's scroll wheel/touch passes through to the section. */}
+        {/* Headline + scroll cue — pointer-events disabled on the
+            wrapper so the user's scroll wheel/touch passes through to
+            the section. Vertically centered (was bottom-aligned with
+            80px footer pad) so the headline sits in the visible middle
+            of the hero, not jammed to the floor where it competes with
+            the scroll-cue and section-end gradient. */}
         <div
           style={{
             position: 'absolute',
             inset: 0,
             display: 'flex',
             flexDirection: 'column',
-            justifyContent: 'flex-end',
+            justifyContent: 'center',
             pointerEvents: 'none',
           }}
         >
         <div
           style={{
-            position: 'absolute',
-            bottom: 0,
-            left: 0,
-            right: 0,
-            padding: '0 5.128vw 80px',
+            padding: '0 5.128vw',
           }}
         >
           {/*
