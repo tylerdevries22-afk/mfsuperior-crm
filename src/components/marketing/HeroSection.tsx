@@ -95,7 +95,15 @@ export function HeroSection() {
         // release and the next section come in.
         position: 'relative',
         minHeight: '420vh',
-        overflow: 'hidden',
+        // CRITICAL: do NOT set overflow: hidden here. When a sticky
+        // descendant's nearest scrollable ancestor is the same element
+        // it tries to pin against, sticky silently fails to engage —
+        // the previous overflow: hidden was making the inner sticky
+        // frame scroll AWAY with the page instead of pinning. We use
+        // overflow-x: clip to still hide any horizontal bleed from the
+        // 100vw video without creating a scroll/clip context that
+        // breaks the sticky pin on the Y axis.
+        overflowX: 'clip',
         backgroundColor: '#000',
       }}
     >
