@@ -7,6 +7,7 @@ export function CtaSection() {
 
   return (
     <section
+      className="mkt-cta-section"
       style={{
         background: '#111111',
         padding: '120px 5.128vw 80px',
@@ -28,6 +29,7 @@ export function CtaSection() {
 
       {/* Top-left white notch cutout */}
       <div
+        className="mkt-cta-notch"
         style={{
           position: 'absolute',
           top: 0,
@@ -42,6 +44,7 @@ export function CtaSection() {
 
       {/* Top-right white notch cutout */}
       <div
+        className="mkt-cta-notch mkt-cta-notch-right"
         style={{
           position: 'absolute',
           top: 0,
@@ -66,7 +69,7 @@ export function CtaSection() {
       >
         <h2
           style={{
-            fontSize: 'clamp(40px, 6vw, 96px)',
+            fontSize: 'clamp(32px, 6vw, 96px)',
             fontWeight: 400,
             color: '#fff',
             textAlign: 'center',

@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 export function YosSection() {
   const sectionRef = useRef<HTMLElement>(null);
   const [scrollProgress, setScrollProgress] = useState(0);
+  const [maxYosSize, setMaxYosSize] = useState(240);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -19,9 +20,20 @@ export function YosSection() {
       setScrollProgress(progress);
     };
 
+    const handleResize = () => {
+      // Cap the zoom-in font size to roughly 70% of viewport width on small screens
+      const w = window.innerWidth;
+      setMaxYosSize(Math.min(240, Math.round(w * 0.7)));
+    };
+
+    handleResize();
     window.addEventListener('scroll', handleScroll, { passive: true });
+    window.addEventListener('resize', handleResize);
     handleScroll(); // Initial call
-    return () => window.removeEventListener('scroll', handleScroll);
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('resize', handleResize);
+    };
   }, []);
 
   // Phase 1: full opacity until 0.4, then fade to 0
@@ -34,9 +46,9 @@ export function YosSection() {
     ? 0
     : Math.min(1, (scrollProgress - 0.4) / 0.2);
 
-  // MF. font size: interpolate from 48px to 240px as scrollProgress goes 0.4 → 1.0
+  // MF. font size: interpolate from 48px to maxYosSize as scrollProgress goes 0.4 → 1.0
   const yosProgress = scrollProgress < 0.4 ? 0 : Math.min(1, (scrollProgress - 0.4) / 0.6);
-  const yosFontSize = 48 + (240 - 48) * yosProgress;
+  const yosFontSize = 48 + (maxYosSize - 48) * yosProgress;
 
   const darkGridStyle: React.CSSProperties = {
     backgroundImage:
@@ -53,6 +65,7 @@ export function YosSection() {
   return (
     <section
       ref={sectionRef}
+      className="mkt-yos-section"
       style={{
         position: 'relative',
         height: '200vh',

@@ -21,9 +21,9 @@ export default async function TemplatesPage() {
     );
 
   return (
-    <div className="px-8 py-8">
-      <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
-        <div>
+    <div className="px-4 py-6 sm:px-8 sm:py-8">
+      <header className="mb-6 flex flex-wrap items-end justify-between gap-3">
+        <div className="min-w-0">
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">
             Templates
           </h1>
@@ -33,16 +33,16 @@ export default async function TemplatesPage() {
             Drafts go to your Gmail; you press send.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
           {rows.length === 0 && (
-            <form action={seedKitTemplatesAction}>
-              <Button type="submit" variant="secondary">
+            <form action={seedKitTemplatesAction} className="flex-1 sm:flex-initial">
+              <Button type="submit" variant="secondary" className="w-full sm:w-auto">
                 <Sparkles /> Seed kit (Day 0/4/10)
               </Button>
             </form>
           )}
-          <Link href="/templates/new">
-            <Button>
+          <Link href="/templates/new" className="flex-1 sm:flex-initial">
+            <Button className="w-full sm:w-auto">
               <Plus /> New template
             </Button>
           </Link>

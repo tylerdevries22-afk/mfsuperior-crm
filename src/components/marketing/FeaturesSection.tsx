@@ -103,6 +103,7 @@ export function FeaturesSection() {
 
   return (
     <section
+      className="mkt-features-section"
       style={{
         width: '100%',
         backgroundColor: '#fff',
@@ -111,6 +112,7 @@ export function FeaturesSection() {
     >
       {/* Section heading block — centered above two-column layout */}
       <div
+        className="mkt-features-intro-padding"
         style={{
           textAlign: 'center',
           paddingLeft: '5.128vw',
@@ -118,6 +120,7 @@ export function FeaturesSection() {
         }}
       >
         <p
+          className="mkt-features-intro-lead"
           style={{
             fontSize: '20px',
             color: '#111111',
@@ -131,8 +134,9 @@ export function FeaturesSection() {
         </p>
 
         <h2
+          className="mkt-features-intro-heading"
           style={{
-            fontSize: 'clamp(32px, 4vw, 56px)',
+            fontSize: 'clamp(28px, 4vw, 56px)',
             fontWeight: 400,
             color: '#111111',
             lineHeight: 1.15,
@@ -192,7 +196,7 @@ export function FeaturesSection() {
               {/* Item heading */}
               <h3
                 style={{
-                  fontSize: 'clamp(24px, 2.5vw, 38px)',
+                  fontSize: 'clamp(22px, 2.5vw, 38px)',
                   fontWeight: 400,
                   lineHeight: 1.15,
                   letterSpacing: '-0.02em',

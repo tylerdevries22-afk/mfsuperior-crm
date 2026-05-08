@@ -61,7 +61,7 @@ export default async function SettingsPage() {
     loadIntegrationStatus(),
   ]);
   return (
-    <div className="px-8 py-8">
+    <div className="px-4 py-6 sm:px-8 sm:py-8">
       <header className="mb-8">
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">
           Settings
@@ -298,11 +298,13 @@ export default async function SettingsPage() {
           </CardContent>
         </Card>
 
-        <div className="flex items-center justify-end gap-3">
-          <p className="mr-auto text-xs text-muted-foreground">
+        <div className="flex flex-col-reverse items-stretch gap-3 sm:flex-row sm:items-center sm:justify-end">
+          <p className="text-xs text-muted-foreground sm:mr-auto">
             Changes save immediately to the singleton settings row.
           </p>
-          <Button type="submit">Save settings</Button>
+          <Button type="submit" className="w-full sm:w-auto">
+            Save settings
+          </Button>
         </div>
       </form>
     </div>

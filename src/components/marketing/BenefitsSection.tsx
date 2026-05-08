@@ -99,7 +99,8 @@ function BenefitVideo({ src, num }: BenefitVideoProps) {
       className="mkt-benefits-video"
       style={{
         width: '100%',
-        height: '80vh',
+        height: '70vh',
+        maxHeight: '720px',
         overflow: 'hidden',
         position: 'relative',
         backgroundColor: '#111111',
@@ -174,7 +175,7 @@ function BenefitTextStrip({ benefit, isLast }: BenefitTextStripProps) {
         </p>
         <h3
           style={{
-            fontSize: 'clamp(24px, 2.5vw, 36px)',
+            fontSize: 'clamp(22px, 2.5vw, 36px)',
             fontWeight: 400,
             color: '#111111',
             fontFamily: 'var(--font-primary)',
@@ -188,6 +189,7 @@ function BenefitTextStrip({ benefit, isLast }: BenefitTextStripProps) {
 
       {/* RIGHT column */}
       <div
+        className="mkt-benefits-strip-right"
         style={{
           display: 'flex',
           alignItems: 'flex-start',
@@ -215,6 +217,7 @@ export function BenefitsSection() {
     <section>
       {/* Section header */}
       <div
+        className="mkt-benefits-header"
         style={{
           padding: '80px 5.128vw',
           backgroundColor: '#fff',

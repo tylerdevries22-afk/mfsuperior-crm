@@ -38,7 +38,7 @@ export default async function ImportLeadsPage({
   const warnings = sp.warnings ? decodeURIComponent(sp.warnings).split("|") : [];
 
   return (
-    <div className="px-8 py-8">
+    <div className="px-4 py-6 sm:px-8 sm:py-8">
       <Link
         href="/leads"
         className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"

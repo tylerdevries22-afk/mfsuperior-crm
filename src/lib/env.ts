@@ -30,15 +30,35 @@ export type Env = z.infer<typeof schema>;
 
 let cached: Env | undefined;
 
+// Skip strict validation when:
+// - Next.js is building (no runtime env yet on Vercel) — `NEXT_PHASE=phase-production-build`
+// - the operator explicitly opts out via `SKIP_ENV_VALIDATION=1`
+// In skip mode, missing vars are returned as undefined; values that *are* set still
+// have to match their schema. Code paths that need a missing value will fail when
+// they actually access it at runtime, not at build / module-load time.
+function shouldSkipValidation(): boolean {
+  return (
+    process.env.SKIP_ENV_VALIDATION === "1" ||
+    process.env.NEXT_PHASE === "phase-production-build"
+  );
+}
+
 export function env(): Env {
   if (cached) return cached;
-  const parsed = schema.safeParse(process.env);
-  if (!parsed.success) {
-    const msg = parsed.error.issues
-      .map((i) => `  ${i.path.join(".")}: ${i.message}`)
-      .join("\n");
-    throw new Error(`Invalid environment variables:\n${msg}`);
+  const strict = schema.safeParse(process.env);
+  if (strict.success) {
+    cached = strict.data;
+    return cached;
   }
-  cached = parsed.data;
-  return cached;
+  if (shouldSkipValidation()) {
+    // Partial schema lets every required field be undefined while still
+    // applying defaults for the optional/coerced fields.
+    const lenient = schema.partial().safeParse(process.env);
+    cached = (lenient.success ? lenient.data : {}) as Env;
+    return cached;
+  }
+  const msg = strict.error.issues
+    .map((i) => `  ${i.path.join(".")}: ${i.message}`)
+    .join("\n");
+  throw new Error(`Invalid environment variables:\n${msg}`);
 }

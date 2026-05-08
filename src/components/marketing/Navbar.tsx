@@ -29,6 +29,7 @@ export default function Navbar() {
   return (
     <>
       <nav
+        className="mkt-navbar"
         style={{
           position: 'fixed',
           top: '20px',
@@ -48,8 +49,8 @@ export default function Navbar() {
           transition: 'background 0.4s ease, backdrop-filter 0.4s ease',
         }}
       >
-        {/* Logo */}
-        <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+        {/* Logo — hidden on mobile so only actions show */}
+        <div className="mkt-nav-logo" style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
           <MFLogo width={90} height={54} />
         </div>
 
@@ -169,8 +170,37 @@ export default function Navbar() {
           </button>
         </div>
 
-        {/* Mobile: Call Us + Hamburger */}
-        <div className="mkt-nav-mobile-actions" style={{ display: 'none', alignItems: 'center', gap: '8px' }}>
+        {/* Mobile: action-only header — Login, Quote, Call Us, Hamburger */}
+        <div
+          className="mkt-nav-mobile-actions"
+          style={{
+            display: 'none',
+            alignItems: 'center',
+            gap: '6px',
+            width: '100%',
+            justifyContent: 'flex-end',
+          }}
+        >
+          <a
+            href="/login"
+            aria-label="Login"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '10px',
+              borderRadius: '8px',
+              background: 'transparent',
+              border: '1px solid rgba(255,255,255,0.3)',
+              color: 'white',
+              fontFamily: 'inherit',
+              textDecoration: 'none',
+              minHeight: '44px',
+              minWidth: '44px',
+            }}
+          >
+            <LockIcon width={14} height={14} />
+          </a>
           <a
             href="tel:+12564680751"
             style={{
@@ -187,9 +217,10 @@ export default function Navbar() {
               minHeight: '44px',
               display: 'flex',
               alignItems: 'center',
+              whiteSpace: 'nowrap',
             }}
           >
-            Call Us
+            Call
           </a>
           <button
             onClick={() => setMenuOpen(!menuOpen)}

@@ -24,6 +24,7 @@ function LogoCell({ logo }: { logo: Logo }) {
 
   return (
     <div
+      className="mkt-logos-cell"
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
@@ -55,6 +56,7 @@ function LogoCell({ logo }: { logo: Logo }) {
 export function LogosSection() {
   return (
     <section
+      className="mkt-logos-section"
       style={{
         backgroundColor: '#fff',
         padding: '80px 5.128vw',
