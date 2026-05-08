@@ -63,11 +63,32 @@ function DesktopLayout() {
     const section = sectionRef.current;
     if (!section) return;
 
+    // Lightweight scroll-driven crossfade. The active video plays-and-loops
+    // (no currentTime scrubbing — keeping scroll-scrub on the hero only).
+    // Inactive videos are paused and their <video> preload stays "none"
+    // until the user actually scrolls into their item, then we flip to
+    // "auto" and call .load() so the bytes start streaming.
+    const startedFetching = new Set<number>();
+
+    const activate = (i: number) => {
+      const v = videoRefs.current[i];
+      if (!v) return;
+      if (!startedFetching.has(i)) {
+        v.preload = "auto";
+        v.load();
+        startedFetching.add(i);
+      }
+      v.currentTime = 0;
+      v.play().catch(() => {});
+    };
+
+    // First feature is visible from the start.
     videoRefs.current.forEach((v, i) => {
       if (!v) return;
-      v.pause();
       v.style.opacity = i === 0 ? '1' : '0';
+      if (i !== 0) v.pause();
     });
+    activate(0);
     overlayRefs.current.forEach((o, i) => {
       if (o) o.style.opacity = i === 0 ? '1' : '0';
     });
@@ -76,8 +97,9 @@ function DesktopLayout() {
     });
 
     let raf = 0;
-
+    let scheduled = false;
     const tick = () => {
+      scheduled = false;
       const viewH = window.innerHeight;
       let bestIndex = activeRef.current;
       let bestDist = Infinity;
@@ -100,7 +122,8 @@ function DesktopLayout() {
         const po = overlayRefs.current[prev];
         if (po) po.style.opacity = '0';
         const nv = videoRefs.current[bestIndex];
-        if (nv) { nv.style.opacity = '1'; nv.pause(); }
+        if (nv) nv.style.opacity = '1';
+        activate(bestIndex);
         const no = overlayRefs.current[bestIndex];
         if (no) no.style.opacity = '1';
         const pd = dotRefs.current[prev];
@@ -109,28 +132,35 @@ function DesktopLayout() {
         if (nd) nd.style.backgroundColor = '#D4E030';
         activeRef.current = bestIndex;
       }
+    };
 
-      const activeEl = itemRefs.current[bestIndex];
-      const activeVideo = videoRefs.current[bestIndex];
-      if (activeEl && activeVideo && activeVideo.readyState >= 2 && activeVideo.duration > 0) {
-        const rect = activeEl.getBoundingClientRect();
-        const center = (rect.top + rect.bottom) / 2;
-        const progress = 1 - (center - viewH * 0.25) / (viewH * 0.5);
-        activeVideo.currentTime = Math.max(0, Math.min(1, progress)) * activeVideo.duration;
-      }
-
+    const onScroll = () => {
+      if (scheduled) return;
+      scheduled = true;
       raf = requestAnimationFrame(tick);
     };
 
+    let inView = false;
     const io = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting) raf = requestAnimationFrame(tick);
-        else cancelAnimationFrame(raf);
+        inView = entry.isIntersecting;
+        if (inView) {
+          window.addEventListener("scroll", onScroll, { passive: true });
+          onScroll();
+        } else {
+          window.removeEventListener("scroll", onScroll);
+          // Pause all when section leaves the viewport.
+          videoRefs.current.forEach((v) => v?.pause());
+        }
       },
       { threshold: 0 },
     );
     io.observe(section);
-    return () => { cancelAnimationFrame(raf); io.disconnect(); };
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("scroll", onScroll);
+      io.disconnect();
+    };
   }, []);
 
   return (
@@ -250,9 +280,11 @@ function DesktopLayout() {
                 key={item.video}
                 ref={(el) => { videoRefs.current[index] = el; }}
                 src={item.video}
+                poster={item.video.replace(/\.mp4$/, '.jpg')}
                 muted
+                loop
                 playsInline
-                preload="auto"
+                preload={index === 0 ? "auto" : "none"}
                 style={{
                   position: 'absolute',
                   inset: 0,
@@ -330,11 +362,17 @@ function DesktopLayout() {
 function MobileCarousel() {
   const [active, setActive] = useState(0);
   const videoRefs = useRef<(HTMLVideoElement | null)[]>([]);
+  const startedFetching = useRef<Set<number>>(new Set());
 
   useEffect(() => {
     videoRefs.current.forEach((v, i) => {
       if (!v) return;
       if (i === active) {
+        if (!startedFetching.current.has(i)) {
+          v.preload = "auto";
+          v.load();
+          startedFetching.current.add(i);
+        }
         v.currentTime = 0;
         v.play().catch(() => {});
       } else {
@@ -413,10 +451,11 @@ function MobileCarousel() {
             key={item.num}
             ref={(el) => { videoRefs.current[i] = el; }}
             src={item.video}
+            poster={item.video.replace(/\.mp4$/, '.jpg')}
             muted
             playsInline
             loop
-            preload="auto"
+            preload={i === 0 ? "auto" : "none"}
             style={{
               position: 'absolute',
               inset: 0,
