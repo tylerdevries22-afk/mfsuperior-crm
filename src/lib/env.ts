@@ -9,7 +9,9 @@ const schema = z.object({
   CRON_SECRET: z.string().min(16),
   ENCRYPTION_KEY: z.string().min(32),
 
-  GMAIL_USER: z.string().email(),
+  RESEND_API_KEY: z.string().min(1).optional(),
+
+  GMAIL_USER: z.string().email().optional(),
   DRIVE_FOLDER_ID: z.string().optional(),
 
   BUSINESS_NAME: z.string().min(1),

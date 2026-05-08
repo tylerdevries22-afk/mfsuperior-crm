@@ -14,8 +14,8 @@ import {
 } from "@/lib/db/schema";
 import { auth } from "@/lib/auth";
 import { composeEmail } from "@/lib/email/compose";
-import { GmailProvider } from "@/lib/gmail/provider";
 import { ProviderAuthError } from "@/lib/email/provider";
+import { getEmailProvider, isResendActive } from "@/lib/email/get-provider";
 import { userHasGoogleConnection } from "@/lib/gmail/oauth";
 
 const schema = z.object({
@@ -34,8 +34,8 @@ export async function draftEmailAction(formData: FormData): Promise<void> {
     mode: formData.get("mode") ?? "draft",
   });
 
-  // Pre-flight: must have a Google connection. Dev sign-in alone won't work.
-  if (!(await userHasGoogleConnection(session.user.id))) {
+  // Pre-flight: Gmail needs a stored OAuth token; Resend doesn't.
+  if (!isResendActive() && !(await userHasGoogleConnection(session.user.id))) {
     redirect(`/leads/${leadId}?compose_error=no_google`);
   }
 
@@ -118,7 +118,7 @@ export async function draftEmailAction(formData: FormData): Promise<void> {
     },
   });
 
-  const provider = new GmailProvider(session.user.id);
+  const provider = getEmailProvider(session.user.id);
   const fromMailbox = `"${config.senderName.replace(/"/g, "\\\"")}" <${config.senderEmail}>`;
 
   try {

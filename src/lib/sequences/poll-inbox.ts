@@ -13,7 +13,7 @@ import {
   ProviderRateLimitError,
   type EmailProvider,
 } from "@/lib/email/provider";
-import { GmailProvider } from "@/lib/gmail/provider";
+import { getEmailProvider, isResendActive } from "@/lib/email/get-provider";
 import { userHasGoogleConnection } from "@/lib/gmail/oauth";
 import { classifyMessage } from "@/lib/gmail/inbox-helpers";
 
@@ -175,6 +175,7 @@ async function findOperatorUser(): Promise<{ id: string } | null> {
     .from(users)
     .orderBy(asc(users.createdAt))
     .limit(20);
+  if (isResendActive()) return candidates[0] ?? null;
   for (const u of candidates) {
     if (await userHasGoogleConnection(u.id)) return u;
   }
@@ -292,5 +293,5 @@ async function recordBounce(input: {
 
 /** Default provider factory for the cron route. */
 export function defaultPollProviderFor(userId: string): EmailProvider {
-  return new GmailProvider(userId);
+  return getEmailProvider(userId);
 }
