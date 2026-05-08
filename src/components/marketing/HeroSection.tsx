@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { useScroll } from 'motion/react';
 import { CascadeText } from './CascadeText';
 
 export function HeroSection() {
@@ -10,17 +9,15 @@ export function HeroSection() {
   const layerBRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  // ONE shared scroll source for the whole hero. Each headline line gets
-  // a non-overlapping slice of this progress so they cascade
-  // sequentially (line A, then B, then C) instead of all running on
-  // their own per-element useScroll concurrently. Offset chosen so the
-  // first cascade starts the moment the section begins scrolling and
-  // the last finishes well before the section exits, leaving a settled
-  // beat before the next section appears.
-  const { scrollYProgress: heroProgress } = useScroll({
-    target: sectionRef,
-    offset: ['start start', 'end start'],
-  });
+  // The hero is the first thing the user sees — no scroll runway has
+  // accumulated yet, so a scroll-linked cascade leaves the headline
+  // mostly invisible on page load (rest state is faint by design). We
+  // use the trigger / whileInView path of CascadeText with explicit
+  // per-line delays instead, so the three lines reveal sequentially in
+  // TIME (not scroll) within ~4 seconds of the hero entering view, then
+  // sit settled for the rest of the section. Mid-page sections keep the
+  // scroll-linked cascade — that's where the per-letter scroll reveal
+  // feels right.
 
   useEffect(() => {
     const section = sectionRef.current;
@@ -77,13 +74,14 @@ export function HeroSection() {
     <section
       ref={sectionRef}
       style={{
-        // Scroll runway. Reduced from 200vh — was creating a long
-        // "dead scroll" stretch between hero and the next section. The
-        // sticky frame inside still keeps the visual at exactly 100vh
-        // on every device; this just controls how long the user has
-        // to scroll before the next section comes in.
+        // Scroll runway only — the cascades are time-driven now (play
+        // on view) so this just gates how much scroll happens before
+        // the next section enters and gives the rAF loop room to
+        // scrub the gradient → video crossfade. 140vh = ~40vh of
+        // scroll past the visible 100vh frame, enough for a
+        // perceptible crossfade without dragging.
         position: 'relative',
-        minHeight: '160vh',
+        minHeight: '140vh',
         overflow: 'hidden',
         backgroundColor: '#000',
       }}
@@ -190,18 +188,22 @@ export function HeroSection() {
         >
           <p
             style={{
-              fontSize: '16px',
-              marginBottom: '8px',
+              // Was a flat 16px — too small as a hero pre-title on
+              // anything bigger than a phone. Scaled responsively now.
+              fontSize: 'clamp(15px, 1.5vw, 22px)',
+              marginBottom: '12px',
               fontFamily: 'var(--font-primary)',
               fontWeight: 400,
               lineHeight: 1.4,
+              letterSpacing: '0.01em',
             }}
           >
             <CascadeText
               text="Colorado's most trusted freight delivery partner"
-              progress={heroProgress}
-              range={[0.0, 0.18]}
-              spread={1}
+              scrollLinked={false}
+              delay={0.25}
+              stagger={0.022}
+              duration={0.5}
               finalColor="rgba(255,255,255,0.85)"
               flashColor="#D4E030"
               restColor="rgba(255,255,255,0.10)"
@@ -209,7 +211,7 @@ export function HeroSection() {
           </p>
           <h1
             style={{
-              fontSize: 'clamp(48px, 6vw, 96px)',
+              fontSize: 'clamp(40px, 6vw, 96px)',
               fontWeight: 400,
               lineHeight: 1.05,
               letterSpacing: '-0.02em',
@@ -220,12 +222,12 @@ export function HeroSection() {
           >
             <CascadeText
               text="Built for the work ahead."
-              progress={heroProgress}
-              // Line 2 starts AFTER the pretitle finishes (0.18) with a
-              // 0.04 settle gap, runs through 0.50. Strictly non-
-              // overlapping with the other two cascades.
-              range={[0.22, 0.5]}
-              spread={1}
+              scrollLinked={false}
+              // Line 1 starts after the pretitle finishes
+              // (~0.25 + 0.022 × 47chars + 0.5 ≈ 1.78s).
+              delay={1.85}
+              stagger={0.028}
+              duration={0.55}
               finalColor="#fff"
               flashColor="#D4E030"
               restColor="rgba(255,255,255,0.18)"
@@ -233,12 +235,12 @@ export function HeroSection() {
             <br />
             <CascadeText
               text="Delivery that doesn't quit."
-              progress={heroProgress}
-              // Line 3 starts after line 2 settles, runs to ~0.85,
-              // leaving the last 15% of section scroll as a settled
-              // beat before the next section enters.
-              range={[0.55, 0.85]}
-              spread={1}
+              scrollLinked={false}
+              // Line 2 starts after line 1 finishes
+              // (1.85 + 0.028 × 25chars + 0.55 ≈ 3.10s).
+              delay={3.15}
+              stagger={0.028}
+              duration={0.55}
               finalColor="#fff"
               flashColor="#D4E030"
               restColor="rgba(255,255,255,0.18)"
