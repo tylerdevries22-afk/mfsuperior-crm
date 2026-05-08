@@ -91,7 +91,7 @@ export default async function AdminPage({
   }
 
   return (
-    <div className="px-8 py-8">
+    <div className="px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
       <header className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">
           Admin

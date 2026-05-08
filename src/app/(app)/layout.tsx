@@ -11,7 +11,7 @@ export default async function AppLayout({
   if (!session?.user) redirect("/login");
 
   return (
-    <div className="flex h-screen w-full">
+    <div className="flex h-screen w-full flex-col md:flex-row">
       <Sidebar />
       <main className="flex-1 overflow-y-auto bg-background">{children}</main>
     </div>

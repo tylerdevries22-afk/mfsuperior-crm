@@ -97,8 +97,16 @@
   --c-dark-green-15: rgba(17, 17, 17, 0.15);
   --c-dark-green-05: rgba(17, 17, 17, 0.05);
   --font-primary: 'SuisseIntl', sans-serif;
-  --spacing: 5.128vw;
-  --vw: 1vw;
+  /*
+   * NOTE: do NOT define a global `--spacing` here.
+   * Tailwind v4 uses `--spacing` as the base unit for EVERY spacing
+   * utility (size-N, p-N, gap-N, w-N, h-N, m-N). Overriding it to a
+   * viewport-based value (e.g. 5.128vw) makes every sized element in
+   * every page renderer-wide; e.g. `size-12` becomes `12 × 5.128vw`
+   * (~886px at 1440 viewport, ~230px at 375). Marketing components
+   * inline `5.128vw` directly in their styles instead — that's the
+   * right scope.
+   */
   --ease-out: cubic-bezier(0, 0, 0.58, 1);
 
   /* Sharp radius — logo is decisive, not soft */
