@@ -121,7 +121,7 @@ export function YosSection() {
             }}
           >
             <CascadeText
-              text="MF Superior Difference."
+              text="Superior Difference."
               scrollLinked
               spread={0.6}
               offset={['start 85%', 'start 35%']}

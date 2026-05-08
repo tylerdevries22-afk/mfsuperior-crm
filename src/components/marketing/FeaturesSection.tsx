@@ -39,9 +39,9 @@ export function FeaturesSection() {
       // Set initial state: first video visible, rest hidden.
       v.style.opacity = i === 0 ? '1' : '0';
     });
-    headingRefs.current.forEach((h, i) => {
-      if (h) h.style.color = i === 0 ? '#111111' : '#ddd';
-    });
+    // Heading colors are owned by CascadeText (scroll-linked per-letter
+    // cascade). The legacy active/inactive JS color swap is removed
+    // here — kept only for video opacity, overlay, and progress dot.
     overlayRefs.current.forEach((o, i) => {
       if (o) o.style.opacity = i === 0 ? '1' : '0';
     });
@@ -75,15 +75,11 @@ export function FeaturesSection() {
 
         const pv = videoRefs.current[prev];
         if (pv) { pv.style.opacity = '0'; pv.pause(); }
-        const ph = headingRefs.current[prev];
-        if (ph) ph.style.color = '#ddd';
         const po = overlayRefs.current[prev];
         if (po) po.style.opacity = '0';
 
         const nv = videoRefs.current[bestIndex];
         if (nv) { nv.style.opacity = '1'; nv.pause(); }
-        const nh = headingRefs.current[bestIndex];
-        if (nh) nh.style.color = '#111111';
         const no = overlayRefs.current[bestIndex];
         if (no) no.style.opacity = '1';
 
@@ -206,13 +202,21 @@ export function FeaturesSection() {
                   lineHeight: 1.15,
                   letterSpacing: '-0.02em',
                   fontFamily: 'var(--font-primary)',
-                  // Initial color set in JS after mount — avoid hydration mismatch
-                  color: '#ddd',
-                  transition: 'color 0.4s ease',
                   margin: 0,
+                  // CascadeText handles color animation via scroll position;
+                  // we don't need the legacy JS color toggle below for h3.
+                  color: '#111111',
                 }}
               >
-                {item.heading}
+                <CascadeText
+                  text={item.heading}
+                  scrollLinked
+                  spread={0.55}
+                  offset={['start 80%', 'start 35%']}
+                  finalColor="#111111"
+                  flashColor="#A0B41E"
+                  restColor="#dddddd"
+                />
               </h3>
             </div>
           ))}

@@ -164,27 +164,89 @@ function ScrollLinkedCascade({
   // (spread → 1) is the "fully revealed" rest period.
   const total = chars.length;
 
+  // Tokenize into words + spaces so line breaks happen only AT spaces,
+  // never in the middle of a word. Words become inline-block wrappers
+  // (which cannot break internally); the chars inside the wrapper still
+  // animate per-character because each ScrollChar is its own
+  // inline-block <motion.span>.
+  type Token =
+    | { kind: "space"; ch: string; idx: number }
+    | { kind: "word"; chars: string[]; startIdx: number };
+  const tokens: Token[] = [];
+  let cursor = 0;
+  let buffer: string[] = [];
+  let bufferStart = 0;
+  const flushWord = () => {
+    if (buffer.length > 0) {
+      tokens.push({ kind: "word", chars: buffer, startIdx: bufferStart });
+      buffer = [];
+    }
+  };
+  for (let i = 0; i < chars.length; i++) {
+    const ch = chars[i];
+    if (/\s/.test(ch)) {
+      flushWord();
+      tokens.push({ kind: "space", ch, idx: cursor });
+    } else {
+      if (buffer.length === 0) bufferStart = cursor;
+      buffer.push(ch);
+    }
+    cursor++;
+  }
+  flushWord();
+
   return (
     <Container
       ref={ref as never}
+      // Removed display: inline-block so the headline can WRAP at spaces.
+      // Inline-block on the parent would prevent any wrapping — words
+      // would all stay on one line and overflow horizontally.
       aria-label={text}
       className={className}
-      style={{ display: "inline-block" }}
     >
-      {chars.map((ch, i) => {
-        const charStart = (i / total) * spread;
-        const charEnd = ((i + 1) / total) * spread;
+      {tokens.map((tok, ti) => {
+        if (tok.kind === "space") {
+          // Render space as a single ScrollChar (so it still animates
+          // its color, harmlessly) but as plain inline so a line break
+          // can occur here.
+          const i = tok.idx;
+          const charStart = (i / total) * spread;
+          const charEnd = ((i + 1) / total) * spread;
+          return (
+            <ScrollChar
+              key={`s-${ti}`}
+              progress={scrollYProgress}
+              charStart={charStart}
+              charEnd={charEnd}
+              char={tok.ch}
+              restColor={restColor}
+              flashColor={flashColor}
+              finalColor={finalColor}
+              inline
+            />
+          );
+        }
+        // Word: inline-block wrapper keeps it from splitting across lines.
         return (
-          <ScrollChar
-            key={`${ch}-${i}`}
-            progress={scrollYProgress}
-            charStart={charStart}
-            charEnd={charEnd}
-            char={ch}
-            restColor={restColor}
-            flashColor={flashColor}
-            finalColor={finalColor}
-          />
+          <span key={`w-${ti}`} style={{ display: "inline-block" }}>
+            {tok.chars.map((ch, ci) => {
+              const i = tok.startIdx + ci;
+              const charStart = (i / total) * spread;
+              const charEnd = ((i + 1) / total) * spread;
+              return (
+                <ScrollChar
+                  key={`${ti}-${ci}`}
+                  progress={scrollYProgress}
+                  charStart={charStart}
+                  charEnd={charEnd}
+                  char={ch}
+                  restColor={restColor}
+                  flashColor={flashColor}
+                  finalColor={finalColor}
+                />
+              );
+            })}
+          </span>
         );
       })}
     </Container>
@@ -199,6 +261,7 @@ function ScrollChar({
   restColor,
   flashColor,
   finalColor,
+  inline = false,
 }: {
   progress: MotionValue<number>;
   charStart: number;
@@ -207,6 +270,9 @@ function ScrollChar({
   restColor: string;
   flashColor: string;
   finalColor: string;
+  /** When true, render as inline (not inline-block) — used for spaces
+   *  so a line break can occur at the whitespace. */
+  inline?: boolean;
 }) {
   // Match terminal-industries.com timing exactly. Each character has
   // three keyframe stops within its slice of scroll progress:
@@ -235,7 +301,9 @@ function ScrollChar({
     <motion.span
       aria-hidden
       style={{
-        display: "inline-block",
+        // Spaces render inline (so lines can break at them); word-chars
+        // render inline-block so transforms / opacities apply per-letter.
+        display: inline ? "inline" : "inline-block",
         whiteSpace: char === " " ? "pre" : "normal",
         opacity,
         color,
