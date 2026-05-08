@@ -79,7 +79,7 @@ export function Sidebar() {
         >
           <div className="logo-neon-glow relative size-8 shrink-0 overflow-hidden rounded-md">
             <Image
-              src="/logo.png"
+              src="/logo.png?v=2"
               alt="MF Superior Products"
               fill
               sizes="32px"
@@ -147,7 +147,7 @@ export function Sidebar() {
             >
               <div className="logo-neon-glow relative size-9 shrink-0 overflow-hidden rounded-md">
                 <Image
-                  src="/logo.png"
+                  src="/logo.png?v=2"
                   alt="MF Superior Products"
                   fill
                   sizes="36px"
@@ -192,7 +192,7 @@ function SidebarBrand() {
     >
       <div className="logo-neon-glow relative size-9 shrink-0 overflow-hidden rounded-md">
         <Image
-          src="/logo.png"
+          src="/logo.png?v=2"
           alt="MF Superior Products"
           fill
           sizes="36px"

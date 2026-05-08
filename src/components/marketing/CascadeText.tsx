@@ -208,16 +208,26 @@ function ScrollChar({
   flashColor: string;
   finalColor: string;
 }) {
-  // Quarter of the way through the slice, the letter has lifted to its
-  // final position. Half-way: it's flashing lime. By the end of the
-  // slice it has settled to its final color.
-  const mid = (charStart + charEnd) / 2;
+  // Match terminal-industries.com timing exactly. Each character has
+  // three keyframe stops within its slice of scroll progress:
+  //   0%  — rest (invisible / bg-matching color)
+  //   30% — flash (lime peak, pronounced)
+  //   100% — final (white at rest, visible at top)
+  //
+  // The letter "pops in lime, then settles white" — that's what the
+  // user wants and what the reference site does.
+  const slice = charEnd - charStart;
+  const flashAt = charStart + slice * 0.3;
+  const opacityFull = charStart + slice * 0.15; // pop in fast, no slow fade
 
-  const opacity = useTransform(progress, [charStart, charEnd], [0, 1]);
-  const y = useTransform(progress, [charStart, charEnd], ["0.25em", "0em"]);
+  const opacity = useTransform(
+    progress,
+    [charStart, opacityFull],
+    [0, 1],
+  );
   const color = useTransform(
     progress,
-    [charStart, mid, charEnd],
+    [charStart, flashAt, charEnd],
     [restColor, flashColor, finalColor],
   );
 
@@ -228,9 +238,8 @@ function ScrollChar({
         display: "inline-block",
         whiteSpace: char === " " ? "pre" : "normal",
         opacity,
-        y,
         color,
-        willChange: "transform, opacity, color",
+        willChange: "opacity, color",
       }}
     >
       {char}

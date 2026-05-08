@@ -5,7 +5,7 @@ type SVGProps = React.SVGProps<SVGSVGElement>;
 export function MFLogo({ className, width = 110, height = 66 }: { className?: string; width?: number; height?: number }) {
   return (
     <img
-      src="/images/mf-logo-text.png"
+      src="/images/mf-logo-text.png?v=2"
       alt="MF Superior Products"
       width={width}
       height={height}
@@ -18,7 +18,7 @@ export function MFLogo({ className, width = 110, height = 66 }: { className?: st
 export function MFMark({ className, width = 60, height = 60 }: { className?: string; width?: number; height?: number }) {
   return (
     <img
-      src="/images/mf-logo-mark.png"
+      src="/images/mf-logo-mark.png?v=2"
       alt="MF Superior Products"
       width={width}
       height={height}
