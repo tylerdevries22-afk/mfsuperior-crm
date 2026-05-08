@@ -312,18 +312,18 @@ function ScrollChar({
   // ONE-LETTER-AT-A-TIME cascade per user direction:
   //   0%   — invisible (opacity 0)
   //   2%   — snap to yellow (opacity 1, color = flash)
-  //   75%  — still yellow (color holds at flash for most of slice)
+  //   92%  — still yellow (color holds at flash for almost the whole slice)
   //   100% — settled at final color
   //
   // The letter is invisible until its slice begins, then pops in
-  // YELLOW and stays yellow for 75% of its slice, then fades to final
-  // color over the last 25%. Lengthening the yellow hold (was 50%)
-  // makes the cascade-in yellow phase clearly readable as the user
-  // scrolls — at any moment the actively-revealing letter is solidly
-  // yellow rather than transitioning through.
+  // YELLOW and stays yellow for 92% of its slice, then fades to final
+  // color over the last 8%. The very long yellow hold guarantees the
+  // user sees every letter as yellow during the scroll-driven reveal —
+  // even on a fast scroll, the actively-revealing letter is solidly
+  // yellow at any frame rather than mostly washed-through.
   const slice = charEnd - charStart;
   const popAt = charStart + slice * 0.02;
-  const yellowHoldUntil = charStart + slice * 0.75;
+  const yellowHoldUntil = charStart + slice * 0.92;
 
   const opacity = useTransform(progress, [charStart, popAt], [0, 1]);
   const color = useTransform(

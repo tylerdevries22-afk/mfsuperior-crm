@@ -1,22 +1,22 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { useScroll } from 'motion/react';
+import { useMotionValue } from 'motion/react';
 import { CascadeText } from './CascadeText';
 
 export function HeroSection() {
   const sectionRef = useRef<HTMLElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  // Shared scroll source for the hero — drives both the scroll-linked
-  // cascade (per-line ranges below) and any future visual chained off
-  // hero progress. Offset chosen so the cascade starts the moment the
-  // section's top reaches viewport top and finishes well before the
-  // section exits.
-  const { scrollYProgress: heroProgress } = useScroll({
-    target: sectionRef,
-    offset: ['start start', 'end start'],
-  });
+  // Hero progress as a MotionValue driven directly off the rAF loop
+  // below. We DELIBERATELY DO NOT use framer-motion's `useScroll` here:
+  // when Lenis smooth-scrolls the page, framer-motion's scroll source
+  // can fall out of sync (heroProgress was empirically capping at ~0.23
+  // even when the user had scrolled to the bottom of the 420vh hero).
+  // The rAF tick reads `getBoundingClientRect()` which is always
+  // accurate regardless of who's driving the scroll, so it gives us a
+  // clean 0→1 progress that the cascade can map against.
+  const heroProgress = useMotionValue(0);
 
   // Animation choice (per user direction):
   //   • Hero text is SCROLL-DRIVEN, not time-based. Each line's cascade
@@ -48,6 +48,9 @@ export function HeroSection() {
       const maxScroll = section.offsetHeight - viewH;
       const progress = maxScroll > 0 ? Math.min(1, scrolled / maxScroll) : 0;
 
+      // Push to the shared MotionValue that the CascadeText chains off.
+      heroProgress.set(progress);
+
       // Scrub video frame-by-frame with scroll.
       if (video.readyState >= 2 && video.duration > 0) {
         video.currentTime = progress * video.duration;
@@ -73,7 +76,7 @@ export function HeroSection() {
       cancelAnimationFrame(raf);
       io.disconnect();
     };
-  }, []);
+  }, [heroProgress]);
 
   return (
     <section
@@ -228,7 +231,15 @@ export function HeroSection() {
             <CascadeText
               text="haul what others won't touch."
               progress={heroProgress}
-              range={[0.05, 0.55]}
+              // Cascade fires fast — within the first ~25% of the
+              // 420vh hero scroll runway (≈100vh of scroll). This
+              // matches the cadence of every other CascadeText on
+              // the site (TypewriterSection / FeaturesSection use a
+              // ~100vh scroll window via offset ['start 95%', 'start
+              // 30%']). After scroll 25%, all 29 letters are settled
+              // and the rest of the hero runway (~75% / 315vh) is
+              // pure video scrub before TypewriterSection rises.
+              range={[0.03, 0.25]}
               spread={1}
               finalColor="#fff"
               flashColor="#D4E030"
