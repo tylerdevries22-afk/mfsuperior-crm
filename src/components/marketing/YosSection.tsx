@@ -158,7 +158,7 @@ export function YosSection() {
               lineHeight: 1.4,
             }}
           >
-            That&apos;s the
+            That&apos;s
           </p>
 
           <h2
@@ -177,6 +177,33 @@ export function YosSection() {
           >
             MF.
           </h2>
+
+          {/* Medium-weight lime tagline beneath the giant MF. Same scroll-driven
+              cascade as the rest of the site, but with a stable lime final color
+              (instead of the usual rest→flash→white) so the lime stays as the
+              brand mark when scroll settles. */}
+          <p
+            style={{
+              fontSize: 'clamp(20px, 2.5vw, 36px)',
+              fontWeight: 500,
+              fontFamily: 'var(--font-primary)',
+              textAlign: 'center',
+              margin: '24px 0 0 0',
+              lineHeight: 1.1,
+              letterSpacing: '0.01em',
+              color: '#A0B41E',
+            }}
+          >
+            <CascadeText
+              text="Superior Products"
+              scrollLinked
+              spread={0.55}
+              offset={['start 80%', 'start 35%']}
+              finalColor="#A0B41E"
+              flashColor="#D4E030"
+              restColor="rgba(160,180,30,0.18)"
+            />
+          </p>
         </div>
       </div>
     </section>

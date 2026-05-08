@@ -211,11 +211,16 @@ export function FeaturesSection() {
                 <CascadeText
                   text={item.heading}
                   scrollLinked
-                  spread={0.55}
-                  offset={['start 80%', 'start 35%']}
+                  // Wider scroll window so each item's cascade is clearly
+                  // visible as it enters the focus row — items animate
+                  // one after another as the user scrolls down.
+                  spread={0.7}
+                  offset={['start 95%', 'start 30%']}
                   finalColor="#111111"
                   flashColor="#A0B41E"
-                  restColor="#dddddd"
+                  // Very faint rest state so the "before / during / after"
+                  // contrast of the cascade is unmistakable.
+                  restColor="rgba(17,17,17,0.10)"
                 />
               </h3>
             </div>
