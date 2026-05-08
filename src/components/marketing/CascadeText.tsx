@@ -1,32 +1,45 @@
 "use client";
 
-import { motion, type Variants } from "motion/react";
-import { useMemo } from "react";
+import {
+  motion,
+  useScroll,
+  useTransform,
+  type MotionValue,
+  type Variants,
+} from "motion/react";
+import { useMemo, useRef } from "react";
 
 /**
- * Per-character cascade reveal — gray → lime flash → white — driven by
- * scroll. Mirrors the technique used on terminal-industries.com:
- * each character is its own inline-block span, animated with a per-letter
- * stagger so the eye traces the headline left-to-right.
+ * Per-character cascade reveal — gray → lime flash → final color — driven
+ * by SCROLL POSITION, not a one-shot trigger.
  *
- * The mid-keyframe lime "flash" is what gives the line that
- * "lights up as it's read" feel. Keep stagger small (~25–35ms) on long
- * lines so the sweep doesn't drag.
+ * Mirrors the technique used on terminal-industries.com (split-per-char
+ * spans + per-letter delay) but binds each character's reveal progress
+ * directly to the page scroll. As the headline scrolls up through the
+ * viewport, letters animate from "rest → flash → final" left-to-right.
  *
- * Accessibility: respects prefers-reduced-motion via @media in globals.css
- * (already wired). The plain text is rendered into the DOM (no aria
- * tricks needed); each character span is aria-hidden via the wrapping
- * <span aria-label> so screen readers read the whole string once.
+ * Two modes (selected per-instance):
+ *
+ *   1. **scrollLinked = true (default)** — uses motion's `useScroll`
+ *      against the wrapper's bounding box. Each character is a child
+ *      component that calls `useTransform` on the shared scroll progress
+ *      with its own narrow input range, so letters reveal at distinct
+ *      scroll positions. This is the "scroll-driven" mode the user
+ *      asked for.
+ *
+ *   2. **scrollLinked = false** — falls back to one-shot `whileInView`
+ *      with stagger. Useful for above-the-fold copy where there's no
+ *      scroll runway before the text is visible (rarely needed because
+ *      mode 1 also handles that case via the offset window).
  */
 
 type Props = {
   text: string;
-  /** Delay before the cascade starts, in seconds. Use to chain headlines. */
-  delay?: number;
-  /** Per-character stagger in seconds. Default 0.03. */
-  stagger?: number;
-  /** Single-character animation duration in seconds. Default 0.5. */
-  duration?: number;
+  /** Per-character stagger / spread, expressed as a fraction of the
+   *  scroll-window. Default 0.7 — the cascade occupies the first 70%
+   *  of the section's scroll-window, leaving the last 30% as a "rest"
+   *  state where the text is fully revealed. */
+  spread?: number;
   /** Optional extra class on the wrapping <span>. */
   className?: string;
   /** Tag to render as. Default "span". */
@@ -37,11 +50,209 @@ type Props = {
   flashColor?: string;
   /** Resting color before reveal. Default "rgba(255,255,255,0.18)". */
   restColor?: string;
-  /** Repeat each time it scrolls into view? Default false (one-shot). */
-  repeat?: boolean;
+  /** Scroll-linked mode (default true). Set false to use whileInView. */
+  scrollLinked?: boolean;
+  /** When scrollLinked, the offset passed to `useScroll`.
+   *  Default ["start 85%", "start 30%"] — the cascade is fully complete
+   *  by the time the headline reaches the upper third of the viewport. */
+  offset?: [string, string];
+  /** When NOT scrollLinked: per-character stagger in seconds. Default 0.03. */
+  stagger?: number;
+  /** When NOT scrollLinked: animation duration. Default 0.5. */
+  duration?: number;
+  /** When NOT scrollLinked: container delay. Default 0. */
+  delay?: number;
 };
 
-/** Container variant — orchestrates the per-letter stagger. */
+export function CascadeText({
+  text,
+  spread = 0.7,
+  className,
+  as: Tag = "span",
+  finalColor = "#fff",
+  flashColor = "#D4E030",
+  restColor = "rgba(255,255,255,0.18)",
+  scrollLinked = true,
+  offset = ["start 85%", "start 30%"],
+  stagger = 0.03,
+  duration = 0.5,
+  delay = 0,
+}: Props) {
+  const chars = useMemo(() => Array.from(text), [text]);
+  const ref = useRef<HTMLElement>(null);
+
+  if (scrollLinked) {
+    return (
+      <ScrollLinkedCascade
+        chars={chars}
+        ref={ref}
+        spread={spread}
+        offset={offset}
+        Tag={Tag}
+        className={className}
+        text={text}
+        finalColor={finalColor}
+        flashColor={flashColor}
+        restColor={restColor}
+      />
+    );
+  }
+
+  return (
+    <TriggerCascade
+      chars={chars}
+      Tag={Tag}
+      className={className}
+      text={text}
+      finalColor={finalColor}
+      flashColor={flashColor}
+      restColor={restColor}
+      stagger={stagger}
+      duration={duration}
+      delay={delay}
+    />
+  );
+}
+
+/* ─── Mode 1: scroll-linked (default) ─────────────────────────────── */
+
+type ScrollProps = {
+  chars: string[];
+  ref: React.RefObject<HTMLElement | null>;
+  spread: number;
+  offset: [string, string];
+  Tag: "span" | "h1" | "h2" | "h3" | "p";
+  className?: string;
+  text: string;
+  finalColor: string;
+  flashColor: string;
+  restColor: string;
+};
+
+function ScrollLinkedCascade({
+  chars,
+  ref,
+  spread,
+  offset,
+  Tag,
+  className,
+  text,
+  finalColor,
+  flashColor,
+  restColor,
+}: ScrollProps) {
+  // useScroll's offset takes [start, end] strings like "start 85%" —
+  // the wrapper's `start` edge crosses the viewport's `85%` line maps
+  // to scrollYProgress=0; ["start 30%"] maps to scrollYProgress=1.
+  const { scrollYProgress } = useScroll({
+    target: ref as React.RefObject<HTMLElement>,
+    offset: offset as never,
+  });
+
+  const Container =
+    Tag === "h1"
+      ? "h1"
+      : Tag === "h2"
+        ? "h2"
+        : Tag === "h3"
+          ? "h3"
+          : Tag === "p"
+            ? "p"
+            : "span";
+
+  // Each char gets its own slice of [0, spread]. The remaining tail
+  // (spread → 1) is the "fully revealed" rest period.
+  const total = chars.length;
+
+  return (
+    <Container
+      ref={ref as never}
+      aria-label={text}
+      className={className}
+      style={{ display: "inline-block" }}
+    >
+      {chars.map((ch, i) => {
+        const charStart = (i / total) * spread;
+        const charEnd = ((i + 1) / total) * spread;
+        return (
+          <ScrollChar
+            key={`${ch}-${i}`}
+            progress={scrollYProgress}
+            charStart={charStart}
+            charEnd={charEnd}
+            char={ch}
+            restColor={restColor}
+            flashColor={flashColor}
+            finalColor={finalColor}
+          />
+        );
+      })}
+    </Container>
+  );
+}
+
+function ScrollChar({
+  progress,
+  charStart,
+  charEnd,
+  char,
+  restColor,
+  flashColor,
+  finalColor,
+}: {
+  progress: MotionValue<number>;
+  charStart: number;
+  charEnd: number;
+  char: string;
+  restColor: string;
+  flashColor: string;
+  finalColor: string;
+}) {
+  // Quarter of the way through the slice, the letter has lifted to its
+  // final position. Half-way: it's flashing lime. By the end of the
+  // slice it has settled to its final color.
+  const mid = (charStart + charEnd) / 2;
+
+  const opacity = useTransform(progress, [charStart, charEnd], [0, 1]);
+  const y = useTransform(progress, [charStart, charEnd], ["0.25em", "0em"]);
+  const color = useTransform(
+    progress,
+    [charStart, mid, charEnd],
+    [restColor, flashColor, finalColor],
+  );
+
+  return (
+    <motion.span
+      aria-hidden
+      style={{
+        display: "inline-block",
+        whiteSpace: char === " " ? "pre" : "normal",
+        opacity,
+        y,
+        color,
+        willChange: "transform, opacity, color",
+      }}
+    >
+      {char}
+    </motion.span>
+  );
+}
+
+/* ─── Mode 2: trigger (whileInView, fallback) ─────────────────────── */
+
+type TriggerProps = {
+  chars: string[];
+  Tag: "span" | "h1" | "h2" | "h3" | "p";
+  className?: string;
+  text: string;
+  finalColor: string;
+  flashColor: string;
+  restColor: string;
+  stagger: number;
+  duration: number;
+  delay: number;
+};
+
 const containerVariants = (stagger: number, delay: number): Variants => ({
   hidden: {},
   visible: {
@@ -52,18 +263,13 @@ const containerVariants = (stagger: number, delay: number): Variants => ({
   },
 });
 
-/** Per-letter variant — color flashes to lime mid-anim, then settles. */
 const letterVariants = (
   duration: number,
   rest: string,
   flash: string,
   final: string,
 ): Variants => ({
-  hidden: {
-    opacity: 0,
-    y: "0.25em",
-    color: rest,
-  },
+  hidden: { opacity: 0, y: "0.25em", color: rest },
   visible: {
     opacity: 1,
     y: 0,
@@ -76,20 +282,18 @@ const letterVariants = (
   },
 });
 
-export function CascadeText({
-  text,
-  delay = 0,
-  stagger = 0.03,
-  duration = 0.5,
+function TriggerCascade({
+  chars,
+  Tag,
   className,
-  as: Tag = "span",
-  finalColor = "#fff",
-  flashColor = "#D4E030",
-  restColor = "rgba(255,255,255,0.18)",
-  repeat = false,
-}: Props) {
-  // Memoize the split so we don't re-allocate on every render.
-  const chars = useMemo(() => Array.from(text), [text]);
+  text,
+  finalColor,
+  flashColor,
+  restColor,
+  stagger,
+  duration,
+  delay,
+}: TriggerProps) {
   const cVariants = useMemo(
     () => containerVariants(stagger, delay),
     [stagger, delay],
@@ -99,10 +303,6 @@ export function CascadeText({
     [duration, restColor, flashColor, finalColor],
   );
 
-  // Use whileInView so the cascade triggers as the headline scrolls past
-  // the fold; once: true makes it one-shot for headline copy.
-  // We render the per-letter spans inside whichever tag the caller asked
-  // for — h1/h2/h3/p/span — by selecting the matching motion.* component.
   const Container =
     Tag === "h1"
       ? motion.h1
@@ -122,7 +322,7 @@ export function CascadeText({
       variants={cVariants}
       initial="hidden"
       whileInView="visible"
-      viewport={{ once: !repeat, amount: 0.4 }}
+      viewport={{ once: true, amount: 0.4 }}
     >
       {chars.map((ch, i) => (
         <motion.span
@@ -131,7 +331,6 @@ export function CascadeText({
           variants={lVariants}
           style={{
             display: "inline-block",
-            // White-space-preserving render for spaces.
             whiteSpace: ch === " " ? "pre" : "normal",
             willChange: "transform, opacity, color",
           }}

@@ -1,27 +1,17 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { CascadeText } from './CascadeText';
 
 const TEXT = 'across Colorado, straight to your customers.';
 
+/**
+ * Full-bleed pull-quote between hero and Features. The cascade is
+ * scroll-linked — each character reveals as the section scrolls past.
+ * Ends in WHITE on a black background so the line stays visible at
+ * rest after the cascade completes (previously ended dark-green via
+ * the legacy `color-transition` keyframe = invisible on black).
+ */
 export function TypewriterSection() {
-  const ref = useRef<HTMLDivElement>(null);
-  const [inView, setInView] = useState(false);
-
-  useEffect(() => {
-    const obs = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) setInView(true);
-      },
-      { threshold: 0.3 },
-    );
-    if (ref.current) obs.observe(ref.current);
-    return () => obs.disconnect();
-  }, []);
-
-  const chars = TEXT.split('');
-  const totalDuration = chars.length * 0.04 + 0.8; // last char delay + animation duration
-
   return (
     <section
       style={{
@@ -46,9 +36,8 @@ export function TypewriterSection() {
         }}
       />
 
-      {/* Text container */}
+      {/* Headline */}
       <div
-        ref={ref}
         style={{
           position: 'relative',
           zIndex: 1,
@@ -59,33 +48,27 @@ export function TypewriterSection() {
           padding: '0 5.128vw',
           maxWidth: '1200px',
           fontFamily: 'var(--font-primary)',
+          color: '#fff',
         }}
       >
-        {chars.map((char, i) => (
-          <span
-            key={i}
-            style={{
-              color: '#ddd',
-              animation: inView
-                ? `color-transition 0.8s ${(i * 0.04).toFixed(3)}s forwards`
-                : 'none',
-              display: char === ' ' ? 'inline' : 'inline',
-              whiteSpace: char === ' ' ? 'pre' : undefined,
-            }}
-          >
-            {char}
-          </span>
-        ))}
-
-        {/* Blinking cursor — appears after last character animation completes */}
+        <CascadeText
+          text={TEXT}
+          scrollLinked
+          spread={0.6}
+          // The cascade plays as the headline travels from the bottom
+          // of the viewport (start) up to ~30% from top (end).
+          offset={['start 90%', 'start 30%']}
+          finalColor="#fff"
+          flashColor="#D4E030"
+          restColor="rgba(255,255,255,0.18)"
+        />
+        {/* Static lime cursor at line end — stays visible after cascade. */}
         <span
+          aria-hidden
           style={{
             color: '#D4E030',
-            animation: inView
-              ? `cursor-blink 1s ${totalDuration.toFixed(3)}s infinite`
-              : 'none',
-            opacity: inView ? undefined : 0,
             marginLeft: '2px',
+            animation: 'cursor-blink 1s 0s infinite',
           }}
         >
           |

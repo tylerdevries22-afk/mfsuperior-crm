@@ -156,9 +156,10 @@ export function HeroSection() {
           >
             <CascadeText
               text="Colorado's most trusted freight delivery partner"
-              stagger={0.018}
-              duration={0.45}
-              finalColor="rgba(255,255,255,0.6)"
+              scrollLinked
+              spread={0.55}
+              offset={['start 95%', 'start 55%']}
+              finalColor="rgba(255,255,255,0.85)"
               flashColor="#D4E030"
               restColor="rgba(255,255,255,0.10)"
             />
@@ -176,9 +177,9 @@ export function HeroSection() {
           >
             <CascadeText
               text="Built for the work ahead."
-              delay={0.25}
-              stagger={0.025}
-              duration={0.55}
+              scrollLinked
+              spread={0.6}
+              offset={['start 90%', 'start 40%']}
               finalColor="#fff"
               flashColor="#D4E030"
               restColor="rgba(255,255,255,0.18)"
@@ -186,9 +187,9 @@ export function HeroSection() {
             <br />
             <CascadeText
               text="Delivery that doesn't quit."
-              delay={0.85}
-              stagger={0.025}
-              duration={0.55}
+              scrollLinked
+              spread={0.6}
+              offset={['start 80%', 'start 30%']}
               finalColor="#fff"
               flashColor="#D4E030"
               restColor="rgba(255,255,255,0.18)"
