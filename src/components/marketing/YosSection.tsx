@@ -77,8 +77,14 @@ export function YosSection() {
     <section
       ref={sectionRef}
       style={{
+        // 200vh → 160vh trim. The phase swap + MF size animation +
+        // Superior Products cascade all happen within this scroll
+        // runway (mapped via the existing yosProgress curve), so a
+        // shorter section just compresses how much the user has to
+        // scroll without changing the *feel* of any animation. Cuts
+        // 40vh of dead scroll between Features and Benefits.
         position: 'relative',
-        height: '200vh',
+        height: '160vh',
       }}
     >
       {/* Sticky container */}

@@ -8,17 +8,21 @@ interface FooterLink {
   href: string;
 }
 
-const technologyLinks: FooterLink[] = [
-  { label: 'Homepage', href: '/' },
-  { label: 'Our Services', href: '/services' },
-  { label: 'Liftgate Service', href: '/liftgate-service' },
-  { label: 'Get a Quote', href: '/contact' },
+// All footer links repointed to in-page anchor sections that actually
+// exist (matching the navbar scroll-spy ids: #fleet, #industries,
+// #about, #contact). Several previous links pointed at routes
+// (/services, /liftgate-service, /about, /resources) that were
+// 404-ing — repaired here.
+const servicesLinks: FooterLink[] = [
+  { label: 'Homepage', href: '#' },
+  { label: 'Fleet capabilities', href: '#fleet' },
+  { label: 'Industries we serve', href: '#industries' },
+  { label: 'Get a quote', href: '#contact' },
 ];
 
 const companyLinks: FooterLink[] = [
-  { label: 'About', href: '/about' },
-  { label: 'Resources', href: '/resources' },
-  { label: 'Contact', href: '/contact' },
+  { label: 'About', href: '#about' },
+  { label: 'Contact', href: '#contact' },
 ];
 
 function FooterLink({ href, children }: { href: string; children: React.ReactNode }) {
@@ -97,10 +101,10 @@ export function Footer() {
           </div>
         </div>
 
-        {/* Column 2: Technology */}
+        {/* Column 2: Services */}
         <div>
           <p style={columnHeaderStyle}>Services</p>
-          {technologyLinks.map((link) => (
+          {servicesLinks.map((link) => (
             <FooterLink key={link.label} href={link.href}>
               {link.label}
             </FooterLink>

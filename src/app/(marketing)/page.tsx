@@ -12,9 +12,8 @@ import { CtaSection } from "@/components/marketing/CtaSection";
 import { Footer } from "@/components/marketing/Footer";
 
 // HowItWorksSection owns the #contact form anchor for the navbar
-// scroll-spy. ContactSection.tsx is left in src for reference but is
-// not mounted — rendering both produced two stacked contact forms at
-// the page bottom.
+// scroll-spy. The standalone ContactSection.tsx was a duplicate and
+// has been deleted from the source tree.
 
 export default function Home() {
   return (
