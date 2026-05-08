@@ -13,6 +13,7 @@ import {
   CheckCircle2,
   AlertTriangle,
   ExternalLink,
+  Calendar,
 } from "lucide-react";
 import { db } from "@/lib/db/client";
 import {
@@ -35,9 +36,11 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { StageChip, TierChip } from "@/components/leads/stage-chip";
+import { Input } from "@/components/ui/input";
 import {
   addNoteAction,
   archiveLeadAction,
+  scheduleFollowUpAction,
   updateStageAction,
 } from "./actions";
 import { draftEmailAction } from "./draft-action";
@@ -67,6 +70,13 @@ const ENROLL_SKIP_MESSAGES: Record<string, string> = {
   no_active_step: "Sequence has no active templates. Add or activate a template first.",
 };
 
+const EVENT_ERROR_MESSAGES: Record<string, string> = {
+  lead_missing: "Lead not found.",
+  bad_time: "The start time was empty or unparseable.",
+  auth: "Google rejected the request. Sign in again to refresh your Calendar permission.",
+  create_failed: "Calendar API returned an error. Check the audit log.",
+};
+
 export default async function LeadDetailPage({
   params,
   searchParams,
@@ -78,6 +88,8 @@ export default async function LeadDetailPage({
     template?: string;
     enroll_ok?: string;
     enroll_skip?: string;
+    event_ok?: string;
+    event_error?: string;
   }>;
 }) {
   const { id } = await params;
@@ -144,6 +156,17 @@ export default async function LeadDetailPage({
 
   const fullName = [lead.firstName, lead.lastName].filter(Boolean).join(" ");
   const headerName = lead.companyName ?? (fullName || "(Untitled lead)");
+
+  // Default schedule slot: tomorrow 10:00 local (formatted for <input type="datetime-local">).
+  const defaultStart = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    d.setHours(10, 0, 0, 0);
+    const pad = (n: number) => n.toString().padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
+      d.getHours(),
+    )}:${pad(d.getMinutes())}`;
+  })();
 
   return (
     <div className="px-8 py-8">
@@ -229,6 +252,23 @@ export default async function LeadDetailPage({
           <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" />
           <p className="text-foreground">
             {ENROLL_SKIP_MESSAGES[sp.enroll_skip] ?? "Enrollment skipped."}
+          </p>
+        </div>
+      )}
+      {sp.event_ok && (
+        <div className="mb-5 flex items-start gap-3 rounded-md border border-success/40 bg-success/10 px-4 py-3 text-sm">
+          <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-success" />
+          <p className="text-foreground">
+            Calendar event created and{" "}
+            <span className="font-mono">nextFollowUpAt</span> updated.
+          </p>
+        </div>
+      )}
+      {sp.event_error && (
+        <div className="mb-5 flex items-start gap-3 rounded-md border border-warning/40 bg-warning/10 px-4 py-3 text-sm">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" />
+          <p className="text-foreground">
+            {EVENT_ERROR_MESSAGES[sp.event_error] ?? sp.event_error}
           </p>
         </div>
       )}
@@ -338,6 +378,116 @@ export default async function LeadDetailPage({
                   Update
                 </Button>
               </form>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Calendar className="size-4 text-muted-foreground" />
+                Schedule follow-up
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <form
+                action={scheduleFollowUpAction}
+                className="grid grid-cols-1 gap-3 sm:grid-cols-2"
+              >
+                <input type="hidden" name="id" value={lead.id} />
+                <div className="grid gap-1.5 sm:col-span-2">
+                  <label
+                    htmlFor="summary"
+                    className="text-xs font-medium uppercase tracking-wider text-muted-foreground"
+                  >
+                    Title
+                  </label>
+                  <Input
+                    id="summary"
+                    name="summary"
+                    placeholder={`Follow-up: ${headerName}`}
+                  />
+                </div>
+                <div className="grid gap-1.5">
+                  <label
+                    htmlFor="startsAt"
+                    className="text-xs font-medium uppercase tracking-wider text-muted-foreground"
+                  >
+                    Start
+                  </label>
+                  <Input
+                    id="startsAt"
+                    name="startsAt"
+                    type="datetime-local"
+                    defaultValue={defaultStart}
+                    required
+                  />
+                </div>
+                <div className="grid gap-1.5">
+                  <label
+                    htmlFor="durationMinutes"
+                    className="text-xs font-medium uppercase tracking-wider text-muted-foreground"
+                  >
+                    Duration (min)
+                  </label>
+                  <Input
+                    id="durationMinutes"
+                    name="durationMinutes"
+                    type="number"
+                    min={5}
+                    max={480}
+                    defaultValue={30}
+                  />
+                </div>
+                <div className="grid gap-1.5 sm:col-span-2">
+                  <label
+                    htmlFor="description"
+                    className="text-xs font-medium uppercase tracking-wider text-muted-foreground"
+                  >
+                    Notes (optional)
+                  </label>
+                  <Textarea
+                    id="description"
+                    name="description"
+                    rows={2}
+                    placeholder="Talking points, reference attachments…"
+                  />
+                </div>
+                <div className="flex flex-wrap items-center gap-4 sm:col-span-2">
+                  <label className="inline-flex items-center gap-2 text-sm text-foreground">
+                    <input
+                      type="checkbox"
+                      name="inviteLead"
+                      disabled={!lead.email}
+                      className="size-4 accent-primary"
+                    />
+                    Invite lead
+                    {!lead.email && (
+                      <span className="text-xs text-muted-foreground">
+                        (no email on file)
+                      </span>
+                    )}
+                  </label>
+                  <label className="inline-flex items-center gap-2 text-sm text-foreground">
+                    <input
+                      type="checkbox"
+                      name="withMeet"
+                      className="size-4 accent-primary"
+                    />
+                    Add Google Meet link
+                  </label>
+                  <Button type="submit" className="ml-auto">
+                    <Calendar /> Create event
+                  </Button>
+                </div>
+              </form>
+              {lead.nextFollowUpAt && (
+                <p className="mt-3 text-xs text-muted-foreground">
+                  Current next follow-up:{" "}
+                  <span className="font-mono tabular-nums text-foreground">
+                    {new Date(lead.nextFollowUpAt).toLocaleString()}
+                  </span>
+                </p>
+              )}
             </CardContent>
           </Card>
 

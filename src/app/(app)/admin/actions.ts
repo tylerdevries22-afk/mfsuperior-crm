@@ -120,6 +120,8 @@ export async function manualSyncAction(): Promise<void> {
     sync_confirmed: String(report.confirmed),
     sync_orphans: String(report.orphansFlagged),
     sync_orphans_cleared: String(report.orphansCleared),
+    sync_pushed: String(report.pushedExported),
+    sync_pushed_file: report.pushedFileName ?? "",
     sync_dur: String(report.durationMs),
     sync_notes: report.notes.length
       ? encodeURIComponent(report.notes.join("|"))

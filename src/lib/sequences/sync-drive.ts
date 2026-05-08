@@ -12,6 +12,7 @@ import {
   downloadFileBytes,
   listLeadSpreadsheets,
 } from "@/lib/drive/client";
+import { exportLeadsToDrive } from "@/lib/drive/export";
 import { parseLeadWorkbook, toLeadInsert } from "@/lib/xlsx";
 import { diffSheetVsDb, type SheetRow } from "@/lib/drive/diff";
 
@@ -25,6 +26,9 @@ export type DriveSyncReport = {
   confirmed: number;
   orphansFlagged: number;
   orphansCleared: number;
+  pushedExported: number;
+  pushedFileName: string | null;
+  pushedCreated: boolean;
   notes: string[];
 };
 
@@ -44,6 +48,9 @@ export async function syncDrive(): Promise<DriveSyncReport> {
     confirmed: 0,
     orphansFlagged: 0,
     orphansCleared: 0,
+    pushedExported: 0,
+    pushedFileName: null,
+    pushedCreated: false,
     notes,
   };
 
@@ -68,40 +75,49 @@ export async function syncDrive(): Promise<DriveSyncReport> {
     return finalize(report, startMs);
   }
 
-  // 3. Find the freshest lead-list xlsx in the folder.
+  // 3. Find the freshest lead-list xlsx in the folder. If there isn't one
+  //    we skip the pull entirely but still run the push so the canonical
+  //    sheet always gets created.
   let candidates;
   try {
     candidates = await listLeadSpreadsheets(operator.id, config.driveFolderId);
   } catch (err) {
     notes.push(`drive list failed: ${(err as Error).message}`);
+    await runPushAndFinalize(report, operator.id, config.driveFolderId, notes);
     return finalize(report, startMs);
   }
-  if (candidates.length === 0) {
-    notes.push("no .xlsx files matching 'Lead' found in the configured folder");
-    return finalize(report, startMs);
+  const file = candidates[0] ?? null;
+  if (!file) {
+    notes.push("no .xlsx files matching 'Lead' found — pull skipped, push only");
+  } else {
+    report.sourceFile = `${file.name} (${file.id.slice(0, 8)}…)`;
   }
-  const file = candidates[0];
-  report.sourceFile = `${file.name} (${file.id.slice(0, 8)}…)`;
 
-  // 4. Download + parse.
-  let buffer: ArrayBuffer;
-  try {
-    buffer = await downloadFileBytes(operator.id, file.id);
-  } catch (err) {
-    notes.push(`drive download failed: ${(err as Error).message}`);
-    return finalize(report, startMs);
-  }
-  const parsed = await parseLeadWorkbook(buffer);
-  notes.push(...parsed.warnings);
-  report.sheetRows = parsed.leads.length;
-  if (parsed.leads.length === 0) {
-    notes.push("workbook parsed but yielded zero rows");
-    await markSyncTimestamp();
-    return finalize(report, startMs);
+  // 4. Download + parse (only if we have a source).
+  let parsedLeads: Array<Parameters<typeof toLeadInsert>[0]> = [];
+  if (file) {
+    let buffer: ArrayBuffer;
+    try {
+      buffer = await downloadFileBytes(operator.id, file.id);
+    } catch (err) {
+      notes.push(`drive download failed: ${(err as Error).message}`);
+      await runPushAndFinalize(report, operator.id, config.driveFolderId, notes);
+      return finalize(report, startMs);
+    }
+    const parsed = await parseLeadWorkbook(buffer);
+    notes.push(...parsed.warnings);
+    report.sheetRows = parsed.leads.length;
+    if (parsed.leads.length === 0) {
+      notes.push("workbook parsed but yielded zero rows");
+      await markSyncTimestamp();
+      await runPushAndFinalize(report, operator.id, config.driveFolderId, notes);
+      return finalize(report, startMs);
+    }
+    parsedLeads = parsed.leads;
   }
 
   // 5. Build the diff against current DB state.
-  const sheetRows: SheetRow[] = parsed.leads.map((p) => ({
+  const sheetRows: SheetRow[] = parsedLeads.map((p) => ({
     email: p.email,
     companyName: p.companyName,
     raw: p,
@@ -132,7 +148,7 @@ export async function syncDrive(): Promise<DriveSyncReport> {
       .values({
         ...insert,
         lastSyncedAt: sql`now()`,
-        driveFileId: file.id,
+        driveFileId: file?.id ?? null,
         driveSyncOrphan: false,
       })
       .onConflictDoNothing();
@@ -145,7 +161,7 @@ export async function syncDrive(): Promise<DriveSyncReport> {
       .update(leads)
       .set({
         lastSyncedAt: sql`now()`,
-        driveFileId: file.id,
+        driveFileId: file?.id ?? null,
         driveSyncOrphan: false,
         updatedAt: sql`now()`,
       })
@@ -181,12 +197,29 @@ export async function syncDrive(): Promise<DriveSyncReport> {
     .where(eq(leads.driveSyncOrphan, true));
   report.orphansCleared = Math.max(0, (preOrphanCount ?? 0) - stillFlagged);
 
-  // 10. Update singleton sync state + audit row.
+  // 10. PUSH: write the current DB state out to a canonical xlsx in the
+  //     same Drive folder so the sheet always reflects the CRM. This is
+  //     the "auto-sync to Drive" half of the two-way flow.
+  try {
+    const pushed = await exportLeadsToDrive(operator.id, config.driveFolderId);
+    report.pushedExported = pushed.exported;
+    report.pushedFileName = pushed.fileName;
+    report.pushedCreated = pushed.created;
+    notes.push(
+      pushed.created
+        ? `created ${pushed.fileName} in Drive (${pushed.exported} rows)`
+        : `updated ${pushed.fileName} in Drive (${pushed.exported} rows)`,
+    );
+  } catch (err) {
+    notes.push(`drive push failed: ${(err as Error).message}`);
+  }
+
+  // 11. Update singleton sync state + audit row.
   await markSyncTimestamp();
   await db.insert(auditLog).values({
     actorUserId: operator.id,
     entity: "drive_sync",
-    entityId: file.id,
+    entityId: file?.id ?? null,
     action: "sync",
     beforeJson: null,
     afterJson: {
@@ -195,6 +228,8 @@ export async function syncDrive(): Promise<DriveSyncReport> {
       inserted: report.inserted,
       confirmed: report.confirmed,
       orphansFlagged: report.orphansFlagged,
+      pushedExported: report.pushedExported,
+      pushedFileName: report.pushedFileName,
     },
   });
 
@@ -219,6 +254,27 @@ async function findOperatorUser(): Promise<{ id: string } | null> {
     if (await userHasGoogleConnection(u.id)) return u;
   }
   return null;
+}
+
+async function runPushAndFinalize(
+  report: DriveSyncReport,
+  userId: string,
+  folderId: string,
+  notes: string[],
+) {
+  try {
+    const pushed = await exportLeadsToDrive(userId, folderId);
+    report.pushedExported = pushed.exported;
+    report.pushedFileName = pushed.fileName;
+    report.pushedCreated = pushed.created;
+    notes.push(
+      pushed.created
+        ? `created ${pushed.fileName} in Drive (${pushed.exported} rows)`
+        : `updated ${pushed.fileName} in Drive (${pushed.exported} rows)`,
+    );
+  } catch (err) {
+    notes.push(`drive push failed: ${(err as Error).message}`);
+  }
 }
 
 async function markSyncTimestamp() {

@@ -7,9 +7,10 @@ CRM and email automation for MF Superior Products freight box trucks.
 - Next.js 16 App Router · TypeScript · React 19
 - Tailwind 4 (CSS-first `@theme inline` tokens) · custom UI primitives
 - Drizzle ORM · Vercel Postgres (Neon) · `@neondatabase/serverless`
-- Auth.js v5 · Google provider (Gmail + Drive scopes share one OAuth client)
+- Auth.js v5 · Google provider (Gmail + Drive + Calendar scopes share one OAuth client)
 - Email: Gmail API (drafts default, auto-send opt-in per template step)
-- Storage: Google Drive API (`drive.file`, single configured folder, two-way conservative sync)
+- Storage: Google Drive API (`drive.file`, single configured folder, two-way sync — pulls from any `*Lead*.xlsx` and pushes the canonical `MFS_Leads_Synced.xlsx` every hour)
+- Calendar: Google Calendar API (`calendar.events`) — schedule follow-ups directly from a lead detail page
 - Vitest · Playwright
 
 ## First-time setup
@@ -34,7 +35,12 @@ openssl rand -hex 16      # CRON_SECRET
 Google OAuth client (https://console.cloud.google.com/apis/credentials):
 
 - Authorized redirect URI: `${APP_URL}/api/auth/callback/google`
-- Scopes requested at sign-in: `openid email profile gmail.compose gmail.send gmail.readonly drive.file`
+- Scopes requested at sign-in: `openid email profile gmail.compose gmail.send gmail.readonly drive.file calendar.events`
+- Enable APIs in the same Google Cloud project: **Gmail API**, **Google Drive API**, **Google Calendar API**.
+
+If you already connected Google before the Calendar scope was added: open `myaccount.google.com/permissions`, revoke this app, then sign in again so the new scope is granted. Settings → Google integrations shows which scopes are live.
+
+Drive folder: open `drive.google.com`, create a folder for the CRM (e.g. "MFS CRM"), copy the ID from the URL, and paste it under Settings → Drive folder ID. Hourly sync pulls any `*Lead*.xlsx` into the DB and writes the canonical `MFS_Leads_Synced.xlsx` back to that folder.
 
 ## Scripts
 
