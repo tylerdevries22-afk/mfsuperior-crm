@@ -12,6 +12,7 @@ import {
   manualPollAction,
   manualSyncAction,
   manualTickAction,
+  quickAddStarterPackAction,
   removeSuppressionAction,
   runFreeResearchAction,
   runPaidResearchAction,
@@ -432,6 +433,32 @@ export default async function AdminPage({
             <span className="font-mono">/leads</span> after to see the new
             rows.
           </p>
+
+          {/* Quick-add (no script, no API, just direct DB inserts) */}
+          <form
+            action={quickAddStarterPackAction}
+            className="flex flex-wrap items-start gap-3 rounded-md border border-primary/40 bg-primary/5 p-4"
+          >
+            <div className="flex-1 min-w-[260px]">
+              <p className="font-medium text-foreground">
+                Quick-add: Denver Metro starter pack
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Bypasses the discovery pipeline entirely. Inserts 25 confirmed
+                Denver Metro businesses (Cracker Barrel, Snooze, King Soopers,
+                Home Depot, C.H. Robinson, etc.) directly into{" "}
+                <span className="font-mono">leads</span> with{" "}
+                <span className="font-mono">info@&lt;domain&gt;.com</span>{" "}
+                emails, tier, and tags pre-baked. Redirects you to{" "}
+                <span className="font-mono">/leads</span> right after so you
+                see the result immediately. Safe to re-click — duplicates are
+                no-ops.
+              </p>
+            </div>
+            <Button type="submit" size="sm">
+              <Plus /> Add 25 starter leads now
+            </Button>
+          </form>
 
           {/* Result banner */}
           {sp.research === "1" && <ResearchResultBanner sp={sp} />}
