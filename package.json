@@ -15,17 +15,20 @@
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "env:check": "tsx scripts/check-env.ts",
-    "env:pull": "vercel env pull .env.local"
+    "env:pull": "vercel env pull .env.local",
+    "leads:research": "tsx scripts/research-leads.ts"
   },
   "dependencies": {
     "@auth/drizzle-adapter": "^1.11.2",
     "@neondatabase/serverless": "^1.1.0",
+    "cheerio": "^1.2.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.45.2",
     "exceljs": "^4.4.0",
     "googleapis": "^171.4.0",
     "lenis": "^1.3.23",
+    "libphonenumber-js": "^1.13.0",
     "lucide-react": "^1.14.0",
     "motion": "^12.38.0",
     "next": "16.2.6",

@@ -40,7 +40,16 @@ export function FeaturesSection() {
   return (
     <section
       id="fleet"
-      style={{ width: '100%', backgroundColor: '#fff', paddingTop: '120px', scrollMarginTop: '80px' }}
+      style={{
+        width: '100%',
+        // Clip the mobile carousel's edge-to-edge negative-margin trick
+        // (margin: '40px -5.128vw 0' inside MobileCarousel) so it can't
+        // trigger horizontal scroll on small viewports.
+        overflowX: 'clip',
+        backgroundColor: '#fff',
+        paddingTop: '120px',
+        scrollMarginTop: '80px',
+      }}
     >
       <DesktopLayout />
       <MobileCarousel />
