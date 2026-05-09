@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { and, asc, desc, eq, ilike, isNotNull, isNull, or, sql, type SQL } from "drizzle-orm";
-import { Plus, Upload, Search, CheckCircle2, AlertTriangle } from "lucide-react";
+import { Plus, Upload, Search, CheckCircle2, AlertTriangle, Zap } from "lucide-react";
 import { db } from "@/lib/db/client";
 import { emailSequences, leads } from "@/lib/db/schema";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { LeadsTable } from "@/components/leads/leads-table";
+import { quickAddStarterPackAction } from "@/app/(app)/admin/actions";
 
 export const metadata = { title: "Leads" };
 
@@ -39,6 +40,7 @@ type Search = {
   just_added?: string;
   just_updated?: string;
   starter?: string;
+  starter_error?: string;
   // Bulk-send result banner params (from bulkSendAction redirect).
   sent?: string;
   requested?: string;
@@ -152,7 +154,12 @@ export default async function LeadsPage({
             {" · "}ranked by score
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <form action={quickAddStarterPackAction}>
+            <Button type="submit" variant="secondary" title="Insert 25 curated Denver Metro businesses with info@domain emails">
+              <Zap /> Quick-add 25
+            </Button>
+          </form>
           <Link href="/leads/import">
             <Button variant="secondary">
               <Upload /> Import
@@ -231,7 +238,24 @@ export default async function LeadsPage({
         )}
       </form>
 
-      {sp.starter === "1" && (
+      {sp.starter === "1" && sp.starter_error ? (
+        <div className="mb-5 flex items-start gap-3 rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" />
+          <div>
+            <p className="font-medium text-foreground">
+              Starter pack action failed.
+            </p>
+            <p className="mt-1 font-mono text-xs text-muted-foreground">
+              {decodeURIComponent(sp.starter_error)}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Inserted {Number(sp.just_added ?? 0)} / Updated {Number(sp.just_updated ?? 0)}{" "}
+              before the error. Most common causes: not signed in
+              (re-login), or a missing required env var on Vercel.
+            </p>
+          </div>
+        </div>
+      ) : sp.starter === "1" ? (
         <div className="mb-5 flex items-start gap-3 rounded-md border border-success/40 bg-success/10 px-4 py-3 text-sm">
           <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-success" />
           <div>
@@ -244,12 +268,12 @@ export default async function LeadsPage({
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
               All entries have <span className="font-mono">info@&lt;domain&gt;.com</span>{" "}
-              emails, tier A, and tags. Showing all stages so you can see them
-              regardless of the default filter.
+              emails, tier A, and tags. Filter Source to{" "}
+              <span className="font-mono">starter-pack</span> to see only these.
             </p>
           </div>
         </div>
-      )}
+      ) : null}
       {showSentBanner && <SendResultBanner sp={sp} />}
 
       {rows.length === 0 ? (
