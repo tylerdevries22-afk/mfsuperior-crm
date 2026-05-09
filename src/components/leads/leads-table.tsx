@@ -146,7 +146,7 @@ export function LeadsTable({
                           no email
                         </p>
                       )}
-                      <TagBadges tags={lead.tags ?? []} className="mt-1" />
+                      <TagBadges tags={lead.tags ?? []} className="mt-1" max={10} />
                     </td>
                     <td className="px-3 py-2.5 text-muted-foreground">
                       {lead.vertical ?? "—"}
@@ -223,7 +223,7 @@ export function LeadsTable({
                   </div>
                   <div className="mt-2 flex flex-wrap items-center gap-1.5">
                     <StageChip stage={lead.stage} />
-                    <TagBadges tags={lead.tags ?? []} max={2} />
+                    <TagBadges tags={lead.tags ?? []} max={5} />
                   </div>
                 </div>
               </div>

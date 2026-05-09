@@ -11,15 +11,29 @@ import { LeadsTable } from "@/components/leads/leads-table";
 
 export const metadata = { title: "Leads" };
 
-const PAGE_SIZE = 25;
+const PAGE_SIZE_OPTIONS = [25, 50, 100, 200] as const;
+const DEFAULT_PAGE_SIZE = 50;
 
 const STAGES = ["new", "contacted", "replied", "quoted", "won", "lost"] as const;
 const TIERS = ["A", "B", "C"] as const;
+
+const SOURCES = [
+  { value: "research-free-admin", label: "Research (free, admin button)" },
+  { value: "research-paid-admin", label: "Research (paid, admin button)" },
+  { value: "research-free", label: "Research CLI (free)" },
+  { value: "research-paid", label: "Research CLI (paid)" },
+  { value: "starter-pack", label: "Quick-add starter pack" },
+  { value: "spreadsheet", label: "Spreadsheet import" },
+  { value: "website_contact", label: "Website contact form" },
+  { value: "manual", label: "Manually added" },
+] as const;
 
 type Search = {
   q?: string;
   stage?: string;
   tier?: string;
+  source?: string;
+  perPage?: string;
   page?: string;
   // Quick-add starter pack redirect params
   just_added?: string;
@@ -41,12 +55,6 @@ type Search = {
   tick_notes?: string;
 };
 
-// /leads is the worklist of leads still to contact. Once a lead has been
-// emailed, its stage advances to "contacted" (see lib/sequences/tick.ts) and
-// the conversation lives in /inbox. Default the filter to stage=new; the
-// dropdown still exposes every stage and an "All stages" opt-in.
-const DEFAULT_STAGE: (typeof STAGES)[number] = "new";
-
 export default async function LeadsPage({
   searchParams,
 }: {
@@ -54,17 +62,25 @@ export default async function LeadsPage({
 }) {
   const sp = await searchParams;
   const q = (sp.q ?? "").trim();
-  const stageParam = sp.stage ?? "";
+  // Default is now "all stages" — operator wants every lead visible.
+  // Pass ?stage=new to filter to just the unworked worklist.
+  const stageParam = sp.stage ?? "all";
   const showAllStages = stageParam === "all";
   const stage =
     !showAllStages && STAGES.includes(stageParam as (typeof STAGES)[number])
       ? (stageParam as (typeof STAGES)[number])
-      : !showAllStages && stageParam === ""
-        ? DEFAULT_STAGE
-        : undefined;
+      : undefined;
   const tier = TIERS.includes((sp.tier ?? "") as (typeof TIERS)[number])
     ? (sp.tier as (typeof TIERS)[number])
     : undefined;
+  const sourceParam = sp.source ?? "";
+  const source =
+    SOURCES.some((s) => s.value === sourceParam) ? sourceParam : undefined;
+  const perPage = PAGE_SIZE_OPTIONS.includes(
+    Number(sp.perPage) as (typeof PAGE_SIZE_OPTIONS)[number],
+  )
+    ? Number(sp.perPage)
+    : DEFAULT_PAGE_SIZE;
   const page = Math.max(1, Number(sp.page ?? 1));
 
   const filters: SQL[] = [isNull(leads.archivedAt)];
@@ -81,6 +97,7 @@ export default async function LeadsPage({
   }
   if (stage) filters.push(eq(leads.stage, stage));
   if (tier) filters.push(eq(leads.tier, tier));
+  if (source) filters.push(eq(leads.source, source));
 
   const where = filters.length === 1 ? filters[0] : and(...filters);
 
@@ -98,8 +115,8 @@ export default async function LeadsPage({
         desc(leads.score),
         asc(leads.companyName),
       )
-      .limit(PAGE_SIZE)
-      .offset((page - 1) * PAGE_SIZE),
+      .limit(perPage)
+      .offset((page - 1) * perPage),
     db
       .select({ id: emailSequences.id, name: emailSequences.name })
       .from(emailSequences)
@@ -107,13 +124,13 @@ export default async function LeadsPage({
       .orderBy(asc(emailSequences.name)),
   ]);
 
-  const totalPages = Math.max(1, Math.ceil(count / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(count / perPage));
   const showSentBanner = sp.sent === "1";
 
-  // If the default filter is hiding leads but the user has leads in OTHER
-  // stages, surface that so they don't think the page is broken.
+  // If filters are hiding leads but the operator has leads in other
+  // stages/sources, surface that so they don't think the page is broken.
   let hiddenInOtherStagesCount = 0;
-  if (rows.length === 0 && stage === DEFAULT_STAGE && !q && !tier) {
+  if (rows.length === 0 && !q && !tier && !source) {
     const [{ otherCount }] = await db
       .select({ otherCount: sql<number>`count(*)::int` })
       .from(leads)
@@ -130,11 +147,8 @@ export default async function LeadsPage({
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             <span className="font-mono tabular-nums">{count}</span>
-            {stage === "new"
-              ? " unworked"
-              : stage
-                ? ` · stage ${stage}`
-                : " active"}
+            {stage ? ` · stage ${stage}` : " total"}
+            {source ? ` · source ${source}` : ""}
             {" · "}ranked by score
           </p>
         </div>
@@ -168,16 +182,15 @@ export default async function LeadsPage({
         </div>
         <Select
           name="stage"
-          defaultValue={showAllStages ? "all" : stage ?? DEFAULT_STAGE}
+          defaultValue={showAllStages ? "all" : stage ?? "all"}
           className="w-40"
         >
+          <option value="all">All stages (default)</option>
           {STAGES.map((s) => (
             <option key={s} value={s}>
               {s[0].toUpperCase() + s.slice(1)}
-              {s === DEFAULT_STAGE ? " (default)" : ""}
             </option>
           ))}
-          <option value="all">All stages</option>
         </Select>
         <Select name="tier" defaultValue={tier ?? ""} className="w-32">
           <option value="">All tiers</option>
@@ -187,8 +200,28 @@ export default async function LeadsPage({
             </option>
           ))}
         </Select>
+        <Select name="source" defaultValue={source ?? ""} className="w-52">
+          <option value="">All sources</option>
+          {SOURCES.map((s) => (
+            <option key={s.value} value={s.value}>
+              {s.label}
+            </option>
+          ))}
+        </Select>
+        <Select
+          name="perPage"
+          defaultValue={String(perPage)}
+          className="w-28"
+          aria-label="Leads per page"
+        >
+          {PAGE_SIZE_OPTIONS.map((n) => (
+            <option key={n} value={n}>
+              {n} / page
+            </option>
+          ))}
+        </Select>
         <Button type="submit" variant="outline">Filter</Button>
-        {(q || stage || tier) && (
+        {(q || stage || tier || source) && (
           <Link
             href="/leads"
             className="text-sm text-muted-foreground transition-colors hover:text-foreground"
@@ -221,11 +254,18 @@ export default async function LeadsPage({
 
       {rows.length === 0 ? (
         <EmptyState
-          hasFilters={!!(q || stage || tier || showAllStages)}
+          hasFilters={!!(q || stage || tier || source)}
           hiddenInOtherStagesCount={hiddenInOtherStagesCount}
         />
       ) : (
         <>
+          <p className="mb-2 text-xs text-muted-foreground">
+            Showing{" "}
+            <span className="font-mono tabular-nums text-foreground">
+              {(page - 1) * perPage + 1}–{Math.min(page * perPage, count)}
+            </span>{" "}
+            of <span className="font-mono tabular-nums text-foreground">{count}</span>
+          </p>
           {/* pb-24 leaves room for the sticky bulk-action bar. */}
           <div className="pb-24">
             <LeadsTable rows={rows} sequences={sequenceRows} />
@@ -233,7 +273,13 @@ export default async function LeadsPage({
           <Pagination
             page={page}
             totalPages={totalPages}
-            params={{ q, stage: showAllStages ? "all" : stage, tier }}
+            params={{
+              q,
+              stage: showAllStages ? "all" : stage,
+              tier,
+              source,
+              perPage: perPage === DEFAULT_PAGE_SIZE ? undefined : String(perPage),
+            }}
           />
         </>
       )}
@@ -406,7 +452,7 @@ function Pagination({
 }: {
   page: number;
   totalPages: number;
-  params: { q?: string; stage?: string; tier?: string };
+  params: { q?: string; stage?: string; tier?: string; source?: string; perPage?: string };
 }) {
   if (totalPages <= 1) return null;
   const linkFor = (n: number) => {
@@ -414,6 +460,8 @@ function Pagination({
     if (params.q) sp.set("q", params.q);
     if (params.stage) sp.set("stage", params.stage);
     if (params.tier) sp.set("tier", params.tier);
+    if (params.source) sp.set("source", params.source);
+    if (params.perPage) sp.set("perPage", params.perPage);
     if (n > 1) sp.set("page", String(n));
     const qs = sp.toString();
     return `/leads${qs ? `?${qs}` : ""}`;
