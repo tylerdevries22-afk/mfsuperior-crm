@@ -1,5 +1,5 @@
 import { desc, eq, sql } from "drizzle-orm";
-import { Play, AlertTriangle, Inbox, FolderSync, X, Plus } from "lucide-react";
+import { Play, AlertTriangle, Inbox, FolderSync, X, Plus, Search as SearchIcon } from "lucide-react";
 import { db } from "@/lib/db/client";
 import { auditLog, leads, suppressionList, users } from "@/lib/db/schema";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,8 @@ import {
   manualSyncAction,
   manualTickAction,
   removeSuppressionAction,
+  runFreeResearchAction,
+  runPaidResearchAction,
 } from "./actions";
 import { userHasGoogleConnection } from "@/lib/gmail/oauth";
 
@@ -47,6 +49,24 @@ type Search = {
   sync_orphans_cleared?: string;
   sync_dur?: string;
   sync_notes?: string;
+  // Lead research result banner
+  research?: string;
+  research_mode?: string;
+  research_error?: string;
+  r_discovered?: string;
+  r_enriched?: string;
+  r_a?: string;
+  r_b?: string;
+  r_c?: string;
+  r_dropped?: string;
+  r_refrig?: string;
+  r_inserted?: string;
+  r_updated?: string;
+  r_conflicts?: string;
+  r_no_email?: string;
+  r_freemail?: string;
+  r_role?: string;
+  r_dur?: string;
 };
 
 export default async function AdminPage({
@@ -359,6 +379,117 @@ export default async function AdminPage({
         </Card>
       </div>
 
+      {/* Lead research */}
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle className="flex flex-wrap items-center gap-2">
+            Lead research
+            <InfoTooltip label="What does Lead research do?">
+              <p className="font-medium text-foreground">Lead research</p>
+              <p className="mt-1 text-muted-foreground">
+                Discovers Denver-Metro freight-friendly companies, scores them
+                Tier A/B/C, finds the right contact email, and upserts directly
+                into the <span className="font-mono">leads</span> table — new
+                rows show up on <span className="font-mono">/leads</span>{" "}
+                immediately.
+              </p>
+              <p className="mt-2 font-medium text-foreground">Free mode</p>
+              <p className="mt-1 text-muted-foreground">
+                OpenStreetMap discovery + cheerio scrape of /about /contact +
+                node:dns MX-record check. No API keys, no credit card. Quality
+                is solid for restaurants and small biz; broker/3PL coverage is
+                thinner than paid mode.
+              </p>
+              <p className="mt-2 font-medium text-foreground">Paid mode</p>
+              <p className="mt-1 text-muted-foreground">
+                Google Places API + Hunter.io domain-search + email-verifier.
+                Requires{" "}
+                <span className="font-mono">GOOGLE_MAPS_API_KEY</span> and{" "}
+                <span className="font-mono">HUNTER_API_KEY</span> env vars
+                (Hunter free tier 25/25/mo, Starter $49/mo unlocks 500/1000).
+                Best for B2B coverage and verified emails.
+              </p>
+              <p className="mt-2 text-muted-foreground">
+                <strong>Vercel timeout caveat:</strong> the button runs
+                synchronously inside a serverless function (Hobby = 10s, Pro =
+                60s). Cap is 20 leads from the UI — for larger batches run{" "}
+                <span className="font-mono">npm run leads:research</span> from
+                your machine.
+              </p>
+            </InfoTooltip>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Pick a mode, set a small batch size, and the script will run
+            server-side and upsert into the live database. Refresh{" "}
+            <span className="font-mono">/leads</span> after to see the new
+            rows.
+          </p>
+
+          {/* Result banner */}
+          {sp.research === "1" && <ResearchResultBanner sp={sp} />}
+
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+            {/* Free mode */}
+            <form action={runFreeResearchAction} className="space-y-3 rounded-md border border-border bg-secondary/20 p-4">
+              <div className="flex items-center gap-2">
+                <SearchIcon className="size-4 text-foreground" />
+                <span className="font-medium text-foreground">Free mode</span>
+                <span className="text-xs text-muted-foreground">OSM + scrape + MX</span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                No API keys. Best for restaurants, retail, and small biz.
+              </p>
+              <div className="grid gap-1.5">
+                <Label htmlFor="free-limit" className="text-xs">Leads per run</Label>
+                <Input
+                  id="free-limit"
+                  name="limit"
+                  type="number"
+                  min={1}
+                  max={20}
+                  defaultValue={5}
+                  className="w-24"
+                />
+              </div>
+              <Button type="submit" size="sm">
+                <SearchIcon /> Run free research
+              </Button>
+            </form>
+
+            {/* Paid mode */}
+            <form action={runPaidResearchAction} className="space-y-3 rounded-md border border-border bg-secondary/20 p-4">
+              <div className="flex items-center gap-2">
+                <SearchIcon className="size-4 text-foreground" />
+                <span className="font-medium text-foreground">Paid mode</span>
+                <span className="text-xs text-muted-foreground">Places + Hunter</span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Higher signal-to-noise. Requires{" "}
+                <span className="font-mono">GOOGLE_MAPS_API_KEY</span> and{" "}
+                <span className="font-mono">HUNTER_API_KEY</span> env vars.
+              </p>
+              <div className="grid gap-1.5">
+                <Label htmlFor="paid-limit" className="text-xs">Leads per run</Label>
+                <Input
+                  id="paid-limit"
+                  name="limit"
+                  type="number"
+                  min={1}
+                  max={20}
+                  defaultValue={5}
+                  className="w-24"
+                />
+              </div>
+              <Button type="submit" size="sm" variant="secondary">
+                <SearchIcon /> Run paid research
+              </Button>
+            </form>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Suppression list management */}
       <Card className="mt-6">
         <CardHeader>
@@ -474,6 +605,47 @@ export default async function AdminPage({
           )}
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+function ResearchResultBanner({ sp }: { sp: Search }) {
+  if (sp.research_error === "missing_api_keys") {
+    return (
+      <div className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs">
+        <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" />
+        <p className="text-foreground">
+          Paid mode requires both{" "}
+          <span className="font-mono">GOOGLE_MAPS_API_KEY</span> and{" "}
+          <span className="font-mono">HUNTER_API_KEY</span>. Add them in
+          Vercel → Settings → Environment Variables, redeploy, then try
+          again. (Or use Free mode, which needs no keys.)
+        </p>
+      </div>
+    );
+  }
+  const enriched = Number(sp.r_enriched ?? 0);
+  const a = Number(sp.r_a ?? 0);
+  const b = Number(sp.r_b ?? 0);
+  const c = Number(sp.r_c ?? 0);
+  const inserted = Number(sp.r_inserted ?? 0);
+  const updated = Number(sp.r_updated ?? 0);
+  const noEmail = Number(sp.r_no_email ?? 0);
+  const dur = Number(sp.r_dur ?? 0);
+  return (
+    <div className="grid grid-cols-2 gap-2 rounded-md border border-border bg-secondary/30 px-4 py-3 sm:grid-cols-3">
+      <Stat label={`${sp.research_mode ?? ""} discovered`} value={Number(sp.r_discovered ?? 0)} />
+      <Stat label="Enriched" value={enriched} accent />
+      <Stat label="Tier A" value={a} accent />
+      <Stat label="Tier B" value={b} muted />
+      <Stat label="Tier C" value={c} muted />
+      <Stat label="Refrigerated" value={Number(sp.r_refrig ?? 0)} muted />
+      <Stat label="Inserted" value={inserted} accent />
+      <Stat label="Updated" value={updated} muted />
+      <Stat label="No-email" value={noEmail} muted />
+      <p className="col-span-full mt-1 font-mono text-xs tabular-nums text-muted-foreground">
+        {dur}ms · mode={sp.research_mode ?? "—"}
+      </p>
     </div>
   );
 }

@@ -17,6 +17,9 @@ import {
   pollInbox,
 } from "@/lib/sequences/poll-inbox";
 import { syncDrive } from "@/lib/sequences/sync-drive";
+import { runResearch, type RunMode } from "@/lib/research/run";
+import { COUNTIES, type County } from "@/lib/research/osm";
+import type { Industry } from "@/lib/research/score";
 
 /**
  * Manually trigger the sequence tick. Authed UI users only — this is a
@@ -101,6 +104,109 @@ export async function removeSuppressionAction(formData: FormData): Promise<void>
   await db.delete(suppressionList).where(eq(suppressionList.email, email.toLowerCase()));
 
   revalidatePath("/admin");
+}
+
+/* ── Lead research (free + paid) ─────────────────────────────────── */
+
+const ALL_INDUSTRIES: readonly Industry[] = [
+  "restaurants",
+  "bigbox",
+  "brokers",
+  "smallbiz",
+] as const;
+
+const researchSchema = z.object({
+  mode: z.enum(["free", "paid"]),
+  // Vercel Hobby has a 10s function timeout; Pro is 60s. Cap UI button
+  // at 10 leads so it fits comfortably; larger runs go through the CLI.
+  limit: z.coerce.number().int().min(1).max(20).default(5),
+  industries: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s
+        ? (s.split(",").filter((i) => ALL_INDUSTRIES.includes(i as Industry)) as Industry[])
+        : [...ALL_INDUSTRIES],
+    ),
+  counties: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s
+        ? (s.split(",").filter((c) => (COUNTIES as readonly string[]).includes(c)) as County[])
+        : [...COUNTIES],
+    ),
+});
+
+async function runResearchAction(formData: FormData): Promise<void> {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("Unauthorized");
+  env();
+
+  const parsed = researchSchema.parse({
+    mode: formData.get("mode"),
+    limit: formData.get("limit") ?? 5,
+    industries: formData.get("industries") ?? undefined,
+    counties: formData.get("counties") ?? undefined,
+  });
+
+  // Paid mode requires both API keys; bail with a clear error param.
+  if (parsed.mode === "paid") {
+    if (!process.env.GOOGLE_MAPS_API_KEY || !process.env.HUNTER_API_KEY) {
+      revalidatePath("/admin");
+      const params = new URLSearchParams({
+        research: "1",
+        research_mode: "paid",
+        research_error: "missing_api_keys",
+      });
+      redirect(`/admin?${params.toString()}`);
+    }
+  }
+
+  const start = Date.now();
+  const report = await runResearch({
+    mode: parsed.mode as RunMode,
+    limit: parsed.limit,
+    industries: parsed.industries,
+    counties: parsed.counties,
+    db,
+    sourceLabel: `research-${parsed.mode}-admin`,
+    log: (m) => console.log(m),
+  });
+  const dur = Date.now() - start;
+
+  revalidatePath("/admin");
+  revalidatePath("/leads");
+
+  const params = new URLSearchParams({
+    research: "1",
+    research_mode: parsed.mode,
+    r_discovered: String(report.discovered),
+    r_enriched: String(report.enriched),
+    r_a: String(report.tierA),
+    r_b: String(report.tierB),
+    r_c: String(report.tierC),
+    r_dropped: String(report.dropped),
+    r_refrig: String(report.refrigerated),
+    r_inserted: String(report.inserted),
+    r_updated: String(report.updated),
+    r_conflicts: String(report.conflicts),
+    r_no_email: String(report.needsManualEmail),
+    r_freemail: String(report.freemail),
+    r_role: String(report.roleAccount),
+    r_dur: String(dur),
+  });
+  redirect(`/admin?${params.toString()}`);
+}
+
+export async function runFreeResearchAction(formData: FormData): Promise<void> {
+  formData.set("mode", "free");
+  return runResearchAction(formData);
+}
+
+export async function runPaidResearchAction(formData: FormData): Promise<void> {
+  formData.set("mode", "paid");
+  return runResearchAction(formData);
 }
 
 export async function manualSyncAction(): Promise<void> {

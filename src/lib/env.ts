@@ -15,6 +15,12 @@ const schema = z.object({
   GMAIL_USER: z.string().email().optional(),
   DRIVE_FOLDER_ID: z.string().optional(),
 
+  // Paid lead-research mode (admin "Run paid research" button + CLI
+  // `--mode paid`). Free mode needs neither — discovery via OSM, email
+  // verification via node:dns MX lookups.
+  GOOGLE_MAPS_API_KEY: z.string().min(1).optional(),
+  HUNTER_API_KEY: z.string().min(1).optional(),
+
   BUSINESS_NAME: z.string().min(1),
   BUSINESS_ADDRESS: z.string().min(1),
   BUSINESS_MC: z.string().optional(),
