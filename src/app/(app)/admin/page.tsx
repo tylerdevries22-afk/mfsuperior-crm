@@ -624,6 +624,7 @@ function ResearchResultBanner({ sp }: { sp: Search }) {
       </div>
     );
   }
+  const discovered = Number(sp.r_discovered ?? 0);
   const enriched = Number(sp.r_enriched ?? 0);
   const a = Number(sp.r_a ?? 0);
   const b = Number(sp.r_b ?? 0);
@@ -632,9 +633,43 @@ function ResearchResultBanner({ sp }: { sp: Search }) {
   const updated = Number(sp.r_updated ?? 0);
   const noEmail = Number(sp.r_no_email ?? 0);
   const dur = Number(sp.r_dur ?? 0);
+
+  // Loud failure mode when discovery returns 0. Most likely cause is
+  // outbound Overpass blocked from Vercel's IPs, or the function timed
+  // out before a single county query completed.
+  if (discovered === 0) {
+    return (
+      <div className="space-y-2">
+        <div className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" />
+          <div className="space-y-1 text-foreground">
+            <p className="font-medium">Discovery returned 0 candidates ({sp.research_mode}).</p>
+            {sp.research_mode === "free" ? (
+              <p className="text-muted-foreground">
+                The OSM Overpass servers may be blocking Vercel&apos;s outbound IPs, or the
+                function hit its 10s/60s timeout before a single county query finished.
+                Try paid mode (set{" "}
+                <span className="font-mono">GOOGLE_MAPS_API_KEY</span>) or run from your
+                machine: <span className="font-mono">npm run leads:research</span>.
+              </p>
+            ) : (
+              <p className="text-muted-foreground">
+                Google Places returned no results. Double-check{" "}
+                <span className="font-mono">GOOGLE_MAPS_API_KEY</span> is valid in Vercel
+                env, and that the Places API (New) is enabled on the GCP project.
+              </p>
+            )}
+            <p className="font-mono text-[11px] text-muted-foreground">
+              {dur}ms · mode={sp.research_mode ?? "—"}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="grid grid-cols-2 gap-2 rounded-md border border-border bg-secondary/30 px-4 py-3 sm:grid-cols-3">
-      <Stat label={`${sp.research_mode ?? ""} discovered`} value={Number(sp.r_discovered ?? 0)} />
+      <Stat label={`${sp.research_mode ?? ""} discovered`} value={discovered} />
       <Stat label="Enriched" value={enriched} accent />
       <Stat label="Tier A" value={a} accent />
       <Stat label="Tier B" value={b} muted />

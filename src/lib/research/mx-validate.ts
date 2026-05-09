@@ -79,6 +79,28 @@ async function hasMx(domain: string): Promise<boolean> {
   }
 }
 
+/**
+ * If a domain has working MX, the most common B2B mailboxes (info@,
+ * contact@, hello@) almost always exist. We can't actually verify a
+ * specific mailbox without an SMTP probe (risky), but for cold-pitching
+ * small B2B these generic addresses are the right target anyway —
+ * they're routinely monitored by the owner/manager.
+ *
+ * Returns the first MX-validated guess. Tags `email-guessed` so the
+ * operator knows it wasn't pulled from a website.
+ */
+export async function probeCommonEmails(
+  domain: string,
+): Promise<{ email: string; status: "guessed" } | null> {
+  if (!domain) return null;
+  if (FREE_WEBMAIL.has(domain) || DISPOSABLE.has(domain)) return null;
+  if (!(await hasMx(domain))) return null;
+  // Return info@ as the canonical guess — most B2B small biz route this
+  // to the owner.  The caller tags it `email-guessed` so it shows up
+  // distinctly in the CRM and can be backfilled later.
+  return { email: `info@${domain}`, status: "guessed" };
+}
+
 export async function validateEmail(rawEmail: string): Promise<MxValidation> {
   const email = rawEmail.trim().toLowerCase();
   if (!FORMAT_RE.test(email)) {
