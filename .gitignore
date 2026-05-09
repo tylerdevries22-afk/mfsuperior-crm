@@ -37,6 +37,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# lead-research script local cache (placeId dedupe + Hunter monthly counter)
+.cache/
+
 # playwright artifacts
 /test-results/
 /playwright-report/

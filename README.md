@@ -140,6 +140,92 @@ Drive folder: open `drive.google.com`, create a folder for the CRM (e.g. "MFS CR
 | `npm run env:check` | Validate `.env.local` against `src/lib/env.ts` |
 | `npm run env:pull` | `vercel env pull .env.local` shorthand |
 
+## Lead research (Denver Metro)
+
+The `scripts/research-leads.ts` script discovers freight-friendly companies
+across the Denver Metro 6-county area, finds the right contact email per
+company, scores + tiers each lead, writes a ranked `xlsx` + `csv`, and
+upserts directly into Postgres so new leads appear instantly on `/leads`.
+
+### Setup
+
+```bash
+# Add the two optional API keys to .env.local:
+GOOGLE_MAPS_API_KEY="..."   # Google Cloud Console → APIs & Services → Credentials
+HUNTER_API_KEY="..."        # hunter.io → Settings → API
+# DATABASE_URL must point at your prod Neon URL for live visibility:
+DATABASE_URL="postgresql://...@neon.tech/..."
+npm run env:check
+```
+
+### Run
+
+```bash
+# Smoke test — 5 leads, 1 county, ≤5 Hunter calls, no DB write:
+npx tsx scripts/research-leads.ts --dry-run --smoke
+
+# Live mini-run, writes 5 leads to DB:
+npx tsx scripts/research-leads.ts --limit 5 --counties Arapahoe \
+  --industries restaurants --hunter-budget 5
+
+# Full run (default 50, all counties + industries, DB write):
+npm run leads:research
+
+# Or with overrides:
+npx tsx scripts/research-leads.ts --limit 100 --industries restaurants,brokers
+```
+
+Flags:
+
+| Flag | Default | Notes |
+|---|---|---|
+| `--limit N` | 50 | Per-run cap (after dedupe + scoring) |
+| `--industries CSV` | all 4 | `restaurants,bigbox,brokers,smallbiz` |
+| `--counties CSV` | all 7 | `Adams,Arapahoe,Boulder,Broomfield,Denver,Douglas,Jefferson` |
+| `--output PATH` | `./01_Lead_List.xlsx` | xlsx written here; `.csv` mirror beside it |
+| `--no-db` | off | Write xlsx only; skip Postgres upsert |
+| `--dry-run` | off | Discovery + scoring only; **no Hunter, no DB** |
+| `--smoke` | off | Alias: `--limit 5 --counties Arapahoe --industries restaurants --hunter-budget 5` |
+| `--no-cache` | off | Ignore `.cache/lead-research.json` |
+| `--hunter-budget N` | 25 | Hard cap on Hunter calls; matches free-tier monthly quota |
+
+### Hunter free tier vs paid
+
+The free tier caps at **25 searches + 25 verifications per month**, combined
+across the account. A single 50-lead run will exhaust the search quota
+around lead #25; the script keeps emitting the rest with `email=null` +
+tag `needs-manual-email` so they still enter the DB and you can backfill
+manually or upgrade.
+
+Upgrade path: **[Hunter Starter — $49/mo](https://hunter.io/pricing)** unlocks
+500 searches + 1,000 verifications, enough for a weekly 50-lead run with
+slack to spare.
+
+### What gets written
+
+Every run produces:
+
+1. `./01_Lead_List.xlsx` + `./01_Lead_List.csv` — ranked snapshot for
+   offline review. Same column headers `parseLeadWorkbook` accepts, so
+   `npx tsx scripts/seed-leads.ts` will re-import this file unchanged.
+2. **Postgres** (default unless `--no-db`): each lead is upserted via the
+   shared `src/lib/leads/upsert.ts` helper, so re-runs update existing
+   rows instead of duplicating. An `auditLog` row is written per
+   insert/update with action `research_inserted` / `research_updated` —
+   visible at `/admin → Recent audit log`.
+3. `.cache/lead-research.json` — local placeId dedupe + Hunter monthly
+   counter. Safe to delete; the script just starts fresh.
+
+### Tags applied
+
+- `tier-{A|B|C}` — always
+- `<vertical>` — e.g. "Restaurants & food"
+- `refrigerated` — when the business needs cold-chain freight (auto-detected from Google Places types)
+- `chain-store` — Home Depot / Walmart / Cracker Barrel etc; corporate procurement portal required, no email captured
+- `needs-manual-email` — Hunter found nothing or quota was exhausted; you fill the email later
+- `email-unverified` — pulled from website scrape but not verified by Hunter
+- `catch-all` — Hunter says the domain accepts everything; treat with caution
+
 ## Routes (current)
 
 - `/` — redirects based on auth

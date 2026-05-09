@@ -22,6 +22,7 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import { sql } from "drizzle-orm";
 import * as schema from "../src/lib/db/schema";
 import { parseLeadWorkbook, toLeadInsert } from "../src/lib/xlsx";
+import { upsertLead } from "../src/lib/leads/upsert";
 
 /* ── 0.  Resolve DATABASE_URL ──────────────────────────────────── */
 
@@ -59,13 +60,23 @@ const db = drizzle(client, { schema });
 
 /* ── 2.  Resolve xlsx path ─────────────────────────────────────── */
 
-// The xlsx lives one level above the crm/ directory.
-const XLSX_PATH = path.resolve(__dirname, "../../01_Lead_List.xlsx");
+// Look in the repo root first (where research-leads.ts writes), then fall
+// back to one level above the repo (the original location).
+const XLSX_CANDIDATES = [
+  path.resolve(__dirname, "../01_Lead_List.xlsx"),
+  path.resolve(__dirname, "../../01_Lead_List.xlsx"),
+];
+const XLSX_PATH = XLSX_CANDIDATES.find((p) => fs.existsSync(p));
 
-if (!fs.existsSync(XLSX_PATH)) {
-  console.error(`ERROR: xlsx not found at ${XLSX_PATH}`);
+if (!XLSX_PATH) {
+  console.error(
+    `ERROR: xlsx not found. Looked in:\n  ${XLSX_CANDIDATES.join("\n  ")}`,
+  );
   process.exit(1);
 }
+// Type-narrow for closures further down (process.exit doesn't propagate
+// narrowing across function boundaries).
+const RESOLVED_XLSX_PATH: string = XLSX_PATH;
 
 /* ── 3.  Seed settings singleton ───────────────────────────────── */
 
@@ -95,8 +106,8 @@ async function ensureSettings(): Promise<void> {
 /* ── 4.  Seed leads ────────────────────────────────────────────── */
 
 async function seedLeads(): Promise<void> {
-  console.log(`\nReading workbook: ${XLSX_PATH}`);
-  const buffer = fs.readFileSync(XLSX_PATH).buffer;
+  console.log(`\nReading workbook: ${RESOLVED_XLSX_PATH}`);
+  const buffer = fs.readFileSync(RESOLVED_XLSX_PATH).buffer;
   const report = await parseLeadWorkbook(buffer);
 
   if (report.warnings.length) {
@@ -121,45 +132,12 @@ async function seedLeads(): Promise<void> {
     const insert = toLeadInsert(parsed, "spreadsheet");
 
     try {
-      // Drizzle doesn't have a first-class "upsert ignore duplicates" helper
-      // across two unique indexes, so we do a manual check + insert/update.
-      if (insert.email) {
-        // Email-keyed lead: upsert on the email unique index.
-        await db
-          .insert(schema.leads)
-          .values(insert)
-          .onConflictDoUpdate({
-            target: schema.leads.email,
-            set: {
-              companyName: insert.companyName,
-              vertical: insert.vertical,
-              address: insert.address,
-              city: insert.city,
-              state: insert.state,
-              phone: insert.phone,
-              website: insert.website,
-              tier: insert.tier,
-              score: insert.score,
-              tags: insert.tags,
-              notes: insert.notes,
-              updatedAt: new Date(),
-            },
-          });
-        updated++;
-      } else {
-        // No email: try insert; skip on company-name conflict.
-        const result = await db
-          .insert(schema.leads)
-          .values(insert)
-          .onConflictDoNothing()
-          .returning({ id: schema.leads.id });
-
-        if (result.length > 0) {
-          inserted++;
-        } else {
-          skipped++;
-        }
-      }
+      const result = await upsertLead(db, insert, {
+        audit: { actionPrefix: "spreadsheet" },
+      });
+      if (result === "inserted") inserted++;
+      else if (result === "updated") updated++;
+      else skipped++;
     } catch (err) {
       console.error(
         `  ERROR on "${insert.companyName}":`,

@@ -35,6 +35,9 @@ const schema = z.object({
   GMAIL_USER: z.string().email().optional(),
   DRIVE_FOLDER_ID: z.string().optional(),
 
+  GOOGLE_MAPS_API_KEY: z.string().min(1).optional(),
+  HUNTER_API_KEY: z.string().min(1).optional(),
+
   BUSINESS_NAME: z.string().min(1),
   BUSINESS_ADDRESS: z.string().min(1),
   BUSINESS_MC: z.string().optional(),
@@ -69,6 +72,8 @@ const OPTIONAL = [
   "DAILY_SEND_CAP",
   "WARMUP_DAYS",
   "WARMUP_DAILY_CAP",
+  "GOOGLE_MAPS_API_KEY",
+  "HUNTER_API_KEY",
 ] as const;
 
 const arg = process.argv[2] ?? ".env.local";
