@@ -63,6 +63,7 @@ type Args = {
   noDb: boolean;
   dryRun: boolean;
   noCache: boolean;
+  fast: boolean;
   maxPerCounty: number;
   hunterBudget: number;
 };
@@ -95,6 +96,7 @@ function parseArgs(): Args {
     noDb: has("--no-db"),
     dryRun: has("--dry-run"),
     noCache: has("--no-cache"),
+    fast: has("--fast"),
     maxPerCounty: Number(get("--max-per-county") ?? 80),
     hunterBudget: Number(get("--hunter-budget") ?? 25),
   };
@@ -134,6 +136,7 @@ async function main(): Promise<void> {
     maxPerCounty: args.maxPerCounty,
     hunterBudget: args.hunterBudget,
     noCache: args.noCache,
+    fast: args.fast,
     db: args.dryRun ? undefined : db,
     sourceLabel: `research-${args.mode}`,
     log,

@@ -59,6 +59,16 @@ export function loadCache(): CacheShape {
 }
 
 export function saveCache(cache: CacheShape): void {
-  fs.mkdirSync(path.dirname(CACHE_PATH), { recursive: true });
-  fs.writeFileSync(CACHE_PATH, JSON.stringify(cache, null, 2));
+  // On Vercel's serverless functions the filesystem is read-only at
+  // runtime — mkdirSync throws EROFS. Swallow the error: the DB
+  // unique indexes on (email) and (companyName, email IS NULL) handle
+  // dedup at insert time, so a missing on-disk cache just means we
+  // re-discover the same curated entries next click and the upsert
+  // path no-ops on conflict.
+  try {
+    fs.mkdirSync(path.dirname(CACHE_PATH), { recursive: true });
+    fs.writeFileSync(CACHE_PATH, JSON.stringify(cache, null, 2));
+  } catch {
+    // EROFS / EACCES on serverless. Intentional silent fallback.
+  }
 }
