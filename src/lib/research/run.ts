@@ -10,6 +10,7 @@
  */
 
 import { parsePhoneNumberFromString } from "libphonenumber-js";
+import { CURATED_DENVER, type CuratedEntry } from "./curated-denver";
 import {
   fetchOsmBusinesses,
   rootDomain,
@@ -43,6 +44,8 @@ import { loadCache, saveCache, currentMonth, type CacheShape } from "./cache";
 import type { EnrichedRow } from "./output";
 import type { Db } from "@/lib/leads/upsert";
 import { upsertLead } from "@/lib/leads/upsert";
+import { auditLog } from "@/lib/db/schema";
+import { sql } from "drizzle-orm";
 
 export type RunMode = "free" | "paid";
 
@@ -198,6 +201,44 @@ function ratingCountToTagProxy(n: number | undefined): number {
 
 /* ── Discovery dispatchers ───────────────────────────────────────── */
 
+/* ── Curated → Business adapter ─────────────────────────────────── */
+
+// Denver Metro centroid; used as a placeholder for curated entries that
+// don't carry a specific store address. Geo-fit scoring still works (it's
+// "in metro" by definition, contributing the in-county bonus).
+const DENVER_METRO_LAT = 39.74;
+const DENVER_METRO_LNG = -104.99;
+
+function curatedToBusiness(c: CuratedEntry): Business {
+  return {
+    id: `curated/${c.domain}`,
+    name: c.name,
+    lat: DENVER_METRO_LAT,
+    lon: DENVER_METRO_LNG,
+    amenity: c.industry === "restaurants" ? "restaurant" : undefined,
+    shop:
+      c.industry === "bigbox"
+        ? "department_store"
+        : c.refrigerated && c.industry === "smallbiz"
+          ? "supermarket"
+          : undefined,
+    industrial: c.industry === "brokers" ? "warehouse" : undefined,
+    office: c.industry === "brokers" ? "logistics" : undefined,
+    craft: undefined,
+    building: undefined,
+    street: null,
+    city: "Denver Metro",
+    state: "CO",
+    website: `https://${c.domain}`,
+    phone: null,
+    email: null,
+    hasOpeningHours: false,
+    // Boost tagCount so curated entries clear the volume threshold; they
+    // are nationally-known chains by definition.
+    tagCount: 12,
+  };
+}
+
 async function discoverFree(args: {
   industries: Industry[];
   counties: County[];
@@ -208,6 +249,26 @@ async function discoverFree(args: {
   log: (msg: string) => void;
 }): Promise<Array<{ business: Business; industry: Industry; county: County }>> {
   const out: Array<{ business: Business; industry: Industry; county: County }> = [];
+
+  // 1. Curated seed — guaranteed source. Always available regardless of
+  //    Vercel/sandbox outbound restrictions on Overpass.
+  const curatedSelected = CURATED_DENVER.filter((c) =>
+    args.industries.includes(c.industry),
+  );
+  for (const c of curatedSelected) {
+    const business = curatedToBusiness(c);
+    if (args.excludeIds.has(business.id)) continue;
+    args.excludeIds.add(business.id);
+    out.push({ business, industry: c.industry, county: "Denver" });
+    if (args.earlyExitTarget && out.length >= args.earlyExitTarget) {
+      args.log(`  → curated-only: ${out.length} candidates (target ${args.earlyExitTarget})`);
+      return out;
+    }
+  }
+  args.log(`  + curated: ${curatedSelected.length} entries seeded (${out.length} new)`);
+
+  // 2. OSM Overpass — supplemental. Best-effort; failures are tolerated
+  //    silently because curated already gave us a usable baseline.
   for (const county of args.counties) {
     for (const industry of args.industries) {
       if (args.earlyExitTarget && out.length >= args.earlyExitTarget) {
@@ -274,9 +335,12 @@ type EmailOutcome = {
 
 async function enrichFree(business: Business, log: (m: string) => void): Promise<EmailOutcome> {
   const out: EmailOutcome = { email: null, confidence: "none", annotations: [] };
+  // For chain stores we still try to find a contact email — info@ at
+  // their corporate domain reliably MX-validates and gets the user a
+  // contactable address. We just tag chain-store so the operator knows
+  // the address is corporate, not local-store.
   if (isBigBoxChain(business.name)) {
-    out.annotations.push("chain-store — route via corporate procurement.");
-    return out;
+    out.annotations.push("chain-store — corporate contact only");
   }
 
   // 1. OSM may already carry an email.
@@ -599,6 +663,41 @@ export async function runResearch(opts: RunOptions): Promise<RunReport> {
       } catch (err) {
         log(`  ! upsert failed for "${row.companyName}": ${(err as Error).message}`);
       }
+    }
+
+    // Run-summary audit row so the operator can see exactly what
+    // happened on each invocation from /admin → Recent audit log
+    // (separate from the per-lead inserted/updated rows).
+    try {
+      await opts.db.insert(auditLog).values({
+        actorUserId: null,
+        entity: "research",
+        entityId: null,
+        action: `research_${opts.mode}_run`,
+        beforeJson: null,
+        afterJson: {
+          mode: opts.mode,
+          discovered: candidates.length,
+          enriched: counts.enriched,
+          tierA: counts.tierA,
+          tierB: counts.tierB,
+          tierC: counts.tierC,
+          dropped: counts.dropped,
+          refrigerated: counts.refrigerated,
+          inserted,
+          updated,
+          conflicts,
+          needsManualEmail: counts.needsManualEmail,
+          freemail: counts.freemail,
+          roleAccount: counts.roleAccount,
+          industries: opts.industries,
+          counties: opts.counties,
+          limit: opts.limit,
+        },
+        occurredAt: sql`now()`,
+      });
+    } catch (err) {
+      log(`  ! audit log failed: ${(err as Error).message}`);
     }
   }
 
