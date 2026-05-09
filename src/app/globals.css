@@ -201,12 +201,19 @@
   html {
     font-feature-settings: "cv11", "ss01", "ss03";
     -webkit-font-smoothing: antialiased;
+    /* Prevent any descendant from triggering horizontal scroll on mobile.
+       `clip` is preferred over `hidden` because it doesn't create a new
+       scroll container (so position:sticky and Lenis still work). */
+    overflow-x: hidden;
+    overflow-x: clip;
   }
   body {
     background: var(--background);
     color: var(--foreground);
     font-family: var(--font-sans);
     font-feature-settings: "rlig" 1, "calt" 1, "cv11" 1;
+    overflow-x: hidden;
+    overflow-x: clip;
   }
   ::selection {
     background: var(--brand-200);
