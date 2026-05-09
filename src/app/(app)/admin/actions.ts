@@ -3,11 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { env } from "@/lib/env";
 import { db } from "@/lib/db/client";
-import { suppressionList } from "@/lib/db/schema";
+import { auditLog, leads as leadsTable, suppressionList } from "@/lib/db/schema";
+import { CURATED_DENVER } from "@/lib/research/curated-denver";
 import {
   defaultProviderFor,
   tickSequences,
@@ -231,104 +232,123 @@ export async function runPaidResearchAction(formData: FormData): Promise<void> {
  * sees the inserted rows.
  */
 export async function quickAddStarterPackAction(): Promise<void> {
-  const session = await auth();
-  if (!session?.user?.id) throw new Error("Unauthorized");
-  env();
-
-  const { CURATED_DENVER } = await import("@/lib/research/curated-denver");
-  const { leads: leadsTable } = await import("@/lib/db/schema");
-  const { sql: sqlOp } = await import("drizzle-orm");
-
+  // Capture every possible failure mode (auth, env, db) and surface it
+  // in the redirect URL so the operator sees something visible instead
+  // of a silent 500 / no-op.
+  let errorMsg: string | null = null;
   let inserted = 0;
-  let skipped = 0;
+  let updated = 0;
+  let attempted = 0;
   const start = Date.now();
-  // Take the first 25 across all industries — guaranteed manageable even
-  // on Vercel Hobby's 10s timeout.
-  const sample = CURATED_DENVER.slice(0, 25);
 
-  for (const c of sample) {
-    const tags: string[] = [];
-    const verticalLabel: Record<string, string> = {
-      restaurants: "Restaurant",
-      bigbox: "Big-box retail",
-      brokers: "Freight broker / 3PL",
-      smallbiz: "Small business",
-    };
-    const vertical = verticalLabel[c.industry];
-    tags.push("tier-A", vertical, "email-guessed");
-    if (c.refrigerated || c.industry === "restaurants") tags.push("refrigerated");
-    if (c.chain) tags.push("chain-store");
-
-    const insert = {
-      email: `info@${c.domain}` as string,
-      phone: null as string | null,
-      companyName: c.name,
-      website: `https://${c.domain}`,
-      vertical,
-      address: null as string | null,
-      city: "Denver Metro",
-      state: "CO",
-      source: "starter-pack",
-      tier: "A" as const,
-      score: 75,
-      tags,
-      notes: "Denver Metro starter pack — backfill specific store address as needed.",
-    };
-
-    try {
-      const [row] = await db
-        .insert(leadsTable)
-        .values(insert)
-        .onConflictDoUpdate({
-          target: leadsTable.email,
-          set: {
-            companyName: insert.companyName,
-            vertical: insert.vertical,
-            website: insert.website,
-            tier: insert.tier,
-            score: insert.score,
-            tags: insert.tags,
-            notes: insert.notes,
-            updatedAt: new Date(),
-          },
-        })
-        .returning({ id: leadsTable.id, createdAt: leadsTable.createdAt, updatedAt: leadsTable.updatedAt });
-      if (row && Math.abs(row.createdAt.getTime() - row.updatedAt.getTime()) < 1000) {
-        inserted++;
-      } else {
-        skipped++;
-      }
-    } catch (err) {
-      console.error("[quickAdd] insert failed for", c.name, (err as Error).message);
-    }
-  }
-
-  // Audit log so the operator can verify even without seeing the banner.
   try {
-    const { auditLog } = await import("@/lib/db/schema");
-    await db.insert(auditLog).values({
-      actorUserId: session.user.id,
-      entity: "leads",
-      entityId: null,
-      action: "starter_pack_run",
-      beforeJson: null,
-      afterJson: { inserted, updated: skipped, total: sample.length, durationMs: Date.now() - start },
-      occurredAt: sqlOp`now()`,
-    });
+    const session = await auth();
+    if (!session?.user?.id) {
+      errorMsg = "unauthorized";
+    } else {
+      env();
+
+      // Take the first 25 across all industries.
+      const sample = CURATED_DENVER.slice(0, 25);
+      attempted = sample.length;
+
+      const verticalLabel: Record<string, string> = {
+        restaurants: "Restaurant",
+        bigbox: "Big-box retail",
+        brokers: "Freight broker / 3PL",
+        smallbiz: "Small business",
+      };
+
+      for (const c of sample) {
+        const tags: string[] = ["tier-A", verticalLabel[c.industry], "email-guessed"];
+        if (c.refrigerated || c.industry === "restaurants") tags.push("refrigerated");
+        if (c.chain) tags.push("chain-store");
+
+        try {
+          const [row] = await db
+            .insert(leadsTable)
+            .values({
+              email: `info@${c.domain}`,
+              phone: null,
+              companyName: c.name,
+              website: `https://${c.domain}`,
+              vertical: verticalLabel[c.industry],
+              address: null,
+              city: "Denver Metro",
+              state: "CO",
+              source: "starter-pack",
+              tier: "A",
+              score: 75,
+              tags,
+              notes:
+                "Denver Metro starter pack — backfill specific store address as needed.",
+            })
+            .onConflictDoUpdate({
+              target: leadsTable.email,
+              set: {
+                companyName: c.name,
+                vertical: verticalLabel[c.industry],
+                website: `https://${c.domain}`,
+                tier: "A",
+                score: 75,
+                tags,
+                updatedAt: new Date(),
+              },
+            })
+            .returning({
+              id: leadsTable.id,
+              createdAt: leadsTable.createdAt,
+              updatedAt: leadsTable.updatedAt,
+            });
+          if (row && Math.abs(row.createdAt.getTime() - row.updatedAt.getTime()) < 1000) {
+            inserted++;
+          } else {
+            updated++;
+          }
+        } catch (err) {
+          console.error("[quickAdd] insert failed for", c.name, (err as Error).message);
+        }
+      }
+
+      // Audit log — best-effort; doesn't block the redirect.
+      try {
+        await db.insert(auditLog).values({
+          actorUserId: session.user.id,
+          entity: "leads",
+          entityId: null,
+          action: "starter_pack_run",
+          beforeJson: null,
+          afterJson: {
+            inserted,
+            updated,
+            total: attempted,
+            durationMs: Date.now() - start,
+          },
+          occurredAt: sql`now()`,
+        });
+      } catch (err) {
+        console.error("[quickAdd] audit failed:", (err as Error).message);
+      }
+    }
   } catch (err) {
-    console.error("[quickAdd] audit failed:", (err as Error).message);
+    // Anything unexpected (env validation, db connection refused, etc.)
+    // gets surfaced in the URL so the operator sees the actual reason.
+    errorMsg =
+      (err as Error).name + ": " + (err as Error).message.slice(0, 120);
+    console.error("[quickAdd] FATAL:", err);
   }
 
   revalidatePath("/leads");
   revalidatePath("/admin");
-  // Redirect DIRECTLY to /leads with a "just-added" banner param so the
-  // operator immediately sees the new rows.
+
   const params = new URLSearchParams({
     just_added: String(inserted),
-    just_updated: String(skipped),
+    just_updated: String(updated),
     starter: "1",
-    stage: "all", // bypass the default stage=new filter so all rows show
+    stage: "all",
   });
+  if (errorMsg) params.set("starter_error", errorMsg);
+  // redirect() throws NEXT_REDIRECT — it MUST be outside the try/catch above.
   redirect(`/leads?${params.toString()}`);
 }
 
