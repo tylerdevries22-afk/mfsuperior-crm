@@ -21,6 +21,10 @@ type Search = {
   stage?: string;
   tier?: string;
   page?: string;
+  // Quick-add starter pack redirect params
+  just_added?: string;
+  just_updated?: string;
+  starter?: string;
   // Bulk-send result banner params (from bulkSendAction redirect).
   sent?: string;
   requested?: string;
@@ -194,6 +198,25 @@ export default async function LeadsPage({
         )}
       </form>
 
+      {sp.starter === "1" && (
+        <div className="mb-5 flex items-start gap-3 rounded-md border border-success/40 bg-success/10 px-4 py-3 text-sm">
+          <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-success" />
+          <div>
+            <p className="font-medium text-foreground">
+              Starter pack added —{" "}
+              <span className="font-mono tabular-nums">{Number(sp.just_added ?? 0)}</span>{" "}
+              new,{" "}
+              <span className="font-mono tabular-nums">{Number(sp.just_updated ?? 0)}</span>{" "}
+              updated.
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              All entries have <span className="font-mono">info@&lt;domain&gt;.com</span>{" "}
+              emails, tier A, and tags. Showing all stages so you can see them
+              regardless of the default filter.
+            </p>
+          </div>
+        </div>
+      )}
       {showSentBanner && <SendResultBanner sp={sp} />}
 
       {rows.length === 0 ? (

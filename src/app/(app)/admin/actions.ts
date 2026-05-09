@@ -218,6 +218,120 @@ export async function runPaidResearchAction(formData: FormData): Promise<void> {
   return runResearchAction(formData);
 }
 
+/* ── Quick-add Denver Metro starter pack ─────────────────────────── */
+
+/**
+ * Dead-simple action that bypasses the entire research pipeline. Just
+ * upserts a fixed set of curated Denver Metro businesses with email +
+ * tier + tags pre-baked. Used as a guaranteed-working fallback when the
+ * full research action seems to fail silently — and as a fast way to
+ * populate the CRM with real leads in <1s.
+ *
+ * Redirects DIRECTLY to /leads (not /admin) so the operator immediately
+ * sees the inserted rows.
+ */
+export async function quickAddStarterPackAction(): Promise<void> {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("Unauthorized");
+  env();
+
+  const { CURATED_DENVER } = await import("@/lib/research/curated-denver");
+  const { leads: leadsTable } = await import("@/lib/db/schema");
+  const { sql: sqlOp } = await import("drizzle-orm");
+
+  let inserted = 0;
+  let skipped = 0;
+  const start = Date.now();
+  // Take the first 25 across all industries — guaranteed manageable even
+  // on Vercel Hobby's 10s timeout.
+  const sample = CURATED_DENVER.slice(0, 25);
+
+  for (const c of sample) {
+    const tags: string[] = [];
+    const verticalLabel: Record<string, string> = {
+      restaurants: "Restaurant",
+      bigbox: "Big-box retail",
+      brokers: "Freight broker / 3PL",
+      smallbiz: "Small business",
+    };
+    const vertical = verticalLabel[c.industry];
+    tags.push("tier-A", vertical, "email-guessed");
+    if (c.refrigerated || c.industry === "restaurants") tags.push("refrigerated");
+    if (c.chain) tags.push("chain-store");
+
+    const insert = {
+      email: `info@${c.domain}` as string,
+      phone: null as string | null,
+      companyName: c.name,
+      website: `https://${c.domain}`,
+      vertical,
+      address: null as string | null,
+      city: "Denver Metro",
+      state: "CO",
+      source: "starter-pack",
+      tier: "A" as const,
+      score: 75,
+      tags,
+      notes: "Denver Metro starter pack — backfill specific store address as needed.",
+    };
+
+    try {
+      const [row] = await db
+        .insert(leadsTable)
+        .values(insert)
+        .onConflictDoUpdate({
+          target: leadsTable.email,
+          set: {
+            companyName: insert.companyName,
+            vertical: insert.vertical,
+            website: insert.website,
+            tier: insert.tier,
+            score: insert.score,
+            tags: insert.tags,
+            notes: insert.notes,
+            updatedAt: new Date(),
+          },
+        })
+        .returning({ id: leadsTable.id, createdAt: leadsTable.createdAt, updatedAt: leadsTable.updatedAt });
+      if (row && Math.abs(row.createdAt.getTime() - row.updatedAt.getTime()) < 1000) {
+        inserted++;
+      } else {
+        skipped++;
+      }
+    } catch (err) {
+      console.error("[quickAdd] insert failed for", c.name, (err as Error).message);
+    }
+  }
+
+  // Audit log so the operator can verify even without seeing the banner.
+  try {
+    const { auditLog } = await import("@/lib/db/schema");
+    await db.insert(auditLog).values({
+      actorUserId: session.user.id,
+      entity: "leads",
+      entityId: null,
+      action: "starter_pack_run",
+      beforeJson: null,
+      afterJson: { inserted, updated: skipped, total: sample.length, durationMs: Date.now() - start },
+      occurredAt: sqlOp`now()`,
+    });
+  } catch (err) {
+    console.error("[quickAdd] audit failed:", (err as Error).message);
+  }
+
+  revalidatePath("/leads");
+  revalidatePath("/admin");
+  // Redirect DIRECTLY to /leads with a "just-added" banner param so the
+  // operator immediately sees the new rows.
+  const params = new URLSearchParams({
+    just_added: String(inserted),
+    just_updated: String(skipped),
+    starter: "1",
+    stage: "all", // bypass the default stage=new filter so all rows show
+  });
+  redirect(`/leads?${params.toString()}`);
+}
+
 export async function manualSyncAction(): Promise<void> {
   const session = await auth();
   if (!session?.user?.id) throw new Error("Unauthorized");
