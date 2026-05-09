@@ -60,6 +60,13 @@ export type RunOptions = {
   hunterBudget?: number;
   /** When true, ignore the on-disk cache. */
   noCache?: boolean;
+  /**
+   * Fast mode: skip OSM Overpass entirely, take exactly `limit` curated
+   * entries, and skip the per-domain web scrape (probeCommonEmails
+   * directly). Designed for the /admin server-action button on Vercel
+   * Hobby (10s function timeout).
+   */
+  fast?: boolean;
   /** Drizzle DB; when undefined, the upsert step is skipped. */
   db?: Db;
   /** Source string written into leads.source. */
@@ -333,12 +340,12 @@ type EmailOutcome = {
   annotations: string[];
 };
 
-async function enrichFree(business: Business, log: (m: string) => void): Promise<EmailOutcome> {
+async function enrichFree(
+  business: Business,
+  log: (m: string) => void,
+  opts: { fast?: boolean } = {},
+): Promise<EmailOutcome> {
   const out: EmailOutcome = { email: null, confidence: "none", annotations: [] };
-  // For chain stores we still try to find a contact email — info@ at
-  // their corporate domain reliably MX-validates and gets the user a
-  // contactable address. We just tag chain-store so the operator knows
-  // the address is corporate, not local-store.
   if (isBigBoxChain(business.name)) {
     out.annotations.push("chain-store — corporate contact only");
   }
@@ -360,35 +367,39 @@ async function enrichFree(business: Business, log: (m: string) => void): Promise
     }
   }
 
-  // 2. Scrape website for mailto: links.
   const domain = rootDomain(business.website);
   if (domain) {
-    try {
-      const scraped = await scrapeDomainForContacts(domain, log);
-      const pick = pickBestScrapedContact(scraped);
-      if (pick) {
-        const v = await validateEmail(pick.email);
-        if (v.confidence !== "rejected") {
-          out.email = v.email;
-          if (v.confidence === "high") out.confidence = "high";
-          else if (v.confidence === "medium") {
-            out.confidence = "medium";
-            out.annotations.push("free-webmail address (lower priority)");
-          } else {
-            out.confidence = "low";
-            out.annotations.push("role account");
+    // 2. Scrape website for mailto: links. Skipped in fast mode (each
+    //    scrape can take 5-30s — too slow for the /admin button on
+    //    Vercel Hobby's 10s function timeout).
+    if (!opts.fast) {
+      try {
+        const scraped = await scrapeDomainForContacts(domain, log);
+        const pick = pickBestScrapedContact(scraped);
+        if (pick) {
+          const v = await validateEmail(pick.email);
+          if (v.confidence !== "rejected") {
+            out.email = v.email;
+            if (v.confidence === "high") out.confidence = "high";
+            else if (v.confidence === "medium") {
+              out.confidence = "medium";
+              out.annotations.push("free-webmail address (lower priority)");
+            } else {
+              out.confidence = "low";
+              out.annotations.push("role account");
+            }
+            return out;
           }
-          return out;
         }
+      } catch (err) {
+        log(`    ! scrape failed on ${domain}: ${(err as Error).message}`);
       }
-    } catch (err) {
-      log(`    ! scrape failed on ${domain}: ${(err as Error).message}`);
     }
 
-    // 3. Common-pattern probe: if the domain has MX, guess `info@domain`.
-    //    For B2B small biz this is the right address ~80% of the time
-    //    (owner/manager usually monitors it). Tag email-guessed so the
-    //    operator can backfill if a real address surfaces later.
+    // 3. Common-pattern probe (always runs — fast DNS MX lookup, ~50ms).
+    //    If the domain has MX, guess `info@domain`. For B2B small biz
+    //    this is the right address ~80% of the time. Tag email-guessed
+    //    so the operator can backfill if a real address surfaces later.
     try {
       const probe = await probeCommonEmails(domain);
       if (probe) {
@@ -486,16 +497,31 @@ export async function runResearch(opts: RunOptions): Promise<RunReport> {
   let candidates: Array<{ business: Business; industry: Industry; county: County }> = [];
 
   if (opts.mode === "free") {
-    candidates = await discoverFree({
-      industries: opts.industries,
-      counties: opts.counties,
-      excludeIds: seenIds,
-      maxPerCounty,
-      // Stop discovering once we have ~3x the target — gives the scorer
-      // enough to pick from while keeping the run fast for UI buttons.
-      earlyExitTarget: Math.max(opts.limit * 3, 30),
-      log,
-    });
+    if (opts.fast) {
+      // Fast path: just take the first N curated entries that match the
+      // selected industries and aren't in the cache. Skips OSM entirely.
+      const wanted = opts.industries;
+      const picked: typeof candidates = [];
+      for (const c of CURATED_DENVER) {
+        if (!wanted.includes(c.industry)) continue;
+        const business = curatedToBusiness(c);
+        if (seenIds.has(business.id)) continue;
+        seenIds.add(business.id);
+        picked.push({ business, industry: c.industry, county: "Denver" });
+        if (picked.length >= opts.limit) break;
+      }
+      candidates = picked;
+      log(`  + fast curated: ${candidates.length} entries`);
+    } else {
+      candidates = await discoverFree({
+        industries: opts.industries,
+        counties: opts.counties,
+        excludeIds: seenIds,
+        maxPerCounty,
+        earlyExitTarget: Math.max(opts.limit * 3, 30),
+        log,
+      });
+    }
   } else {
     const apiKey = process.env.GOOGLE_MAPS_API_KEY;
     if (!apiKey) throw new Error("GOOGLE_MAPS_API_KEY is required for paid mode");
@@ -557,7 +583,7 @@ export async function runResearch(opts: RunOptions): Promise<RunReport> {
 
     const enrich =
       opts.mode === "free"
-        ? await enrichFree(business, log)
+        ? await enrichFree(business, log, { fast: opts.fast })
         : await enrichPaid(business, hunter!, log);
 
     if (enrich.annotations.includes("chain-store — route via corporate procurement.")) {

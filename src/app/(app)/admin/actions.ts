@@ -164,11 +164,20 @@ async function runResearchAction(formData: FormData): Promise<void> {
   }
 
   const start = Date.now();
+  // Fast mode for server-action invocation: takes only `limit` curated
+  // entries, skips OSM Overpass (Vercel's outbound to Overpass is
+  // unreliable), skips per-domain web scraping (too slow), goes
+  // straight to MX-validating info@<domain>. Total time per click is
+  // limit × ~200ms which fits inside Vercel Hobby's 10s timeout.
+  // noCache=true because Vercel serverless filesystem is read-only;
+  // dedup is handled by the unique indexes on the leads table.
   const report = await runResearch({
     mode: parsed.mode as RunMode,
     limit: parsed.limit,
     industries: parsed.industries,
     counties: parsed.counties,
+    fast: parsed.mode === "free",
+    noCache: true,
     db,
     sourceLabel: `research-${parsed.mode}-admin`,
     log: (m) => console.log(m),

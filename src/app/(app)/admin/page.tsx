@@ -20,6 +20,12 @@ import { userHasGoogleConnection } from "@/lib/gmail/oauth";
 
 export const metadata = { title: "Admin" };
 
+// Server actions invoked from /admin (manual tick, manual poll, sync,
+// Run free/paid research) run inside the Vercel serverless function for
+// this route. Default Hobby cap is 10s, Pro is 60s — bump explicitly so
+// the longer-running research action gets the full Pro budget.
+export const maxDuration = 60;
+
 type Search = {
   drafted?: string;
   sent?: string;
