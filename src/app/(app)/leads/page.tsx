@@ -106,6 +106,17 @@ export default async function LeadsPage({
   const totalPages = Math.max(1, Math.ceil(count / PAGE_SIZE));
   const showSentBanner = sp.sent === "1";
 
+  // If the default filter is hiding leads but the user has leads in OTHER
+  // stages, surface that so they don't think the page is broken.
+  let hiddenInOtherStagesCount = 0;
+  if (rows.length === 0 && stage === DEFAULT_STAGE && !q && !tier) {
+    const [{ otherCount }] = await db
+      .select({ otherCount: sql<number>`count(*)::int` })
+      .from(leads)
+      .where(isNull(leads.archivedAt));
+    hiddenInOtherStagesCount = otherCount;
+  }
+
   return (
     <div className="px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
       <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
@@ -186,7 +197,10 @@ export default async function LeadsPage({
       {showSentBanner && <SendResultBanner sp={sp} />}
 
       {rows.length === 0 ? (
-        <EmptyState hasFilters={!!(q || stage || tier || showAllStages)} />
+        <EmptyState
+          hasFilters={!!(q || stage || tier || showAllStages)}
+          hiddenInOtherStagesCount={hiddenInOtherStagesCount}
+        />
       ) : (
         <>
           {/* pb-24 leaves room for the sticky bulk-action bar. */}
@@ -283,7 +297,48 @@ function SendResultBanner({ sp }: { sp: Search }) {
 
 /* ───── Empty state ─────────────────────────────────────────── */
 
-function EmptyState({ hasFilters }: { hasFilters: boolean }) {
+function EmptyState({
+  hasFilters,
+  hiddenInOtherStagesCount,
+}: {
+  hasFilters: boolean;
+  hiddenInOtherStagesCount: number;
+}) {
+  // Default filter (stage=new) is on, but the user has leads in OTHER stages.
+  // Most common cause: they've already cold-pitched everyone in `new`, so the
+  // worklist is empty — but they came here looking for their full list.
+  if (hiddenInOtherStagesCount > 0) {
+    return (
+      <Card>
+        <CardContent className="flex flex-col items-start gap-3 px-6 py-10 text-sm">
+          <p className="font-medium text-foreground">
+            No <span className="font-mono">unworked</span> leads right now.
+          </p>
+          <p className="text-muted-foreground">
+            You have{" "}
+            <span className="font-mono tabular-nums">
+              {hiddenInOtherStagesCount}
+            </span>{" "}
+            lead{hiddenInOtherStagesCount === 1 ? "" : "s"} in other stages
+            (contacted, replied, etc). The default filter only shows leads
+            still to pitch.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Link href="/leads?stage=all">
+              <Button variant="secondary" size="sm">
+                Show all stages
+              </Button>
+            </Link>
+            <Link href="/inbox">
+              <Button variant="ghost" size="sm">
+                Go to inbox
+              </Button>
+            </Link>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
   return (
     <Card>
       <CardContent className="flex flex-col items-start gap-3 px-6 py-10 text-sm">

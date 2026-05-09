@@ -153,6 +153,7 @@ export function HeroSection() {
           <video
             ref={videoRef}
             src="/videos/benefit-01-vert.mp4"
+            poster="/videos/benefit-01-vert.jpg"
             muted
             playsInline
             preload="auto"

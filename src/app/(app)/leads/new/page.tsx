@@ -53,7 +53,7 @@ export default function NewLeadPage() {
             </div>
 
             {/* First + Last name */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="grid gap-1.5">
                 <Label htmlFor="firstName">First name</Label>
                 <Input id="firstName" name="firstName" placeholder="Jane" />
@@ -100,7 +100,7 @@ export default function NewLeadPage() {
             </div>
 
             {/* City + State */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="grid gap-1.5">
                 <Label htmlFor="city">City</Label>
                 <Input id="city" name="city" placeholder="Denver" />

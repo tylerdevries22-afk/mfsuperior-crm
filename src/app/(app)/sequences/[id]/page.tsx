@@ -149,7 +149,8 @@ export default async function SequenceDetailPage({
                   No steps yet. Open <Link href="/templates" className="text-primary hover:underline">Templates</Link> to add some.
                 </p>
               ) : (
-                <table className="w-full text-sm">
+                <div className="overflow-x-auto">
+                <table className="w-full min-w-[520px] text-sm">
                   <thead className="border-b border-border bg-card text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
                     <tr>
                       <th className="px-6 py-2.5 font-medium w-16">Step</th>
@@ -186,6 +187,7 @@ export default async function SequenceDetailPage({
                     ))}
                   </tbody>
                 </table>
+                </div>
               )}
             </CardContent>
           </Card>
@@ -204,7 +206,8 @@ export default async function SequenceDetailPage({
                   </p>
                 </div>
               ) : (
-                <table className="w-full text-sm">
+                <div className="overflow-x-auto">
+                <table className="w-full min-w-[640px] text-sm">
                   <thead className="border-b border-border bg-card text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
                     <tr>
                       <th className="px-6 py-2.5 font-medium">Lead</th>
@@ -260,6 +263,7 @@ export default async function SequenceDetailPage({
                     ))}
                   </tbody>
                 </table>
+                </div>
               )}
             </CardContent>
           </Card>

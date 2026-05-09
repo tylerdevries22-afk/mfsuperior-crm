@@ -3,6 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { Send, Loader2, X } from "lucide-react";
+import { useFormStatus } from "react-dom";
 import type { leads as leadsTable } from "@/lib/db/schema";
 import { Button } from "@/components/ui/button";
 import { StageChip, TierChip } from "@/components/leads/stage-chip";
@@ -21,29 +22,21 @@ export function LeadsTable({
 }) {
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const [confirmOpen, setConfirmOpen] = React.useState(false);
-  const [pending, startTransition] = React.useTransition();
 
-  // Limit selection to leads on the current page that have an email — the
-  // tick will skip empty-email rows anyway, but the UI shouldn't pretend
-  // they'll send.
-  const selectableIds = React.useMemo(
-    () => rows.filter((r) => r.email).map((r) => r.id),
-    [rows],
-  );
+  const allRowIds = React.useMemo(() => rows.map((r) => r.id), [rows]);
   const allSelected =
-    selectableIds.length > 0 &&
-    selectableIds.every((id) => selected.has(id));
+    allRowIds.length > 0 && allRowIds.every((id) => selected.has(id));
   const someSelected = selected.size > 0 && !allSelected;
 
   const toggleAll = () => {
     setSelected((prev) => {
       if (allSelected) {
         const next = new Set(prev);
-        for (const id of selectableIds) next.delete(id);
+        for (const id of allRowIds) next.delete(id);
         return next;
       }
       const next = new Set(prev);
-      for (const id of selectableIds) next.add(id);
+      for (const id of allRowIds) next.add(id);
       return next;
     });
   };
@@ -72,7 +65,7 @@ export function LeadsTable({
   }, [someSelected]);
 
   if (rows.length === 0) {
-    return <EmptyState hasFilters={false} />;
+    return null;
   }
 
   return (
@@ -84,13 +77,13 @@ export function LeadsTable({
             <thead className="sticky top-0 z-10 bg-card text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
               <tr className="border-b border-border">
                 <th className="w-10 px-3 py-2.5">
-                  <input
+                  <Checkbox
                     ref={headerCheckboxRef}
-                    type="checkbox"
                     checked={allSelected}
                     onChange={toggleAll}
-                    aria-label={allSelected ? "Deselect all on page" : "Select all on page"}
-                    className="size-4 cursor-pointer accent-primary"
+                    aria-label={
+                      allSelected ? "Deselect all on page" : "Select all on page"
+                    }
                   />
                 </th>
                 <th className="px-3 py-2.5 text-right font-medium w-12">#</th>
@@ -117,18 +110,15 @@ export function LeadsTable({
                     }
                   >
                     <td className="px-3 py-2.5">
-                      <input
-                        type="checkbox"
+                      <Checkbox
                         checked={checked}
                         onChange={() => toggleOne(lead.id)}
-                        disabled={!lead.email}
                         aria-label={`Select ${lead.companyName ?? lead.email ?? "lead"}`}
                         title={
                           lead.email
                             ? undefined
-                            : "No email on file — cannot send"
+                            : "No email on file — will be skipped on send"
                         }
-                        className="size-4 cursor-pointer accent-primary disabled:cursor-not-allowed disabled:opacity-30"
                       />
                     </td>
                     <td className="px-3 py-2.5 text-right font-mono text-xs tabular-nums text-muted-foreground">
@@ -147,9 +137,13 @@ export function LeadsTable({
                       >
                         {lead.companyName ?? "—"}
                       </Link>
-                      {lead.email && (
+                      {lead.email ? (
                         <p className="font-mono text-xs text-muted-foreground">
                           {lead.email}
+                        </p>
+                      ) : (
+                        <p className="font-mono text-xs italic text-muted-foreground/60">
+                          no email
                         </p>
                       )}
                     </td>
@@ -182,21 +176,19 @@ export function LeadsTable({
           const checked = selected.has(lead.id);
           return (
             <li key={lead.id}>
-              <label
+              <div
                 className={
-                  "flex items-start gap-3 rounded-md border px-4 py-3 transition-colors active:translate-y-[1px] " +
+                  "flex items-start gap-3 rounded-md border px-4 py-3 transition-colors " +
                   (checked
                     ? "border-primary bg-primary/5"
                     : "border-border bg-card hover:bg-secondary/40")
                 }
               >
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={checked}
                   onChange={() => toggleOne(lead.id)}
-                  disabled={!lead.email}
                   aria-label={`Select ${lead.companyName ?? lead.email ?? "lead"}`}
-                  className="mt-1 size-4 cursor-pointer accent-primary disabled:cursor-not-allowed disabled:opacity-30"
+                  className="mt-1"
                 />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-start justify-between gap-3">
@@ -204,7 +196,6 @@ export function LeadsTable({
                       <Link
                         href={`/leads/${lead.id}`}
                         className="block truncate font-medium text-foreground"
-                        onClick={(e) => e.stopPropagation()}
                       >
                         {lead.companyName ?? "—"}
                       </Link>
@@ -212,6 +203,15 @@ export function LeadsTable({
                         {lead.vertical ?? "—"}
                         {lead.city ? ` · ${lead.city}` : ""}
                       </p>
+                      {lead.email ? (
+                        <p className="truncate font-mono text-xs text-muted-foreground">
+                          {lead.email}
+                        </p>
+                      ) : (
+                        <p className="truncate font-mono text-xs italic text-muted-foreground/60">
+                          no email
+                        </p>
+                      )}
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
                       <TierChip tier={lead.tier} />
@@ -224,15 +224,16 @@ export function LeadsTable({
                     <StageChip stage={lead.stage} />
                   </div>
                 </div>
-              </label>
+              </div>
             </li>
           );
         })}
       </ul>
 
-      {/* Sticky action bar */}
+      {/* Sticky action bar — wraps in a real <form action={...}> so Next
+          handles redirect() from the server action correctly. */}
       {selectedCount > 0 && (
-        <BulkActionBar
+        <BulkActionForm
           count={selectedCount}
           sendableCount={sendableCount}
           noEmailCount={noEmailCount}
@@ -241,15 +242,34 @@ export function LeadsTable({
           onClear={clear}
           confirmOpen={confirmOpen}
           setConfirmOpen={setConfirmOpen}
-          pending={pending}
-          startTransition={startTransition}
         />
       )}
     </>
   );
 }
 
-function BulkActionBar({
+/* ───── Reusable styled checkbox (visible borders in both themes) ─── */
+
+const Checkbox = React.forwardRef<
+  HTMLInputElement,
+  React.InputHTMLAttributes<HTMLInputElement>
+>(function Checkbox({ className, ...props }, ref) {
+  return (
+    <input
+      ref={ref}
+      type="checkbox"
+      className={
+        "size-[18px] cursor-pointer rounded border-2 border-muted-foreground/40 bg-background accent-primary transition-colors hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background " +
+        (className ?? "")
+      }
+      {...props}
+    />
+  );
+});
+
+/* ───── Bulk action form ──────────────────────────────────────────── */
+
+function BulkActionForm({
   count,
   sendableCount,
   noEmailCount,
@@ -258,8 +278,6 @@ function BulkActionBar({
   onClear,
   confirmOpen,
   setConfirmOpen,
-  pending,
-  startTransition,
 }: {
   count: number;
   sendableCount: number;
@@ -269,25 +287,17 @@ function BulkActionBar({
   onClear: () => void;
   confirmOpen: boolean;
   setConfirmOpen: (v: boolean) => void;
-  pending: boolean;
-  startTransition: React.TransitionStartFunction;
 }) {
-  const [sequenceId, setSequenceId] = React.useState(
-    sequences[0]?.id ?? "",
-  );
-
-  const handleSubmit = () => {
-    if (!sequenceId) return;
-    startTransition(async () => {
-      const fd = new FormData();
-      fd.set("sequenceId", sequenceId);
-      for (const id of selectedIds) fd.append("leadIds", id);
-      await bulkSendAction(fd);
-    });
-  };
+  const [sequenceId, setSequenceId] = React.useState(sequences[0]?.id ?? "");
 
   return (
-    <>
+    <form action={bulkSendAction}>
+      {/* Hidden inputs — these are what bulkSendAction reads via FormData. */}
+      <input type="hidden" name="sequenceId" value={sequenceId} />
+      {selectedIds.map((id) => (
+        <input key={id} type="hidden" name="leadIds" value={id} />
+      ))}
+
       {/* Bottom sticky bar */}
       <div
         role="region"
@@ -299,7 +309,7 @@ function BulkActionBar({
             <span className="font-mono tabular-nums">{count}</span> selected
             {noEmailCount > 0 && (
               <span className="ml-2 font-normal text-muted-foreground">
-                ({noEmailCount} skipped — no email)
+                ({noEmailCount} will be skipped — no email)
               </span>
             )}
           </p>
@@ -318,7 +328,7 @@ function BulkActionBar({
               <select
                 value={sequenceId}
                 onChange={(e) => setSequenceId(e.target.value)}
-                disabled={sequences.length === 0 || pending}
+                disabled={sequences.length === 0}
                 className="ml-2 h-8 rounded-md border border-input bg-background px-2 text-sm text-foreground disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {sequences.length === 0 ? (
@@ -332,32 +342,23 @@ function BulkActionBar({
                 )}
               </select>
             </label>
+            {/* Open confirm modal — actual submit happens inside the modal */}
             <Button
               type="button"
               size="sm"
               onClick={() => setConfirmOpen(true)}
               disabled={
-                pending ||
-                sendableCount === 0 ||
-                !sequenceId ||
-                sequences.length === 0
+                sendableCount === 0 || !sequenceId || sequences.length === 0
               }
             >
-              {pending ? (
-                <>
-                  <Loader2 className="size-4 animate-spin" /> Sending…
-                </>
-              ) : (
-                <>
-                  <Send /> Send first email{sendableCount > 1 ? `s (${sendableCount})` : ""}
-                </>
-              )}
+              <Send /> Send first email
+              {sendableCount > 1 ? `s (${sendableCount})` : ""}
             </Button>
           </div>
         </div>
       </div>
 
-      {/* Confirm modal */}
+      {/* Confirm modal — the submit button here actually fires the action */}
       {confirmOpen && (
         <div
           role="dialog"
@@ -373,7 +374,8 @@ function BulkActionBar({
               id="bulk-confirm-title"
               className="text-base font-semibold text-foreground"
             >
-              Send first email to {sendableCount} lead{sendableCount === 1 ? "" : "s"}?
+              Send first email to {sendableCount} lead
+              {sendableCount === 1 ? "" : "s"}?
             </h2>
             <div className="mt-3 space-y-2 text-sm text-muted-foreground">
               <p>
@@ -399,57 +401,51 @@ function BulkActionBar({
               {noEmailCount > 0 && (
                 <p className="text-warning">
                   {noEmailCount} of your selection has no email and will be
-                  skipped.
+                  skipped automatically.
                 </p>
               )}
             </div>
             <div className="mt-5 flex items-center justify-end gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                type="button"
-                onClick={() => setConfirmOpen(false)}
-                disabled={pending}
-              >
-                Cancel
-              </Button>
-              <Button
-                size="sm"
-                type="button"
-                onClick={() => {
-                  setConfirmOpen(false);
-                  handleSubmit();
-                }}
-                disabled={pending || !sequenceId}
-              >
-                {pending ? (
-                  <>
-                    <Loader2 className="size-4 animate-spin" /> Sending…
-                  </>
-                ) : (
-                  <>
-                    <Send /> Send now
-                  </>
-                )}
-              </Button>
+              <CancelButton onCancel={() => setConfirmOpen(false)} />
+              <SubmitButton disabled={!sequenceId} />
             </div>
           </div>
         </div>
       )}
-    </>
+    </form>
   );
 }
 
-function EmptyState({ hasFilters }: { hasFilters: boolean }) {
+/* ───── Submit button uses useFormStatus for pending state ─────────── */
+
+function SubmitButton({ disabled }: { disabled?: boolean }) {
+  const { pending } = useFormStatus();
   return (
-    <Card>
-      <CardContent className="px-6 py-10 text-sm">
-        {hasFilters ? (
-          <p className="text-muted-foreground">No leads match your filters.</p>
-        ) : (
-          <p className="text-muted-foreground">No leads yet.</p>
-        )}
-      </CardContent>
-    </Card>
+    <Button size="sm" type="submit" disabled={disabled || pending}>
+      {pending ? (
+        <>
+          <Loader2 className="size-4 animate-spin" /> Sending…
+        </>
+      ) : (
+        <>
+          <Send /> Send now
+        </>
+      )}
+    </Button>
+  );
+}
+
+function CancelButton({ onCancel }: { onCancel: () => void }) {
+  const { pending } = useFormStatus();
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      type="button"
+      onClick={onCancel}
+      disabled={pending}
+    >
+      Cancel
+    </Button>
   );
 }

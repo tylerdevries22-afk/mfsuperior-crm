@@ -53,10 +53,11 @@ function HeadingWithUnderline({ text }: { text: string }) {
 
 interface BenefitVideoProps {
   src: string;
+  poster: string;
   num: string;
 }
 
-function BenefitVideo({ src, num }: BenefitVideoProps) {
+function BenefitVideo({ src, poster, num }: BenefitVideoProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -65,47 +66,28 @@ function BenefitVideo({ src, num }: BenefitVideoProps) {
     const video = videoRef.current;
     if (!container || !video) return;
 
-    // Keep paused — scroll drives currentTime.
-    video.pause();
-    video.currentTime = 0;
-
-    let raf = 0;
-
-    const tick = () => {
-      const rect = container.getBoundingClientRect();
-      const viewH = window.innerHeight;
-
-      // 0 = video top at viewport bottom (entering), 1 = video bottom at viewport top (exiting).
-      const progress = (viewH - rect.top) / (viewH + rect.height);
-      const clamped = Math.max(0, Math.min(1, progress));
-
-      if (video.readyState >= 2 && video.duration > 0) {
-        video.currentTime = clamped * video.duration;
-      }
-
-      // Parallax: video drifts opposite to scroll direction.
-      // At entry (clamped=0) shift +5%, at exit (clamped=1) shift -5%.
-      video.style.transform = `translateY(${(0.5 - clamped) * 10}%)`;
-
-      raf = requestAnimationFrame(tick);
-    };
-
+    // Only fetch + play when the section is near the viewport. Pauses on
+    // exit so the decoder isn't running off-screen. rootMargin pre-warms
+    // the next clip ~one viewport before it scrolls in.
+    let started = false;
     const io = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
-          raf = requestAnimationFrame(tick);
+          if (!started) {
+            // First intersection: flip preload from "none" -> let the
+            // browser fetch + decode now that we know we want it.
+            video.preload = "auto";
+            started = true;
+          }
+          video.play().catch(() => {});
         } else {
-          cancelAnimationFrame(raf);
+          video.pause();
         }
       },
-      { threshold: 0 }
+      { rootMargin: "200px 0px" },
     );
     io.observe(container);
-
-    return () => {
-      cancelAnimationFrame(raf);
-      io.disconnect();
-    };
+    return () => io.disconnect();
   }, []);
 
   return (
@@ -123,18 +105,18 @@ function BenefitVideo({ src, num }: BenefitVideoProps) {
       <video
         ref={videoRef}
         src={src}
+        poster={poster}
         muted
+        loop
         playsInline
-        preload="auto"
+        preload="none"
         style={{
           position: 'absolute',
-          top: '-10%',
-          left: 0,
+          inset: 0,
           width: '100%',
-          height: '120%',
+          height: '100%',
           objectFit: 'cover',
           display: 'block',
-          willChange: 'transform',
         }}
       />
       <span
@@ -262,7 +244,11 @@ export function BenefitsSection() {
 
       {benefits.map((benefit, index) => (
         <div key={benefit.num}>
-          <BenefitVideo src={benefit.wideVideo} num={benefit.num} />
+          <BenefitVideo
+            src={benefit.wideVideo}
+            poster={benefit.wideVideo.replace(/\.mp4$/, '.jpg')}
+            num={benefit.num}
+          />
           <BenefitTextStrip benefit={benefit} isLast={index === benefits.length - 1} />
         </div>
       ))}
