@@ -6,7 +6,7 @@ import { Send, Loader2, X } from "lucide-react";
 import { useFormStatus } from "react-dom";
 import type { leads as leadsTable } from "@/lib/db/schema";
 import { Button } from "@/components/ui/button";
-import { StageChip, TierChip } from "@/components/leads/stage-chip";
+import { StageChip, TagBadges, TierChip } from "@/components/leads/stage-chip";
 import { Card, CardContent } from "@/components/ui/card";
 import { bulkSendAction } from "@/app/(app)/leads/actions";
 
@@ -146,6 +146,7 @@ export function LeadsTable({
                           no email
                         </p>
                       )}
+                      <TagBadges tags={lead.tags ?? []} className="mt-1" />
                     </td>
                     <td className="px-3 py-2.5 text-muted-foreground">
                       {lead.vertical ?? "—"}
@@ -220,8 +221,9 @@ export function LeadsTable({
                       </span>
                     </div>
                   </div>
-                  <div className="mt-2">
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
                     <StageChip stage={lead.stage} />
+                    <TagBadges tags={lead.tags ?? []} max={2} />
                   </div>
                 </div>
               </div>

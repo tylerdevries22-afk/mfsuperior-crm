@@ -19,7 +19,7 @@ import {
   type County,
 } from "./osm";
 import { scrapeDomainForContacts, pickBestScrapedContact } from "./scrape";
-import { validateEmail } from "./mx-validate";
+import { validateEmail, probeCommonEmails } from "./mx-validate";
 import {
   HunterClient,
   pickBestContact,
@@ -109,6 +109,8 @@ function rowToLeadInsert(row: EnrichedRow, source: string) {
   if (/scraped \(unverified\)/.test(row.whyThisLead)) tags.push("email-unverified");
   if (/catch-all/.test(row.whyThisLead)) tags.push("catch-all");
   if (/chain-store/.test(row.whyThisLead)) tags.push("chain-store");
+  if (/email-guessed/.test(row.whyThisLead)) tags.push("email-guessed");
+  if (/tier-untriaged/.test(row.whyThisLead)) tags.push("tier-untriaged");
 
   const breakdownLine =
     `Score breakdown — ` +
@@ -201,11 +203,17 @@ async function discoverFree(args: {
   counties: County[];
   excludeIds: Set<string>;
   maxPerCounty: number;
+  /** Stop discovery once we have at least this many candidates. */
+  earlyExitTarget?: number;
   log: (msg: string) => void;
 }): Promise<Array<{ business: Business; industry: Industry; county: County }>> {
   const out: Array<{ business: Business; industry: Industry; county: County }> = [];
   for (const county of args.counties) {
     for (const industry of args.industries) {
+      if (args.earlyExitTarget && out.length >= args.earlyExitTarget) {
+        args.log(`  → early-exit: have ${out.length} candidates, target ${args.earlyExitTarget}`);
+        return out;
+      }
       const list = await fetchOsmBusinesses({ industry, county, log: args.log });
       let added = 0;
       for (const b of list) {
@@ -312,6 +320,22 @@ async function enrichFree(business: Business, log: (m: string) => void): Promise
     } catch (err) {
       log(`    ! scrape failed on ${domain}: ${(err as Error).message}`);
     }
+
+    // 3. Common-pattern probe: if the domain has MX, guess `info@domain`.
+    //    For B2B small biz this is the right address ~80% of the time
+    //    (owner/manager usually monitors it). Tag email-guessed so the
+    //    operator can backfill if a real address surfaces later.
+    try {
+      const probe = await probeCommonEmails(domain);
+      if (probe) {
+        out.email = probe.email;
+        out.confidence = "low";
+        out.annotations.push("email-guessed");
+        return out;
+      }
+    } catch (err) {
+      log(`    ! probe failed on ${domain}: ${(err as Error).message}`);
+    }
   }
 
   out.annotations.push("needs-manual-email");
@@ -403,6 +427,9 @@ export async function runResearch(opts: RunOptions): Promise<RunReport> {
       counties: opts.counties,
       excludeIds: seenIds,
       maxPerCounty,
+      // Stop discovering once we have ~3x the target — gives the scorer
+      // enough to pick from while keeping the run fast for UI buttons.
+      earlyExitTarget: Math.max(opts.limit * 3, 30),
       log,
     });
   } else {
@@ -484,11 +511,15 @@ export async function runResearch(opts: RunOptions): Promise<RunReport> {
 
     const result = scoreLead({ business, industry, emailConfidence: enrich.confidence });
     if (result.refrigerated) counts.refrigerated++;
+    // If the score is below the C threshold, surface it as Tier C with a
+    // `tier-untriaged` tag instead of dropping silently. The operator
+    // sees every discovered lead in the CRM and can manually filter.
+    let effectiveTier: "A" | "B" | "C" = result.tier ?? "C";
     if (!result.tier) {
       counts.dropped++;
-      continue;
-    }
-    if (result.tier === "A") counts.tierA++;
+      counts.tierC++;
+      enrich.annotations.push("tier-untriaged");
+    } else if (result.tier === "A") counts.tierA++;
     else if (result.tier === "B") counts.tierB++;
     else counts.tierC++;
 
@@ -508,7 +539,7 @@ export async function runResearch(opts: RunOptions): Promise<RunReport> {
 
     rows.push({
       rank: rows.length + 1,
-      tier: result.tier,
+      tier: effectiveTier,
       score: result.score,
       companyName: business.name,
       category: VERTICAL_FOR[industry],
@@ -527,7 +558,7 @@ export async function runResearch(opts: RunOptions): Promise<RunReport> {
     cache.results[business.id] = {
       placeId: business.id,
       companyName: business.name,
-      tier: result.tier,
+      tier: effectiveTier,
       score: result.score,
       ts: new Date().toISOString(),
     };
