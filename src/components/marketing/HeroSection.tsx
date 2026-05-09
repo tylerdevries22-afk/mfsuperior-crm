@@ -196,17 +196,16 @@ export function HeroSection() {
           }}
         >
           {/*
-            Headline cascades fire in the first ~40% of section scroll
-            so they settle while there's still plenty of video left to
-            scrub. The back 60% is pure video appreciation — both lines
-            already revealed, user just scrolls through the truck
-            reveal.
+            Headline cascade is now SYNCED with the video scrub:
+            both span the full scroll runway from start to end. As
+            the video plays through (currentTime = progress × duration),
+            the headline letters reveal letter-by-letter at the same
+            pace. They finish together at the bottom of the section.
 
             Ranges against scrollYProgress (0–1) for the 420vh section:
-               line 1 remainder → [0.04, 0.22]   ≈ scroll 17vh→92vh
-               line 2 remainder → [0.25, 0.42]   ≈ scroll 105vh→176vh
-               settled tail     → [0.42, 1.00]   ≈ scroll 176vh→420vh
-                                                   (video keeps scrubbing)
+               cascade  → [0.04, 0.96]   spans full scroll
+               video    → [0.00, 1.00]   spans full scroll
+            Both arrive at "settled" state at the same time.
           */}
           <h1
             style={{
@@ -220,27 +219,21 @@ export function HeroSection() {
             }}
           >
             {/*
-              Single-line hero per user direction: "We haul what others
-              won't touch." Drops the previous second line. "We" stays
-              visible at scroll=0 (always-on first word); the rest
-              cascades in one letter at a time using the brand-yellow
-              flash. Range claims most of the section's scroll runway
-              so the cascade plays out across the user's scroll-jacked
-              video scrub.
+              Single-line hero: "We haul what others won't touch."
+              "We" stays visible at scroll=0 (always-on first word); the
+              rest cascades in letter-by-letter, paced to span the same
+              scroll range as the video scrub so both animations finish
+              together at the bottom of the 420vh runway.
             */}
             <span style={{ color: '#fff' }}>We</span>{' '}
             <CascadeText
               text="haul what others won't touch."
               progress={heroProgress}
-              // Cascade fires fast — within the first ~25% of the
-              // 420vh hero scroll runway (≈100vh of scroll). This
-              // matches the cadence of every other CascadeText on
-              // the site (TypewriterSection / FeaturesSection use a
-              // ~100vh scroll window via offset ['start 95%', 'start
-              // 30%']). After scroll 25%, all 29 letters are settled
-              // and the rest of the hero runway (~75% / 315vh) is
-              // pure video scrub before TypewriterSection rises.
-              range={[0.03, 0.25]}
+              // Span the full scroll runway so the headline keeps
+              // revealing as the video keeps scrubbing — synced from
+              // start to finish. Letters trickle in one at a time across
+              // the entire ~320vh of scroll (≈3 viewport heights).
+              range={[0.04, 0.96]}
               spread={1}
               finalColor="#fff"
               flashColor="#D4E030"
