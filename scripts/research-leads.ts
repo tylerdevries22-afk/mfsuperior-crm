@@ -1,26 +1,34 @@
 /**
  * scripts/research-leads.ts
  *
- * Discover Denver-Metro freight leads with verified contact emails, score
- * them, write a ranked xlsx + csv, and (by default) upsert into the same
- * Postgres `leads` table the live CRM reads — so new rows appear instantly
- * on https://mfsuperiorproducts.com/leads after the run finishes.
+ * COMPLETELY FREE Denver Metro freight-lead research. Zero paid APIs,
+ * zero credit cards, zero registration tokens.
+ *
+ * Pipeline:
+ *   1. OpenStreetMap Overpass — business discovery by industry tags,
+ *      bounded to each of 7 Denver Metro counties.
+ *   2. cheerio — scrape /, /about, /contact, /team for `mailto:` and
+ *      role hints (owner/manager/etc).
+ *   3. node:dns — MX-record check on each candidate email; reject any
+ *      domain without a real mail server.
+ *   4. libphonenumber-js — phone E.164 normalization (offline).
+ *   5. Deterministic scoring → tier A/B/C, refrigeration tagging.
+ *   6. Output xlsx + csv + Postgres upsert (instant /leads visibility).
  *
  * Usage:
- *   GOOGLE_MAPS_API_KEY=... HUNTER_API_KEY=... \
- *   DATABASE_URL=... \
- *     npx tsx scripts/research-leads.ts [flags]
+ *   DATABASE_URL=postgres://... npx tsx scripts/research-leads.ts
+ *   npm run leads:research -- --limit 20 --industries restaurants
  *
  * Flags:
- *   --limit N             default 50
- *   --industries CSV      restaurants,bigbox,brokers,smallbiz (default all)
- *   --counties CSV        Adams,Arapahoe,... (default all 7)
- *   --output PATH         default ./01_Lead_List.xlsx
- *   --no-db               skip Postgres upsert
- *   --dry-run             discovery + scoring only, no Hunter, no DB
- *   --smoke               --limit 5 --counties Arapahoe --industries restaurants --hunter-budget 5
- *   --no-cache            ignore .cache/lead-research.json
- *   --hunter-budget N     default 25
+ *   --limit N          (default 50)
+ *   --industries CSV   restaurants,bigbox,brokers,smallbiz
+ *   --counties CSV     Adams,Arapahoe,...
+ *   --output PATH      default ./01_Lead_List.xlsx
+ *   --no-db            xlsx only, skip Postgres upsert
+ *   --dry-run          discovery + scoring only (no scrape, no DB)
+ *   --smoke            --limit 5 --counties Arapahoe --industries restaurants
+ *   --no-cache         ignore .cache/lead-research.json
+ *   --max-per-county N (default 80) cap per (industry,county) pair
  */
 
 import "dotenv/config";
@@ -34,24 +42,21 @@ import { upsertLead, type Db } from "../src/lib/leads/upsert";
 import {
   COUNTIES,
   type County,
-  type Place,
-  discoverPlaces,
+  type Business,
+  fetchOsmBusinesses,
   rootDomain,
-  splitAddress,
-} from "../src/lib/research/places";
-import {
-  HunterClient,
-  pickBestContact,
-  type Budget,
-} from "../src/lib/research/hunter";
+  milesFromHq,
+} from "../src/lib/research/osm";
 import {
   scrapeDomainForContacts,
   pickBestScrapedContact,
 } from "../src/lib/research/scrape";
+import { validateEmail, type MxValidation } from "../src/lib/research/mx-validate";
 import {
   scoreLead,
   whyThisLead,
   isBigBoxChain,
+  VERTICAL_FOR,
   type Industry,
   type EmailConfidence,
 } from "../src/lib/research/score";
@@ -86,7 +91,7 @@ type Args = {
   noDb: boolean;
   dryRun: boolean;
   noCache: boolean;
-  hunterBudget: number;
+  maxPerCounty: number;
 };
 
 const ALL_INDUSTRIES: Industry[] = ["restaurants", "bigbox", "brokers", "smallbiz"];
@@ -113,7 +118,7 @@ function parseArgs(): Args {
     noDb: has("--no-db"),
     dryRun: has("--dry-run"),
     noCache: has("--no-cache"),
-    hunterBudget: Number(get("--hunter-budget") ?? 25),
+    maxPerCounty: Number(get("--max-per-county") ?? 80),
   };
 
   if (has("--smoke")) {
@@ -122,21 +127,11 @@ function parseArgs(): Args {
       limit: 5,
       counties: ["Arapahoe"],
       industries: ["restaurants"],
-      hunterBudget: 5,
     };
   }
 
   return args;
 }
-
-/* ── Vertical labels ─────────────────────────────────────────────── */
-
-const VERTICAL_LABEL: Record<Industry, string> = {
-  restaurants: "Restaurants & food",
-  bigbox: "Big-box retail",
-  brokers: "Freight broker / 3PL",
-  smallbiz: "Small business",
-};
 
 /* ── Phone helper ────────────────────────────────────────────────── */
 
@@ -147,15 +142,14 @@ function normalizePhone(raw: string | undefined | null): string | null {
   return parsed.format("E.164");
 }
 
-/* ── Build the LeadInsert from an enriched row ───────────────────── */
+/* ── Build a LeadInsert from an enriched row ─────────────────────── */
 
 function rowToLeadInsert(row: EnrichedRow, source: string) {
   const tags: string[] = [`tier-${row.tier}`, row.category];
-  // Append refrigeration / status tags by checking which "Why" string was emitted.
   if (/refrigerated/.test(row.whyThisLead)) tags.push("refrigerated");
   if (/needs manual/.test(row.whyThisLead)) tags.push("needs-manual-email");
-  if (/scraped \(unverified\)/.test(row.whyThisLead)) tags.push("email-unverified");
-  if (/catch-all/.test(row.whyThisLead)) tags.push("catch-all");
+  if (/free-webmail/.test(row.whyThisLead)) tags.push("freemail");
+  if (/role account/.test(row.whyThisLead)) tags.push("role-account");
 
   const breakdownLine =
     `Score breakdown — ` +
@@ -195,74 +189,57 @@ async function main(): Promise<void> {
   const log = (msg: string) => console.log(msg);
   const warn = (msg: string) => console.warn(msg);
 
-  log("=== research-leads ===");
+  log("=== research-leads (free, OSM + scrape + MX) ===");
   log(
     `industries: ${args.industries.join(",")}  counties: ${args.counties.join(",")}  limit: ${args.limit}  ` +
-      `dry-run: ${args.dryRun}  no-db: ${args.noDb}  hunter-budget: ${args.hunterBudget}`,
+      `dry-run: ${args.dryRun}  no-db: ${args.noDb}`,
   );
 
-  const placesKey = process.env.GOOGLE_MAPS_API_KEY;
-  const hunterKey = process.env.HUNTER_API_KEY;
-  if (!placesKey) {
-    console.error("ERROR: GOOGLE_MAPS_API_KEY is not set. Add it to .env.local.");
-    process.exit(1);
-  }
-  if (!args.dryRun && !hunterKey) {
-    console.error(
-      "ERROR: HUNTER_API_KEY is not set. Add it to .env.local or use --dry-run.",
-    );
-    process.exit(1);
-  }
-
   const cache = args.noCache
-    ? { seenPlaceIds: [] as string[], hunterUsage: { month: currentMonth(), searches: 0, verifications: 0 }, results: {} as Record<string, { placeId: string; companyName: string; tier: "A" | "B" | "C" | null; score: number; ts: string }> }
+    ? {
+        seenPlaceIds: [] as string[],
+        hunterUsage: { month: currentMonth(), searches: 0, verifications: 0 },
+        results: {} as Record<string, { placeId: string; companyName: string; tier: "A" | "B" | "C" | null; score: number; ts: string }>,
+      }
     : loadCache();
+  const seenIds = new Set<string>(cache.seenPlaceIds);
 
-  // Build Hunter client with budget rolled over per month.
-  const budget: Budget = {
-    searches: { used: cache.hunterUsage.searches, cap: args.hunterBudget },
-    verifications: { used: cache.hunterUsage.verifications, cap: args.hunterBudget },
-  };
-  const hunter = !args.dryRun && hunterKey ? new HunterClient(hunterKey, budget, log) : null;
+  /* ─── 1. Discovery ─── */
 
-  /* ─── Discovery ─── */
-
-  log("\n[1/3] Discovery (Google Places)…");
-  const exclude = new Set(cache.seenPlaceIds);
-  const candidates: Array<{ place: Place; industry: Industry; county: County }> = [];
+  log("\n[1/3] Discovery (OpenStreetMap Overpass)…");
+  const candidates: Array<{ business: Business; industry: Industry; county: County }> = [];
 
   for (const county of args.counties) {
     for (const industry of args.industries) {
-      try {
-        const found = await discoverPlaces({
-          apiKey: placesKey,
-          industry,
-          county,
-          excludeIds: exclude,
-          log,
-        });
-        candidates.push(...found);
-      } catch (err) {
-        warn(`  ! ${industry}/${county} discovery failed: ${(err as Error).message}`);
+      const bizList = await fetchOsmBusinesses({ industry, county, log });
+      let added = 0;
+      for (const b of bizList) {
+        if (seenIds.has(b.id)) continue;
+        if (added >= args.maxPerCounty) break;
+        seenIds.add(b.id);
+        candidates.push({ business: b, industry, county });
+        added++;
       }
+      log(`  + ${industry}/${county}: ${bizList.length} found, ${added} new (running total ${candidates.length})`);
+      // be polite to overpass
+      await new Promise((r) => setTimeout(r, 1500));
     }
   }
+  log(`  → ${candidates.length} candidates after dedupe (cache had ${cache.seenPlaceIds.length} prior).`);
 
-  log(`  → ${candidates.length} candidates after dedupe (cache had ${exclude.size} prior).`);
+  /* ─── 2. Enrichment ─── */
 
-  /* ─── Enrichment + scoring ─── */
-
-  log("\n[2/3] Enrichment (Hunter / scrape) + scoring…");
+  log("\n[2/3] Enrichment (scrape + MX validation) + scoring…");
 
   const rows: EnrichedRow[] = [];
   const counts = {
     discovered: candidates.length,
-    fromCache: exclude.size,
+    fromCache: cache.seenPlaceIds.length,
     enriched: 0,
     bigboxChain: 0,
     needsManualEmail: 0,
-    emailUnverified: 0,
-    catchAll: 0,
+    freemail: 0,
+    roleAccount: 0,
     refrigerated: 0,
     tierA: 0,
     tierB: 0,
@@ -270,78 +247,69 @@ async function main(): Promise<void> {
     dropped: 0,
   };
 
-  for (const { place, industry, county } of candidates) {
+  // Sort candidates: prefer those with website + address present so we
+  // spend our scraping budget on the highest-yield rows first.
+  candidates.sort((a, b) => {
+    const av = (a.business.website ? 2 : 0) + (a.business.email ? 4 : 0) + a.business.tagCount;
+    const bv = (b.business.website ? 2 : 0) + (b.business.email ? 4 : 0) + b.business.tagCount;
+    return bv - av;
+  });
+
+  for (const { business, industry } of candidates) {
     if (rows.length >= args.limit) {
       log(`  → reached --limit ${args.limit}; stopping enrichment`);
       break;
     }
 
-    const companyName = place.displayName?.text?.trim() ?? "(unknown)";
-    if (!companyName || companyName === "(unknown)") {
-      counts.dropped++;
-      continue;
-    }
-
-    let email: string | null = null;
+    let email: string | null = business.email; // OSM may already carry one
     let confidence: EmailConfidence = "none";
-    let tag: "chain-store" | "needs-manual" | "scraped" | "valid" | "accept_all" | null = null;
+    let mxResult: MxValidation | null = null;
 
-    if (isBigBoxChain(companyName)) {
-      // Chains: skip Hunter, leave email null, tag chain-store.
-      tag = "chain-store";
+    if (isBigBoxChain(business.name)) {
       counts.bigboxChain++;
-    } else if (hunter) {
-      const domain = rootDomain(place.websiteUri);
-      if (domain) {
-        const ds = await hunter.domainSearch(domain);
-        const best = ds ? pickBestContact(ds.emails) : null;
-        if (best?.value) {
-          email = best.value.toLowerCase();
-        } else {
-          // Scrape fallback
+      // chain — skip scrape, no email captured (route via corporate)
+    } else if (!args.dryRun) {
+      const domain = email
+        ? email.split("@")[1] ?? null
+        : rootDomain(business.website);
+
+      // 1. If OSM already gave us an email, validate it directly.
+      if (email) {
+        mxResult = await validateEmail(email);
+        if (mxResult.confidence === "rejected") email = null;
+      }
+
+      // 2. Otherwise scrape the website for mailto: links.
+      if (!email && domain) {
+        try {
           const scraped = await scrapeDomainForContacts(domain, log);
           const pick = pickBestScrapedContact(scraped);
           if (pick) {
-            email = pick.email;
-            confidence = "scraped";
+            const v = await validateEmail(pick.email);
+            if (v.confidence !== "rejected") {
+              email = v.email;
+              mxResult = v;
+            }
           }
+        } catch (err) {
+          warn(`    ! scrape threw on ${domain}: ${(err as Error).message}`);
         }
+      }
 
-        // Verify only if we have an email AND the company would be Tier C+ pre-verification.
-        if (email && confidence !== "scraped") {
-          const ver = await hunter.verify(email);
-          if (ver?.status === "valid") confidence = "valid";
-          else if (ver?.status === "accept_all") {
-            confidence = "accept_all";
-            counts.catchAll++;
-            tag = "accept_all";
-          } else {
-            // Drop the email entirely; mark unverified
-            email = null;
-            confidence = "none";
-            counts.emailUnverified++;
-            tag = "needs-manual";
-          }
-        } else if (email && confidence === "scraped") {
-          counts.emailUnverified++;
-          tag = "scraped";
+      if (mxResult) {
+        if (mxResult.confidence === "high") confidence = "high";
+        else if (mxResult.confidence === "medium") {
+          confidence = "medium";
+          counts.freemail++;
+        } else if (mxResult.confidence === "low") {
+          confidence = "low";
+          counts.roleAccount++;
         }
       }
-      if (!email) {
-        // tag is constrained to non-"chain-store" inside this branch;
-        // the chain-store path is the outer if.
-        tag = "needs-manual";
-        counts.needsManualEmail++;
-      }
-    } else {
-      // dry-run path: no email enrichment
-      if (!isBigBoxChain(companyName)) {
-        tag = "needs-manual";
-        counts.needsManualEmail++;
-      }
+      if (!email) counts.needsManualEmail++;
     }
 
-    const result = scoreLead({ place, industry, emailConfidence: confidence });
+    const result = scoreLead({ business, industry, emailConfidence: confidence });
     if (result.refrigerated) counts.refrigerated++;
     if (!result.tier) {
       counts.dropped++;
@@ -351,101 +319,64 @@ async function main(): Promise<void> {
     if (result.tier === "B") counts.tierB++;
     if (result.tier === "C") counts.tierC++;
 
-    const addr = splitAddress(place.formattedAddress);
-    const phone = normalizePhone(place.nationalPhoneNumber ?? place.internationalPhoneNumber);
+    const phone = normalizePhone(business.phone);
+    const miles = milesFromHq(business.lat, business.lon);
 
     const why = whyThisLead({
       industry,
-      city: addr.city,
+      city: business.city,
       refrigerated: result.refrigerated,
-      reviews: place.userRatingCount,
-      miles:
-        place.location
-          ? Math.round(
-              (() => {
-                // re-compute miles without re-importing — small dup but keeps the why string honest
-                const HQ_LAT = 39.6911;
-                const HQ_LNG = -104.8214;
-                const toRad = (d: number) => (d * Math.PI) / 180;
-                const R = 3958.8;
-                const dLat = toRad(place.location!.latitude - HQ_LAT);
-                const dLng = toRad(place.location!.longitude - HQ_LNG);
-                const a =
-                  Math.sin(dLat / 2) ** 2 +
-                  Math.cos(toRad(HQ_LAT)) *
-                    Math.cos(toRad(place.location!.latitude)) *
-                    Math.sin(dLng / 2) ** 2;
-                return R * 2 * Math.asin(Math.sqrt(a));
-              })(),
-            )
-          : null,
+      miles,
       emailStatus: confidence,
+      hasOpeningHours: business.hasOpeningHours,
     });
 
     rows.push({
       rank: rows.length + 1,
       tier: result.tier,
       score: result.score,
-      companyName,
-      category: VERTICAL_LABEL[industry],
-      address: addr.street,
-      city: addr.city,
-      state: addr.state,
+      companyName: business.name,
+      category: VERTICAL_FOR[industry],
+      address: business.street,
+      city: business.city,
+      state: business.state ?? "CO",
       phone,
-      website: place.websiteUri ?? null,
+      website: business.website,
       email,
       breakdown: result.breakdown,
-      whyThisLead: tag === "chain-store" ? `${why} chain-store — route via corporate procurement.` : why,
+      whyThisLead: isBigBoxChain(business.name)
+        ? `${why} chain-store — route via corporate procurement.`
+        : why,
     });
 
     counts.enriched++;
-    cache.seenPlaceIds.push(place.id);
-    cache.results[place.id] = {
-      placeId: place.id,
-      companyName,
+    cache.seenPlaceIds.push(business.id);
+    cache.results[business.id] = {
+      placeId: business.id,
+      companyName: business.name,
       tier: result.tier,
       score: result.score,
       ts: new Date().toISOString(),
     };
-    void county;
   }
 
-  // Re-rank by score desc.
   rows.sort((a, b) => b.score - a.score);
   rows.forEach((r, i) => (r.rank = i + 1));
 
   log(
     `  → enriched ${counts.enriched}  refrigerated=${counts.refrigerated}  tiers A/B/C ${counts.tierA}/${counts.tierB}/${counts.tierC}  dropped=${counts.dropped}`,
   );
-  if (hunter) {
-    const left = hunter.budgetLeft();
-    log(`  → Hunter usage: searches ${budget.searches.used}/${budget.searches.cap}  verifications ${budget.verifications.used}/${budget.verifications.cap}`);
-    if (left.searches === 0 || left.verifications === 0) {
-      warn(
-        `  ! Hunter quota hit. Upgrade: Hunter Starter $49/mo → 500 searches + 1k verifications.`,
-      );
-    }
-  }
 
-  /* ─── Persist cache + outputs ─── */
+  /* ─── 3. Outputs + DB ─── */
 
-  if (!args.noCache && hunter) {
-    cache.hunterUsage = {
-      month: currentMonth(),
-      searches: budget.searches.used,
-      verifications: budget.verifications.used,
-    };
-  }
   if (!args.noCache) saveCache(cache);
 
-  log(`\n[3/3] Writing outputs…`);
+  log("\n[3/3] Writing outputs…");
   await writeXlsx(rows, args.output);
   const csvPath = args.output.replace(/\.xlsx$/i, ".csv");
   writeCsv(rows, csvPath);
   log(`  → ${args.output}`);
   log(`  → ${csvPath}`);
-
-  /* ─── DB upsert (default) ─── */
 
   let dbStats = { inserted: 0, updated: 0, conflicts: 0 };
   if (!args.noDb && !args.dryRun) {
@@ -482,17 +413,12 @@ async function main(): Promise<void> {
   log(`Tier A/B/C:    ${counts.tierA} / ${counts.tierB} / ${counts.tierC}    Dropped: ${counts.dropped}`);
   log(`Refrigerated:  ${counts.refrigerated}`);
   log(
-    `Email status:  needs-manual ${counts.needsManualEmail}  unverified ${counts.emailUnverified}  catch-all ${counts.catchAll}  chain-store ${counts.bigboxChain}`,
+    `Email status:  needs-manual ${counts.needsManualEmail}  freemail ${counts.freemail}  role-account ${counts.roleAccount}  chain-store ${counts.bigboxChain}`,
   );
   if (!args.noDb && !args.dryRun) {
-    log(
-      `DB upserts:    inserted ${dbStats.inserted}  updated ${dbStats.updated}  conflicts ${dbStats.conflicts}`,
-    );
+    log(`DB upserts:    inserted ${dbStats.inserted}  updated ${dbStats.updated}  conflicts ${dbStats.conflicts}`);
   } else {
     log(`DB upserts:    skipped (${args.dryRun ? "--dry-run" : "--no-db"})`);
-  }
-  if (hunter) {
-    log(`Hunter quota:  ${budget.searches.used}/${budget.searches.cap} searches, ${budget.verifications.used}/${budget.verifications.cap} verifications used this month`);
   }
   log(`Output:        ${args.output} + ${csvPath}`);
   log("\nDone.");

@@ -140,33 +140,41 @@ Drive folder: open `drive.google.com`, create a folder for the CRM (e.g. "MFS CR
 | `npm run env:check` | Validate `.env.local` against `src/lib/env.ts` |
 | `npm run env:pull` | `vercel env pull .env.local` shorthand |
 
-## Lead research (Denver Metro)
+## Lead research (Denver Metro) — completely free
 
 The `scripts/research-leads.ts` script discovers freight-friendly companies
-across the Denver Metro 6-county area, finds the right contact email per
-company, scores + tiers each lead, writes a ranked `xlsx` + `csv`, and
-upserts directly into Postgres so new leads appear instantly on `/leads`.
+across the Denver Metro 6-county area, finds contact emails, scores + tiers
+each lead, writes a ranked `xlsx` + `csv`, and upserts directly into
+Postgres so new leads appear instantly on `/leads`.
+
+**Zero paid APIs, zero credit cards, zero registration tokens.** Stack:
+
+| Stage | Tool | Cost |
+|---|---|---|
+| Business discovery | OpenStreetMap Overpass (public) | Free, no key |
+| Email finding | cheerio scrape of `/about` `/contact` `/team` | Free, offline lib |
+| Email validation | `node:dns` MX-record check + freemail/disposable blocklist | Free, built-in |
+| Phone validation | `libphonenumber-js` | Free, offline |
+| Scoring + tier | Deterministic rubric (industry weight + refrig + tag richness + hours + email confidence + miles from HQ) | Local compute |
 
 ### Setup
 
 ```bash
-# Add the two optional API keys to .env.local:
-GOOGLE_MAPS_API_KEY="..."   # Google Cloud Console → APIs & Services → Credentials
-HUNTER_API_KEY="..."        # hunter.io → Settings → API
-# DATABASE_URL must point at your prod Neon URL for live visibility:
-DATABASE_URL="postgresql://...@neon.tech/..."
+# Only one env var needed — DATABASE_URL pointing at the same Postgres
+# your Vercel app reads (so /leads shows new rows instantly):
+echo 'DATABASE_URL="postgresql://...@neon.tech/..."' >> .env.local
 npm run env:check
 ```
 
 ### Run
 
 ```bash
-# Smoke test — 5 leads, 1 county, ≤5 Hunter calls, no DB write:
+# Smoke test — 5 restaurants in Arapahoe County, no DB write:
 npx tsx scripts/research-leads.ts --dry-run --smoke
 
 # Live mini-run, writes 5 leads to DB:
 npx tsx scripts/research-leads.ts --limit 5 --counties Arapahoe \
-  --industries restaurants --hunter-budget 5
+  --industries restaurants
 
 # Full run (default 50, all counties + industries, DB write):
 npm run leads:research
@@ -179,27 +187,28 @@ Flags:
 
 | Flag | Default | Notes |
 |---|---|---|
-| `--limit N` | 50 | Per-run cap (after dedupe + scoring) |
+| `--limit N` | 50 | Per-run cap (after scoring + drop) |
 | `--industries CSV` | all 4 | `restaurants,bigbox,brokers,smallbiz` |
 | `--counties CSV` | all 7 | `Adams,Arapahoe,Boulder,Broomfield,Denver,Douglas,Jefferson` |
 | `--output PATH` | `./01_Lead_List.xlsx` | xlsx written here; `.csv` mirror beside it |
 | `--no-db` | off | Write xlsx only; skip Postgres upsert |
-| `--dry-run` | off | Discovery + scoring only; **no Hunter, no DB** |
-| `--smoke` | off | Alias: `--limit 5 --counties Arapahoe --industries restaurants --hunter-budget 5` |
+| `--dry-run` | off | Discovery + scoring only; no scrape, no DB |
+| `--smoke` | off | Alias: `--limit 5 --counties Arapahoe --industries restaurants` |
 | `--no-cache` | off | Ignore `.cache/lead-research.json` |
-| `--hunter-budget N` | 25 | Hard cap on Hunter calls; matches free-tier monthly quota |
+| `--max-per-county N` | 80 | Cap per (industry, county) pair to keep Overpass responses small |
 
-### Hunter free tier vs paid
+### Quality vs the paid stack
 
-The free tier caps at **25 searches + 25 verifications per month**, combined
-across the account. A single 50-lead run will exhaust the search quota
-around lead #25; the script keeps emitting the rest with `email=null` +
-tag `needs-manual-email` so they still enter the DB and you can backfill
-manually or upgrade.
+OSM has weaker B2B coverage than Google Places (especially freight brokers
+and 3PLs — OSM tags warehouses but not the broker offices on top of them).
+To compensate, scoring is tightened on the signals OSM does provide
+(opening_hours present, tag richness, addr fields complete) and the tier
+thresholds are lowered slightly so good-but-thinly-tagged leads still
+make it to Tier C.
 
-Upgrade path: **[Hunter Starter — $49/mo](https://hunter.io/pricing)** unlocks
-500 searches + 1,000 verifications, enough for a weekly 50-lead run with
-slack to spare.
+If a company has no `mailto:` on its website, it's tagged
+`needs-manual-email` and lands at Tier C/B with `email=null` so you can
+backfill from `/leads/[id]` and still cold-pitch later.
 
 ### What gets written
 
@@ -213,18 +222,18 @@ Every run produces:
    rows instead of duplicating. An `auditLog` row is written per
    insert/update with action `research_inserted` / `research_updated` —
    visible at `/admin → Recent audit log`.
-3. `.cache/lead-research.json` — local placeId dedupe + Hunter monthly
-   counter. Safe to delete; the script just starts fresh.
+3. `.cache/lead-research.json` — local OSM-id dedupe so re-runs skip
+   companies already enriched. Safe to delete; the script just starts fresh.
 
 ### Tags applied
 
 - `tier-{A|B|C}` — always
-- `<vertical>` — e.g. "Restaurants & food"
-- `refrigerated` — when the business needs cold-chain freight (auto-detected from Google Places types)
-- `chain-store` — Home Depot / Walmart / Cracker Barrel etc; corporate procurement portal required, no email captured
-- `needs-manual-email` — Hunter found nothing or quota was exhausted; you fill the email later
-- `email-unverified` — pulled from website scrape but not verified by Hunter
-- `catch-all` — Hunter says the domain accepts everything; treat with caution
+- `<vertical>` — e.g. "Restaurant" / "Big-box retail" / "Freight broker / 3PL" / "Small business"
+- `refrigerated` — auto-detected from OSM tags (restaurant / cafe / bakery / grocery / pharmacy etc)
+- `freemail` — email is on gmail/yahoo/hotmail etc; lower B2B priority
+- `role-account` — email is `info@` / `support@` / etc; valid but not a person
+- `needs-manual-email` — no email found; backfill later or skip in bulk-send
+- `chain-store` — Home Depot / Walmart / Cracker Barrel / etc; route via corporate procurement manually
 
 ## Routes (current)
 
