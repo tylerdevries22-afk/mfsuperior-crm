@@ -1,21 +1,25 @@
 /**
  * Deterministic scoring rubric for Denver Metro freight leads. Sums to
- * 0-100; tier mapping ≥75 A, 50-74 B, 30-49 C, <30 drop.
+ * 0-100; tier mapping ≥70 A, 45-69 B, 25-44 C, <25 drop.
  *
  * Each component maps to a column the existing xlsx parser
- * (src/lib/xlsx.ts:34) already recognizes — when written to the workbook,
- * `toLeadInsert()` rolls them into the lead's `notes` automatically.
+ * (src/lib/xlsx.ts:34) already recognizes — `toLeadInsert()` rolls them
+ * into the lead's `notes` automatically.
+ *
+ * All inputs are derived from free signals (OSM tags + cheerio scrape +
+ * node:dns MX). No paid APIs.
  */
 
-import type { Place } from "./places";
+import type { Business } from "./osm";
+import { milesFromHq } from "./osm";
 
 export type Industry = "restaurants" | "bigbox" | "brokers" | "smallbiz";
 
 export type EmailConfidence =
-  | "valid" // Hunter verifier "valid"
-  | "accept_all" // catch-all domain
-  | "scraped" // pulled from website mailto:, not verified
-  | "none"; // no email at all
+  | "high" // domain has own MX, not webmail/role
+  | "medium" // free-webmail (gmail.com etc) but domain MX OK
+  | "low" // role account (info@, support@) with valid MX
+  | "none"; // no email at all OR rejected by MX
 
 export type ScoreBreakdown = {
   boxFit: number;
@@ -33,42 +37,34 @@ export type ScoreResult = {
   refrigerated: boolean;
 };
 
-/* ── Refrigeration heuristic ─────────────────────────────────────── */
+/* ── Refrigeration heuristic (OSM tags) ──────────────────────────── */
 
-const REFRIGERATED_TYPES = new Set([
-  "restaurant",
-  "cafe",
+const REFRIG_AMENITY = new Set(["restaurant", "cafe", "fast_food", "ice_cream", "pharmacy", "bar"]);
+const REFRIG_SHOP = new Set([
   "bakery",
-  "butcher_shop",
-  "food_store",
-  "grocery_store",
+  "butcher",
+  "deli",
   "supermarket",
-  "convenience_store",
+  "convenience",
+  "grocery",
   "florist",
-  "pharmacy",
-  "meal_takeaway",
-  "meal_delivery",
-  "ice_cream_shop",
+  "medical_supply",
 ]);
-
-const NON_REFRIGERATED_TYPES = new Set([
-  "home_improvement_store",
-  "hardware_store",
-  "furniture_store",
-  "auto_parts_store",
-  "electronics_store",
-  "clothing_store",
+const NON_REFRIG_SHOP = new Set([
   "department_store",
+  "hardware",
+  "doityourself",
+  "furniture",
+  "electronics",
+  "wholesale",
+  "car_parts",
+  "trade",
 ]);
 
-export function isRefrigerated(place: Place, industry: Industry): boolean {
-  const allTypes = new Set<string>([...(place.types ?? [])]);
-  if (place.primaryType) allTypes.add(place.primaryType);
-  for (const t of allTypes) {
-    if (REFRIGERATED_TYPES.has(t)) return true;
-    if (NON_REFRIGERATED_TYPES.has(t)) return false;
-  }
-  // Fall back to industry default — restaurants always refrig, brokers/big-box don't.
+export function isRefrigerated(b: Business, industry: Industry): boolean {
+  if (b.amenity && REFRIG_AMENITY.has(b.amenity)) return true;
+  if (b.shop && REFRIG_SHOP.has(b.shop)) return true;
+  if (b.shop && NON_REFRIG_SHOP.has(b.shop)) return false;
   if (industry === "restaurants") return true;
   return false;
 }
@@ -78,59 +74,40 @@ export function isRefrigerated(place: Place, industry: Industry): boolean {
 const INDUSTRY_WEIGHT: Record<Industry, number> = {
   brokers: 30,
   restaurants: 25,
-  smallbiz: 22, // average across mfg/medical/auto-parts/grocery/construction
+  smallbiz: 22,
   bigbox: 20,
 };
 
-/* ── Volume tier from review count ───────────────────────────────── */
+/* ── Volume proxy: OSM tag richness ─────────────────────────────── */
+// OSM doesn't have review counts, so we use tag richness as a proxy for
+// "well-cataloged commercial entry". Businesses with rich tags tend to be
+// real, established, and findable — proxies for size in absence of reviews.
 
-function volumeFromReviews(count: number | null | undefined): number {
-  const n = count ?? 0;
-  if (n >= 500) return 15;
-  if (n >= 100) return 10;
-  if (n >= 20) return 5;
+function volumeFromTagCount(tagCount: number): number {
+  if (tagCount >= 15) return 15;
+  if (tagCount >= 10) return 10;
+  if (tagCount >= 6) return 5;
   return 0;
 }
 
-/* ── Operating-hours signal ──────────────────────────────────────── */
+/* ── Window: opening_hours present ──────────────────────────────── */
 
-function windowFromHours(place: Place): number {
-  const hrs = place.regularOpeningHours;
-  if (!hrs?.periods) return 0;
-  // Periods array length 14 == open + close per day, full week.
-  if (hrs.periods.length >= 14) return 10;
-  if (hrs.periods.length > 0) return 5;
-  return 0;
+function windowFromHours(b: Business): number {
+  return b.hasOpeningHours ? 8 : 0;
 }
 
 /* ── DM-access from email confidence ─────────────────────────────── */
 
 const DM_ACCESS: Record<EmailConfidence, number> = {
-  valid: 15,
-  accept_all: 10,
-  scraped: 8,
+  high: 15,
+  medium: 8,
+  low: 5,
   none: 0,
 };
 
-/* ── Distance from MFS HQ (Aurora, CO 80017) ─────────────────────── */
+/* ── GeoFit: distance from MFS HQ ───────────────────────────────── */
 
-const HQ_LAT = 39.6911;
-const HQ_LNG = -104.8214;
-
-export function milesFromHQ(lat: number | null, lng: number | null): number | null {
-  if (lat == null || lng == null) return null;
-  const toRad = (d: number) => (d * Math.PI) / 180;
-  const R_MI = 3958.8;
-  const dLat = toRad(lat - HQ_LAT);
-  const dLng = toRad(lng - HQ_LNG);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(HQ_LAT)) * Math.cos(toRad(lat)) * Math.sin(dLng / 2) ** 2;
-  return R_MI * 2 * Math.asin(Math.sqrt(a));
-}
-
-function geoFitFromMiles(miles: number | null): number {
-  if (miles == null) return 0;
+function geoFitFromMiles(miles: number): number {
   if (miles < 15) return 20;
   if (miles < 30) return 10;
   if (miles < 50) return 5;
@@ -140,20 +117,20 @@ function geoFitFromMiles(miles: number | null): number {
 /* ── Final score ─────────────────────────────────────────────────── */
 
 export function scoreLead(args: {
-  place: Place;
+  business: Business;
   industry: Industry;
   emailConfidence: EmailConfidence;
 }): ScoreResult {
-  const { place, industry, emailConfidence } = args;
-  const refrigerated = isRefrigerated(place, industry);
+  const { business, industry, emailConfidence } = args;
+  const refrigerated = isRefrigerated(business, industry);
 
   const breakdown: ScoreBreakdown = {
     boxFit: INDUSTRY_WEIGHT[industry],
     liftgate: refrigerated ? 10 : 0,
-    volume: volumeFromReviews(place.userRatingCount),
-    window: windowFromHours(place),
+    volume: volumeFromTagCount(business.tagCount),
+    window: windowFromHours(business),
     dmAccess: DM_ACCESS[emailConfidence],
-    geoFit: geoFitFromMiles(milesFromHQ(place.location?.latitude ?? null, place.location?.longitude ?? null)),
+    geoFit: geoFitFromMiles(milesFromHq(business.lat, business.lon)),
   };
 
   const score =
@@ -164,40 +141,43 @@ export function scoreLead(args: {
     breakdown.dmAccess +
     breakdown.geoFit;
 
+  // Tier thresholds tuned for OSM's lower information density vs Places.
   const tier: "A" | "B" | "C" | null =
-    score >= 75 ? "A" : score >= 50 ? "B" : score >= 30 ? "C" : null;
+    score >= 70 ? "A" : score >= 45 ? "B" : score >= 25 ? "C" : null;
 
   return { score, tier, breakdown, refrigerated };
 }
 
-/* ── Helpers shared with the writer ──────────────────────────────── */
+/* ── Helpers ─────────────────────────────────────────────────────── */
+
+const VERTICAL_LABEL: Record<Industry, string> = {
+  restaurants: "Restaurant",
+  bigbox: "Big-box retail",
+  brokers: "Freight broker / 3PL",
+  smallbiz: "Small business",
+};
 
 export function whyThisLead(args: {
   industry: Industry;
   city: string | null;
   refrigerated: boolean;
-  reviews: number | null | undefined;
-  miles: number | null;
+  miles: number;
   emailStatus: EmailConfidence;
+  hasOpeningHours: boolean;
 }): string {
-  const verticalLabel: Record<Industry, string> = {
-    restaurants: "Restaurant",
-    bigbox: "Big-box retail",
-    brokers: "Freight broker / 3PL",
-    smallbiz: "Small business",
-  };
   const fleet = args.refrigerated ? "refrigerated" : "dry";
-  const reviews = args.reviews ?? 0;
-  const milesPart =
-    args.miles != null ? `HQ ${Math.round(args.miles)}mi away` : "distance unknown";
+  const milesPart = `HQ ${Math.round(args.miles)}mi away`;
   const emailLabel: Record<EmailConfidence, string> = {
-    valid: "verified",
-    accept_all: "catch-all (likely valid)",
-    scraped: "scraped (unverified)",
+    high: "verified (MX-checked, business domain)",
+    medium: "free-webmail address (lower priority)",
+    low: "role account (info@/support@)",
     none: "missing — needs manual",
   };
-  return `${verticalLabel[args.industry]} in ${args.city ?? "Denver Metro"}; ${fleet} fleet match; ${reviews} reviews; ${milesPart}; email ${emailLabel[args.emailStatus]}.`;
+  const hoursPart = args.hasOpeningHours ? "hours listed" : "hours not listed";
+  return `${VERTICAL_LABEL[args.industry]} in ${args.city ?? "Denver Metro"}; ${fleet} fleet match; ${hoursPart}; ${milesPart}; email ${emailLabel[args.emailStatus]}.`;
 }
+
+export const VERTICAL_FOR = VERTICAL_LABEL;
 
 export const BIG_BOX_BRANDS = new Set(
   [
