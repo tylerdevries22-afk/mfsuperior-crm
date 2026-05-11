@@ -17,6 +17,7 @@ import {
   removeSuppressionAction,
   runFreeResearchAction,
   runPaidResearchAction,
+  unarchiveAllLeadsAction,
   verifiedQuickAddAction,
   wipeGuessedLeadsAction,
 } from "./actions";
@@ -436,6 +437,44 @@ export default async function AdminPage({
             <span className="font-mono">/leads</span> after to see the new
             rows.
           </p>
+
+          {/* Unarchive: reverse every archive (full table or last N) */}
+          <form
+            action={unarchiveAllLeadsAction}
+            className="flex flex-wrap items-start gap-3 rounded-md border border-success/40 bg-success/10 p-4"
+          >
+            <div className="flex-1 min-w-[260px]">
+              <p className="font-medium text-foreground">
+                Unarchive leads
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Reverses any archive — sets <span className="font-mono">archivedAt = NULL</span>{" "}
+                for the matched rows so they reappear on{" "}
+                <span className="font-mono">/leads</span>. Default scope is{" "}
+                <strong className="text-foreground">all</strong> archived rows;
+                pick a tighter window if you only want to recover a recent
+                batch.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-muted-foreground">
+                Window
+                <select
+                  name="since"
+                  defaultValue="all"
+                  className="ml-2 h-8 rounded-md border border-input bg-background px-2 text-sm text-foreground"
+                >
+                  <option value="15m">Last 15 min</option>
+                  <option value="1h">Last 1 hour</option>
+                  <option value="24h">Last 24 hours</option>
+                  <option value="all">All archived</option>
+                </select>
+              </label>
+              <Button type="submit" size="sm" variant="outline">
+                Unarchive
+              </Button>
+            </div>
+          </form>
 
           {/* Purge: archive every lead without an email */}
           <form
