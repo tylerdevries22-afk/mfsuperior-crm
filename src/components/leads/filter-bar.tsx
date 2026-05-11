@@ -29,13 +29,18 @@ const SOURCES = [
   { value: "website_contact", label: "Inbound (website contact form)" },
   { value: "manual", label: "Manually added" },
 ] as const;
-const KNOWN_TAGS = [
+/** Fallback tag list used only when the parent page hasn't supplied a
+ * `availableTags` prop (e.g., legacy callers). The leads page queries
+ * `SELECT DISTINCT unnest(tags) FROM leads` and passes the live set so
+ * the dropdown is always in sync with what's actually in the DB. */
+const FALLBACK_TAGS = [
   "tier-A",
   "tier-B",
   "tier-C",
   "email-verified",
   "email-guessed",
   "refrigerated",
+  "denver-batch-1",
   "chain-store",
   "discovered-via-osm",
   "discovered-via-curated",
@@ -67,6 +72,8 @@ type Props = {
   tiers: string[];
   sources: string[];
   tags: string[];
+  /** Live tag set from the DB. When omitted, FALLBACK_TAGS is used. */
+  availableTags?: string[];
   lastContacted: string;
   enrollment: string;
   hasEmail: string;
@@ -311,7 +318,10 @@ export function FilterBar(props: Props) {
         <MultiSelectDropdown
           label="Tags"
           paramName="tags"
-          options={KNOWN_TAGS.map((t) => ({ value: t, label: t }))}
+          options={(props.availableTags && props.availableTags.length > 0
+            ? props.availableTags
+            : FALLBACK_TAGS
+          ).map((t) => ({ value: t, label: t }))}
           selected={props.tags}
           others={{
             q: props.q,

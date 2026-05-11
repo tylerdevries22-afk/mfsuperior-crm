@@ -240,17 +240,46 @@ function SidebarNav({
               <Link
                 href={href}
                 className={cn(
-                  "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors duration-150",
+                  // Linear/Attio-style nav item: subtle pill with a
+                  // left-edge accent line on the active item. Active
+                  // background is `bg-secondary` (not the loud lime
+                  // primary) so the notification badge + chevrons can
+                  // still read in lime. Focus-visible ring keeps
+                  // keyboard navigation legible.
+                  "group relative flex items-center gap-3 rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
                   active
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                    ? "bg-secondary text-foreground"
+                    : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground",
                 )}
                 aria-current={active ? "page" : undefined}
               >
-                <Icon className="size-4 shrink-0" aria-hidden />
+                {/* Active-item indicator: 2px lime stripe on the left
+                    edge, matching the look used by Linear, Attio,
+                    Slack threads, etc. Cleaner than a full background
+                    flood. */}
+                {active && (
+                  <span
+                    aria-hidden
+                    className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-r-sm bg-primary"
+                  />
+                )}
+                <Icon
+                  className={cn(
+                    "size-4 shrink-0 transition-colors",
+                    active ? "text-primary" : "text-muted-foreground group-hover:text-foreground",
+                  )}
+                  aria-hidden
+                />
                 <span className="truncate flex-1">{label}</span>
                 {showBadge && (
-                  <span className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-semibold tabular-nums text-primary-foreground">
+                  <span
+                    className={cn(
+                      "ml-auto inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1.5 text-[10px] font-semibold tabular-nums",
+                      // Lime accent badge on the unread count so it
+                      // pops against both active + inactive nav rows.
+                      "bg-primary text-primary-foreground",
+                    )}
+                  >
                     {unreadNotifications > 99 ? "99+" : unreadNotifications}
                   </span>
                 )}
@@ -265,8 +294,15 @@ function SidebarNav({
 
 function SidebarFooter() {
   return (
-    <div className="border-t border-border px-5 py-3 text-xs text-muted-foreground">
-      <p className="font-mono tabular-nums">v0.1.0 · MVP</p>
+    <div className="flex flex-col gap-1.5 border-t border-border px-3 py-3 text-[11px] text-muted-foreground">
+      <p className="flex items-center justify-between font-mono tabular-nums">
+        <span>v0.1.0 · MVP</span>
+        {/* Discoverability for the command palette. The actual key
+            handler is mounted in (app)/layout.tsx via <CommandPalette>. */}
+        <kbd className="rounded border border-border bg-secondary/60 px-1.5 py-px font-mono">
+          ⌘K
+        </kbd>
+      </p>
     </div>
   );
 }
