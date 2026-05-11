@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { env } from "@/lib/env";
 import { db } from "@/lib/db/client";
@@ -248,8 +248,11 @@ export async function quickAddStarterPackAction(): Promise<void> {
     } else {
       env();
 
-      // Take the first 25 across all industries.
-      const sample = CURATED_DENVER.slice(0, 25);
+      // Insert ALL curated entries. The list ships in the repo so this is
+      // fast (no network, no scrape). Each entry uses its preferred
+      // contact-email local-part (info/procurement/dispatch/orders) so the
+      // resulting address actually routes to the right inbox.
+      const sample = CURATED_DENVER;
       attempted = sample.length;
 
       const verticalLabel: Record<string, string> = {
@@ -264,11 +267,14 @@ export async function quickAddStarterPackAction(): Promise<void> {
         if (c.refrigerated || c.industry === "restaurants") tags.push("refrigerated");
         if (c.chain) tags.push("chain-store");
 
+        const localPart = c.emailLocal ?? "info";
+        const email = `${localPart}@${c.domain}`;
+
         try {
           const [row] = await db
             .insert(leadsTable)
             .values({
-              email: `info@${c.domain}`,
+              email,
               phone: null,
               companyName: c.name,
               website: `https://${c.domain}`,
@@ -349,6 +355,64 @@ export async function quickAddStarterPackAction(): Promise<void> {
   });
   if (errorMsg) params.set("starter_error", errorMsg);
   // redirect() throws NEXT_REDIRECT — it MUST be outside the try/catch above.
+  redirect(`/leads?${params.toString()}`);
+}
+
+/* ── Purge leads without an email (archive, not hard-delete) ─────── */
+
+/**
+ * Archives every lead where `email IS NULL` by setting archivedAt to
+ * now. The /leads list already filters `WHERE archivedAt IS NULL`,
+ * so archived rows disappear from the worklist immediately. Reversible:
+ * `UPDATE leads SET archived_at = NULL WHERE source = 'spreadsheet'`
+ * brings them back if needed.
+ */
+export async function purgeNoEmailLeadsAction(): Promise<void> {
+  let errorMsg: string | null = null;
+  let archivedCount = 0;
+
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      errorMsg = "unauthorized";
+    } else {
+      env();
+
+      const result = await db
+        .update(leadsTable)
+        .set({ archivedAt: new Date(), updatedAt: new Date() })
+        .where(and(isNull(leadsTable.email), isNull(leadsTable.archivedAt)))
+        .returning({ id: leadsTable.id });
+      archivedCount = result.length;
+
+      try {
+        await db.insert(auditLog).values({
+          actorUserId: session.user.id,
+          entity: "leads",
+          entityId: null,
+          action: "purge_no_email",
+          beforeJson: null,
+          afterJson: { archived: archivedCount },
+          occurredAt: sql`now()`,
+        });
+      } catch (err) {
+        console.error("[purge] audit failed:", (err as Error).message);
+      }
+    }
+  } catch (err) {
+    errorMsg = (err as Error).name + ": " + (err as Error).message.slice(0, 120);
+    console.error("[purge] FATAL:", err);
+  }
+
+  revalidatePath("/leads");
+  revalidatePath("/admin");
+
+  const params = new URLSearchParams({
+    purged: "1",
+    archived: String(archivedCount),
+    stage: "all",
+  });
+  if (errorMsg) params.set("purge_error", errorMsg);
   redirect(`/leads?${params.toString()}`);
 }
 
