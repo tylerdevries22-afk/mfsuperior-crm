@@ -1495,6 +1495,89 @@ export async function revalidateAllLeadEmailsAction(): Promise<void> {
   redirect(`/admin?${params.toString()}`);
 }
 
+/* ── Pending-migrations apply (operator-triggered) ───────────────── */
+
+/**
+ * Idempotent ALTER TABLE pass for column-additions that the deployed
+ * code has started reading but the production database doesn't have
+ * yet. Lets the operator unstick the app from the browser instead of
+ * needing shell access with prod credentials to run `npm run db:push`.
+ *
+ * Each statement uses `ADD COLUMN IF NOT EXISTS` so re-clicking after
+ * the columns land is a no-op (and the audit log captures that).
+ *
+ * Currently applies:
+ *   • leads.email_trust          — text, set by email-trust pipeline
+ *   • leads.email_validated_at   — timestamptz, last-classified time
+ *
+ * Add new entries to PENDING_DDL whenever a future PR introduces a
+ * column the runtime expects. Drop entries once they've definitely
+ * landed everywhere (production + every dev DB).
+ */
+const PENDING_DDL: ReadonlyArray<{ sql: string; describe: string }> = [
+  {
+    sql: `ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "email_trust" text;`,
+    describe: "leads.email_trust",
+  },
+  {
+    sql: `ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "email_validated_at" timestamp with time zone;`,
+    describe: "leads.email_validated_at",
+  },
+];
+
+export async function applyPendingMigrationsAction(): Promise<void> {
+  let errorMsg: string | null = null;
+  const applied: string[] = [];
+
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      errorMsg = "unauthorized";
+    } else {
+      // Run each ALTER independently so a failure on one doesn't
+      // prevent the rest. With IF NOT EXISTS, repeats are no-ops.
+      for (const stmt of PENDING_DDL) {
+        try {
+          await db.execute(sql.raw(stmt.sql));
+          applied.push(stmt.describe);
+        } catch (err) {
+          errorMsg = `${stmt.describe}: ${(err as Error).message.slice(0, 120)}`;
+          break;
+        }
+      }
+
+      try {
+        await db.insert(auditLog).values({
+          actorUserId: session.user.id,
+          entity: "settings",
+          entityId: null,
+          action: "apply_pending_migrations",
+          beforeJson: null,
+          afterJson: { applied, errorMsg },
+          occurredAt: sql`now()`,
+        });
+      } catch {
+        // Audit log failure is non-fatal — the migration itself is
+        // what matters here.
+      }
+    }
+  } catch (err) {
+    errorMsg = (err as Error).name + ": " + (err as Error).message.slice(0, 120);
+    console.error("[applyPendingMigrations] FATAL:", err);
+  }
+
+  revalidatePath("/leads");
+  revalidatePath("/admin");
+
+  const params = new URLSearchParams({
+    migrated: "1",
+    m_applied: applied.join(",") || "0",
+  });
+  if (errorMsg) params.set("migrate_error", errorMsg);
+  params.set("tab", "health");
+  redirect(`/admin?${params.toString()}`);
+}
+
 /* ── One-shot business-name fix ─────────────────────────────────── */
 
 /**
