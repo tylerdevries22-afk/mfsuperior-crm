@@ -50,21 +50,35 @@ export async function bulkSendAction(formData: FormData): Promise<void> {
     sequenceId: formData.get("sequenceId"),
   });
 
-  // 1. Enroll each lead. Track outcomes for the result banner.
+  // 1. Enroll each lead. Track outcomes for the result banner. Wrap each
+  //    iteration so a DB failure on one lead doesn't poison the rest of
+  //    the batch; collect failed IDs so the audit log captures them.
   const counts = {
     enrolled: 0,
     alreadyEnrolled: 0,
     suppressed: 0,
     noActiveStep: 0,
     noLead: 0,
+    errored: 0,
   };
+  const erroredIds: string[] = [];
   for (const leadId of parsed.leadIds) {
-    const r = await enrollLeadInSequence(leadId, parsed.sequenceId);
-    if (r.created) counts.enrolled++;
-    else if (r.reason === "already_enrolled") counts.alreadyEnrolled++;
-    else if (r.reason === "suppressed") counts.suppressed++;
-    else if (r.reason === "no_active_step") counts.noActiveStep++;
-    else if (r.reason === "no_lead") counts.noLead++;
+    try {
+      const r = await enrollLeadInSequence(leadId, parsed.sequenceId);
+      if (r.created) counts.enrolled++;
+      else if (r.reason === "already_enrolled") counts.alreadyEnrolled++;
+      else if (r.reason === "suppressed") counts.suppressed++;
+      else if (r.reason === "no_active_step") counts.noActiveStep++;
+      else if (r.reason === "no_lead") counts.noLead++;
+    } catch (err) {
+      counts.errored++;
+      erroredIds.push(leadId);
+      console.error(
+        "[bulkSend] enrollment failed for",
+        leadId,
+        (err as Error).message,
+      );
+    }
   }
 
   // 2. Fire the tick now so freshly-enrolled leads send in this request,
@@ -83,6 +97,7 @@ export async function bulkSendAction(formData: FormData): Promise<void> {
       sequenceId: parsed.sequenceId,
       requested: parsed.leadIds.length,
       ...counts,
+      erroredIds: erroredIds.slice(0, 50),
       tick: {
         due: tick.due,
         sent: tick.sent,
