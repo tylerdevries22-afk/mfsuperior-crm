@@ -51,28 +51,58 @@ function BenefitVideo({ src, poster, num }: BenefitVideoProps) {
     const video = videoRef.current;
     if (!container || !video) return;
 
-    // Only fetch + play when the section is near the viewport. Pauses on
-    // exit so the decoder isn't running off-screen. rootMargin pre-warms
-    // the next clip ~one viewport before it scrolls in.
+    // Scroll-scrubbed playback (same pattern as HeroSection). Pauses
+    // the video and drives currentTime off scroll position, so the
+    // clip plays forward as the user scrolls down and rewinds as they
+    // scroll up. Every other animation on the page (text cascades, MF
+    // font growth, hero scrub) responds to scroll — the benefit
+    // videos now do too, so the page feels cohesive.
+    //
+    // Progress is measured over the video's viewport traversal:
+    // (viewH - rect.top) / (viewH + rect.height) → 0 when the video's
+    // top edge is one viewport below the fold, 1 when its bottom edge
+    // is one viewport above the fold. That gives ~80vh (video) + 100vh
+    // (viewport) = 180vh of scroll runway per clip. For a ~10s clip
+    // the scrub feels ~18vh/sec — half the hero's 50vh/sec pace,
+    // deliberate but not sleepy.
+    video.pause();
     let started = false;
+    let raf = 0;
+
+    const tick = () => {
+      const rect = container.getBoundingClientRect();
+      const viewH = window.innerHeight;
+      const p = (viewH - rect.top) / (viewH + rect.height);
+      const progress = Math.max(0, Math.min(1, p));
+      if (video.readyState >= 2 && video.duration > 0) {
+        video.currentTime = progress * video.duration;
+      }
+      raf = requestAnimationFrame(tick);
+    };
+
+    // rAF only ticks when the section is near the viewport so the
+    // decoder isn't running off-screen. rootMargin pre-warms the next
+    // clip ~one viewport before it scrolls in so there's no flash of
+    // poster when it arrives.
     const io = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
           if (!started) {
-            // First intersection: flip preload from "none" -> let the
-            // browser fetch + decode now that we know we want it.
             video.preload = "auto";
             started = true;
           }
-          video.play().catch(() => {});
+          raf = requestAnimationFrame(tick);
         } else {
-          video.pause();
+          cancelAnimationFrame(raf);
         }
       },
       { rootMargin: "200px 0px" },
     );
     io.observe(container);
-    return () => io.disconnect();
+    return () => {
+      cancelAnimationFrame(raf);
+      io.disconnect();
+    };
   }, []);
 
   return (
@@ -92,7 +122,6 @@ function BenefitVideo({ src, poster, num }: BenefitVideoProps) {
         src={src}
         poster={poster}
         muted
-        loop
         playsInline
         preload="none"
         style={{
