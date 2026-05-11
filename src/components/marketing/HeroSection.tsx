@@ -12,7 +12,7 @@ export function HeroSection() {
   // below. We DELIBERATELY DO NOT use framer-motion's `useScroll` here:
   // when Lenis smooth-scrolls the page, framer-motion's scroll source
   // can fall out of sync (heroProgress was empirically capping at ~0.23
-  // even when the user had scrolled to the bottom of the 420vh hero).
+  // even when the user had scrolled to the bottom of the runway).
   // The rAF tick reads `getBoundingClientRect()` which is always
   // accurate regardless of who's driving the scroll, so it gives us a
   // clean 0→1 progress that the cascade can map against.
@@ -176,10 +176,10 @@ export function HeroSection() {
       className="mkt-hero-runway"
       style={{
         // Scroll runway height lives in CSS (.mkt-hero-runway in
-        // globals.css) so we can tune per breakpoint: 420vh desktop,
-        // 300vh tablet, 260vh phone. The cascade range [0.04, 0.96]
-        // is *proportional* to section height, so it stays in lockstep
-        // with video.currentTime across breakpoints — no per-device
+        // globals.css) so we can tune per breakpoint: 280vh desktop,
+        // 240vh tablet, 220vh phone. Both the video scrub and the
+        // cascade text use range [0, 1] of section progress, so they
+        // stay in lockstep across every breakpoint with no per-device
         // range math needed.
         position: 'relative',
         // CRITICAL: do NOT set overflow: hidden here. When a sticky
@@ -294,10 +294,12 @@ export function HeroSection() {
             the headline letters reveal letter-by-letter at the same
             pace. They finish together at the bottom of the section.
 
-            Ranges against scrollYProgress (0–1) for the 420vh section:
-               cascade  → [0.04, 0.96]   spans full scroll
-               video    → [0.00, 1.00]   spans full scroll
-            Both arrive at "settled" state at the same time.
+            Both animations use range [0, 1] of section scroll
+            progress:
+               cascade  → [0, 1]   spans full scroll
+               video    → [0, 1]   spans full scroll
+            They reach their settled state on the exact same frame
+            at the bottom of the runway.
           */}
           <h1
             style={{
@@ -320,17 +322,21 @@ export function HeroSection() {
               "We" stays visible at scroll=0 (always-on first word); the
               rest cascades in letter-by-letter, paced to span the same
               scroll range as the video scrub so both animations finish
-              together at the bottom of the 420vh runway.
+              together at the bottom of the runway.
             */}
             <span style={{ color: '#fff' }}>We</span>{' '}
             <CascadeText
               text="haul what others won't touch."
               progress={heroProgress}
-              // Span the full scroll runway so the headline keeps
-              // revealing as the video keeps scrubbing — synced from
-              // start to finish. Letters trickle in one at a time across
-              // the entire ~320vh of scroll (≈3 viewport heights).
-              range={[0.04, 0.96]}
+              // Sync the cascade 1:1 with the video scrub: both
+              // animations span the FULL [0, 1] of scroll progress,
+              // so the last letter snaps into place on the exact
+              // same frame the video reaches frame 149. The prior
+              // [0.04, 0.96] window meant the cascade was 4% ahead
+              // at the start and 4% behind at the end — visible as
+              // the text "finishing early" while the video was
+              // still scrubbing the last frames.
+              range={[0, 1]}
               spread={1}
               finalColor="#fff"
               flashColor="#D4E030"
