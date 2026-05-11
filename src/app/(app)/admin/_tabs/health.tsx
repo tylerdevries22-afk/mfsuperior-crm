@@ -1,10 +1,13 @@
 import { desc, eq, sql } from "drizzle-orm";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Wrench } from "lucide-react";
 import { db } from "@/lib/db/client";
 import { auditLog, leads, suppressionList, users } from "@/lib/db/schema";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { userHasGoogleConnection } from "@/lib/gmail/oauth";
+import { applyPendingMigrationsAction } from "../actions";
 import { Row } from "./_shared";
+import type { AdminSearch } from "./types";
 
 /**
  * Health snapshot + audit log. Pulls its own data inline so the tab
@@ -15,7 +18,7 @@ import { Row } from "./_shared";
  * connection cache. That's O(users) round-trips but the user count is
  * tiny (<10), so we accept it rather than introducing a join here.
  */
-export async function HealthTab() {
+export async function HealthTab({ sp }: { sp: AdminSearch }) {
   const [
     [{ userCount }],
     suppressionRows,
@@ -76,6 +79,61 @@ export async function HealthTab() {
               </p>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Pending-migrations applier — operator-triggered. Runs the
+          IF NOT EXISTS ALTER TABLE statements in actions.ts'
+          PENDING_DDL list. Exists so a column-add PR (e.g. PR #46
+          adding email_trust) doesn't require shell access to
+          unstick the production app. */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Wrench className="size-4 text-primary" /> Pending schema
+            migrations
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            If the deployed code added new columns that haven&apos;t
+            been pushed to the production database yet, click below to
+            apply them. The DDL is idempotent (
+            <span className="font-mono">ADD COLUMN IF NOT EXISTS</span>
+            ), so re-clicking after the columns land is a no-op.
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Currently pending:{" "}
+            <span className="font-mono">leads.email_trust</span>,{" "}
+            <span className="font-mono">leads.email_validated_at</span>{" "}
+            (introduced by the email-trust pipeline in PR #46). Without
+            this, <span className="font-mono">/leads</span> throws on
+            every load because the SELECT references columns that
+            don&apos;t exist in the DB.
+          </p>
+          <form action={applyPendingMigrationsAction}>
+            <Button type="submit" size="sm">
+              <Wrench /> Apply pending migrations
+            </Button>
+          </form>
+          {sp.migrated === "1" && sp.migrate_error ? (
+            <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 font-mono text-[11px] text-destructive">
+              {decodeURIComponent(sp.migrate_error)}
+            </p>
+          ) : sp.migrated === "1" ? (
+            <p className="rounded-md border border-success/40 bg-success/10 px-3 py-2 text-xs text-foreground">
+              Applied:{" "}
+              <span className="font-mono">
+                {sp.m_applied === "0" || !sp.m_applied
+                  ? "(nothing — DB already up to date)"
+                  : decodeURIComponent(sp.m_applied)}
+              </span>
+              .{" "}
+              <a href="/leads" className="underline">
+                Open /leads to confirm.
+              </a>
+            </p>
+          ) : null}
         </CardContent>
       </Card>
 

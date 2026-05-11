@@ -71,7 +71,7 @@ export default async function AdminPage({
       {active === "operations" && <OperationsTab sp={sp} />}
       {active === "imports" && <ImportsTab sp={sp} />}
       {active === "suppression" && <SuppressionTab />}
-      {active === "health" && <HealthTab />}
+      {active === "health" && <HealthTab sp={sp} />}
     </div>
   );
 }

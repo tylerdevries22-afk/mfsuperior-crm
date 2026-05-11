@@ -63,6 +63,10 @@ export type AdminSearch = {
   t_archived?: string;
   t_dur?: string;
   trust_error?: string;
+  // ── Pending migrations applier ───────────────────────────────
+  migrated?: string;
+  m_applied?: string;
+  migrate_error?: string;
   // ── Denver batch 1 ───────────────────────────────────────────
   batch1?: string;
   b1_validated?: string;
