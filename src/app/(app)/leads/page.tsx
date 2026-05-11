@@ -39,6 +39,9 @@ type Search = {
   // Quick-add starter pack redirect params
   just_added?: string;
   just_updated?: string;
+  just_enriched?: string;
+  just_unarchived?: string;
+  just_skipped?: string;
   starter?: string;
   starter_error?: string;
   // Purge redirect params
@@ -160,8 +163,12 @@ export default async function LeadsPage({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <form action={quickAddStarterPackAction}>
-            <Button type="submit" variant="secondary" title="Insert 25 curated Denver Metro businesses with info@domain emails">
-              <Zap /> Quick-add 25
+            <Button
+              type="submit"
+              variant="secondary"
+              title="Insert ~150 curated Denver Metro businesses with role-targeted emails (procurement@, orders@, dispatch@). Fills in emails for any legacy email-less rows that match by company name."
+            >
+              <Zap /> Quick-add curated pack
             </Button>
           </form>
           <Link href="/leads/import">
@@ -295,12 +302,38 @@ export default async function LeadsPage({
               Starter pack added —{" "}
               <span className="font-mono tabular-nums">{Number(sp.just_added ?? 0)}</span>{" "}
               new,{" "}
+              <span className="font-mono tabular-nums">{Number(sp.just_enriched ?? 0)}</span>{" "}
+              enriched,{" "}
               <span className="font-mono tabular-nums">{Number(sp.just_updated ?? 0)}</span>{" "}
-              updated.
+              updated
+              {Number(sp.just_unarchived ?? 0) > 0 ? (
+                <>
+                  {", "}
+                  <span className="font-mono tabular-nums">
+                    {Number(sp.just_unarchived ?? 0)}
+                  </span>{" "}
+                  unarchived
+                </>
+              ) : null}
+              {Number(sp.just_skipped ?? 0) > 0 ? (
+                <>
+                  {", "}
+                  <span className="font-mono tabular-nums">
+                    {Number(sp.just_skipped ?? 0)}
+                  </span>{" "}
+                  skipped
+                </>
+              ) : null}
+              .
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
-              All entries have <span className="font-mono">info@&lt;domain&gt;.com</span>{" "}
-              emails, tier A, and tags. Filter Source to{" "}
+              Role-targeted emails ({" "}
+              <span className="font-mono">procurement@</span>,{" "}
+              <span className="font-mono">orders@</span>,{" "}
+              <span className="font-mono">dispatch@</span>,{" "}
+              <span className="font-mono">info@</span>), tier A, refrigerated +
+              chain-store tags where applicable. <em>Enriched</em> = legacy
+              email-less rows whose email was just filled in. Filter Source to{" "}
               <span className="font-mono">starter-pack</span> to see only these.
             </p>
           </div>
