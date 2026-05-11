@@ -109,6 +109,19 @@
    */
   --ease-out: cubic-bezier(0, 0, 0.58, 1);
 
+  /* ── Unified motion language ────────────────────────────────────
+   * Every marketing animation pulls from this small palette so the
+   * scroll narrative feels cohesive end-to-end. Reveal = letters
+   * appearing into place; transition = swaps + crossfades; spring =
+   * elastic UI nudges (hover, focus). Curves below were locked-in
+   * after auditing every scroll-linked cascade + whileInView reveal
+   * across HeroSection, TypewriterSection, FeaturesSection,
+   * YosSection, BenefitsSection, TestimonialSection, HowItWorks.
+   */
+  --ease-reveal: cubic-bezier(0.16, 1, 0.3, 1);     /* expo-out style: snaps into place */
+  --ease-transition: cubic-bezier(0.4, 0, 0.2, 1);  /* material standard: opacity crossfades */
+  --ease-spring: cubic-bezier(0.68, -0.55, 0.265, 1.55); /* slight overshoot for hover nudges */
+
   /* Sharp radius — logo is decisive, not soft */
   --radius: 0.375rem;
 
@@ -387,6 +400,27 @@ html.lenis body {
       drop-shadow(0 0 4px rgba(212, 224, 48, 0.45))
       drop-shadow(0 0 14px rgba(212, 224, 48, 0.25));
   }
+}
+
+/* ── Marketing scroll-runway responsive sizing ──────────────────
+ * Scroll-pinned sections need section-height to scale with viewport
+ * height so the scrub feels equally responsive on every device. On
+ * desktop a 420vh hero is ~4× a 1080p viewport — fine. On a 668px
+ * mobile that same 420vh is 2806px of dead scroll. These classes
+ * keep the scrub feel cohesive across breakpoints. */
+.mkt-hero-runway { min-height: 420vh; }
+.mkt-yos-runway { height: 160vh; }
+
+@media (max-width: 768px) {
+  /* Hero scrub: tighter runway so the video + cascade complete in
+   * ~3 swipes instead of 6 on small viewports. The cascade range
+   * [0.04, 0.96] is proportional to section height so it stays in
+   * sync with video.currentTime automatically. */
+  .mkt-hero-runway { min-height: 300vh; }
+  .mkt-yos-runway { height: 200vh; }
+}
+@media (max-width: 480px) {
+  .mkt-hero-runway { min-height: 260vh; }
 }
 
 /* ── Marketing mobile responsive overrides ───────────────────── */

@@ -1,25 +1,33 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import { useMotionValue } from 'motion/react';
 import { CascadeText } from './CascadeText';
 
 export function TestimonialSection() {
   const sectionRef = useRef<HTMLElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
+  // Single MotionValue drives BOTH the parallax image translateY AND
+  // the blockquote cascade. Previously the cascade was one-shot
+  // whileInView (timer-paced), which broke cohesion with the hero +
+  // features sections that all reveal as the user scrolls. Now every
+  // letter is bound to scroll progress through this section.
+  const progress = useMotionValue(0);
 
   useEffect(() => {
     const section = sectionRef.current;
     const img = imgRef.current;
-    if (!section || !img) return;
+    if (!section) return;
 
     let raf = 0;
 
     const tick = () => {
       const rect = section.getBoundingClientRect();
       const viewH = window.innerHeight;
-      const progress = (viewH - rect.top) / (viewH + rect.height);
-      const clamped = Math.max(0, Math.min(1, progress));
-      img.style.transform = `translateY(${(0.5 - clamped) * 14}%)`;
+      const p = (viewH - rect.top) / (viewH + rect.height);
+      const clamped = Math.max(0, Math.min(1, p));
+      progress.set(clamped);
+      if (img) img.style.transform = `translateY(${(0.5 - clamped) * 14}%)`;
       raf = requestAnimationFrame(tick);
     };
 
@@ -33,7 +41,7 @@ export function TestimonialSection() {
     io.observe(section);
 
     return () => { cancelAnimationFrame(raf); io.disconnect(); };
-  }, []);
+  }, [progress]);
 
   return (
     <section
@@ -127,10 +135,16 @@ export function TestimonialSection() {
             fontStyle: 'normal',
           }}
         >
+          {/* Scroll-linked cascade via the section's progress
+              MotionValue. Range [0.30, 0.75] is when the quote sits
+              comfortably in the viewport — letters reveal as the user
+              scrolls through that band. Matches the scroll-paced
+              rhythm of Hero / Features / Yos / Benefits. */}
           <CascadeText
             text="“MF Superior made our distribution seamless. We needed multiple deliveries across Denver in a tight window and they came through every time — professional drivers, on time, no excuses.”"
-            stagger={0.012}
-            duration={0.45}
+            progress={progress}
+            range={[0.30, 0.75]}
+            spread={1}
             finalColor="#fff"
             flashColor="#D4E030"
             restColor="rgba(255,255,255,0.15)"

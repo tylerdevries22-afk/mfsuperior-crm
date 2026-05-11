@@ -1,10 +1,42 @@
 'use client';
 
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
+import { useMotionValue } from 'motion/react';
 import { CascadeText } from './CascadeText';
 
 export function CtaSection() {
+  const sectionRef = useRef<HTMLElement>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
+  // Scroll-linked heading cascade (was one-shot whileInView). The CTA
+  // sits at the page tail, so the headline assembles as the operator
+  // scrolls down INTO it — same rhythm as Hero / Features / Yos /
+  // Benefits / Testimonial / HowItWorks. Cohesion is the point.
+  const progress = useMotionValue(0);
+
+  useEffect(() => {
+    const section = sectionRef.current;
+    if (!section) return;
+    let raf = 0;
+    const tick = () => {
+      const rect = section.getBoundingClientRect();
+      const viewH = window.innerHeight;
+      const p = (viewH - rect.top) / (viewH + rect.height);
+      progress.set(Math.max(0, Math.min(1, p)));
+      raf = requestAnimationFrame(tick);
+    };
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) raf = requestAnimationFrame(tick);
+        else cancelAnimationFrame(raf);
+      },
+      { threshold: 0 },
+    );
+    io.observe(section);
+    return () => {
+      cancelAnimationFrame(raf);
+      io.disconnect();
+    };
+  }, [progress]);
 
   const handleMouseMove = (e: React.MouseEvent<HTMLButtonElement>) => {
     const btn = btnRef.current;
@@ -37,6 +69,7 @@ export function CtaSection() {
 
   return (
     <section
+      ref={sectionRef}
       style={{
         background: '#111111',
         padding: '120px 5.128vw 80px',
@@ -107,10 +140,14 @@ export function CtaSection() {
             color: '#fff',
           }}
         >
+          {/* Scroll-linked cascade — reveals as the CTA band passes
+              through the viewport. Range [0.30, 0.70] is the
+              centered band. */}
           <CascadeText
             text="Your freight moves today."
-            stagger={0.028}
-            duration={0.55}
+            progress={progress}
+            range={[0.30, 0.70]}
+            spread={1}
             finalColor="#fff"
             flashColor="#D4E030"
             restColor="rgba(255,255,255,0.15)"

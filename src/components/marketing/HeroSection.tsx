@@ -81,31 +81,21 @@ export function HeroSection() {
   return (
     <section
       ref={sectionRef}
+      className="mkt-hero-runway"
       style={{
-        // Scroll runway sized to the video's duration. The hero video
-        // (benefit-01-vert.mp4) is 6.25s long; we map the scroll
-        // progress to video.currentTime in the rAF tick, and we want
-        // ~50vh of scroll per second of video for a deliberate
-        // scrub-through feel.
-        //
-        //   visible frame (sticky)   100vh
-        //   scrub runway   6.25s × 50vh ≈ 315vh
-        //   total section            ≈ 420vh
-        //
-        // The section stays pinned for the entire 320vh of scroll
-        // while the video plays through frame-by-frame. Only after
-        // the user has scrubbed the full clip does the section
-        // release and the next section come in.
+        // Scroll runway height lives in CSS (.mkt-hero-runway in
+        // globals.css) so we can tune per breakpoint: 420vh desktop,
+        // 300vh tablet, 260vh phone. The cascade range [0.04, 0.96]
+        // is *proportional* to section height, so it stays in lockstep
+        // with video.currentTime across breakpoints — no per-device
+        // range math needed.
         position: 'relative',
-        minHeight: '420vh',
         // CRITICAL: do NOT set overflow: hidden here. When a sticky
         // descendant's nearest scrollable ancestor is the same element
-        // it tries to pin against, sticky silently fails to engage —
-        // the previous overflow: hidden was making the inner sticky
-        // frame scroll AWAY with the page instead of pinning. We use
-        // overflow-x: clip to still hide any horizontal bleed from the
-        // 100vw video without creating a scroll/clip context that
-        // breaks the sticky pin on the Y axis.
+        // it tries to pin against, sticky silently fails to engage.
+        // overflow-x: clip hides horizontal bleed from the 100vw video
+        // without creating a scroll/clip context that breaks the sticky
+        // pin on the Y axis.
         overflowX: 'clip',
         backgroundColor: '#000',
       }}
@@ -209,7 +199,12 @@ export function HeroSection() {
           */}
           <h1
             style={{
-              fontSize: 'clamp(40px, 6vw, 96px)',
+              // Tighter responsive clamp: floor 32px so the headline
+              // wraps cleanly to 2 lines max on 375px phones; 7vw
+              // gives a gentler grow-rate than the old 6vw so cascade
+              // per-letter timing stays proportional to the line
+              // widths the reader actually sees.
+              fontSize: 'clamp(32px, 7vw, 96px)',
               fontWeight: 400,
               lineHeight: 1.05,
               letterSpacing: '-0.02em',
