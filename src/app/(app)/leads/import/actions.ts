@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, isNull, sql } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import { leads, auditLog } from "@/lib/db/schema";
 import { auth } from "@/lib/auth";
@@ -18,26 +18,59 @@ export type ImportReport = {
 
 const MAX_BYTES = 8 * 1024 * 1024; // 8 MB
 
-async function findExistingLeadId(insert: LeadInsert): Promise<string | null> {
-  if (insert.email) {
+/**
+ * Bulk-load every potential duplicate match for the rows we're about to
+ * import — ONE SELECT instead of one-per-row. The per-row helper became
+ * the N+1 bottleneck on 500-row imports (>15s on Vercel Hobby).
+ */
+async function buildDedupeIndex(
+  inserts: LeadInsert[],
+): Promise<{ emails: Set<string>; namesNullEmail: Set<string> }> {
+  const emailsLower = Array.from(
+    new Set(
+      inserts
+        .map((i) => i.email?.toLowerCase().trim())
+        .filter((e): e is string => !!e),
+    ),
+  );
+  const namesLower = Array.from(
+    new Set(
+      inserts
+        .filter((i) => !i.email)
+        .map((i) => i.companyName?.toLowerCase().trim())
+        .filter((n): n is string => !!n),
+    ),
+  );
+
+  const emailsHit = new Set<string>();
+  const namesHit = new Set<string>();
+
+  if (emailsLower.length > 0) {
     const rows = await db
-      .select({ id: leads.id })
+      .select({ email: leads.email })
       .from(leads)
-      .where(eq(sql`LOWER(${leads.email})`, insert.email))
-      .limit(1);
-    return rows[0]?.id ?? null;
+      .where(sql`LOWER(${leads.email}) = ANY(${emailsLower})`);
+    for (const r of rows) {
+      if (r.email) emailsHit.add(r.email.toLowerCase());
+    }
   }
-  const rows = await db
-    .select({ id: leads.id })
-    .from(leads)
-    .where(
-      and(
-        isNull(leads.email),
-        eq(sql`LOWER(${leads.companyName})`, insert.companyName.toLowerCase()),
-      ),
-    )
-    .limit(1);
-  return rows[0]?.id ?? null;
+
+  if (namesLower.length > 0) {
+    const rows = await db
+      .select({ companyName: leads.companyName })
+      .from(leads)
+      .where(
+        and(
+          isNull(leads.email),
+          sql`LOWER(${leads.companyName}) = ANY(${namesLower})`,
+        ),
+      );
+    for (const r of rows) {
+      if (r.companyName) namesHit.add(r.companyName.toLowerCase());
+    }
+  }
+
+  return { emails: emailsHit, namesNullEmail: namesHit };
 }
 
 export async function importLeadsAction(formData: FormData): Promise<void> {
@@ -68,15 +101,48 @@ export async function importLeadsAction(formData: FormData): Promise<void> {
       "No rows were parsed. Check that the sheet has a header row with Company, Tier, Score, etc.",
     );
   } else if (!dryRun) {
-    for (const p of parsed.leads) {
-      const insert = toLeadInsert(p, sourceLabel);
-      const existingId = await findExistingLeadId(insert);
-      if (existingId) {
+    // Build all insert payloads up-front, then ONE bulk lookup for every
+    // possible duplicate, then bulk insert the survivors. Old per-row
+    // approach was N+1 — 500 rows = 1000+ DB roundtrips.
+    const inserts = parsed.leads.map((p) => toLeadInsert(p, sourceLabel));
+    const dedupe = await buildDedupeIndex(inserts);
+
+    const toInsert: LeadInsert[] = [];
+    for (const ins of inserts) {
+      const emailKey = ins.email?.toLowerCase().trim();
+      const nameKey = ins.companyName?.toLowerCase().trim();
+      if (emailKey && dedupe.emails.has(emailKey)) {
         duplicates++;
         continue;
       }
-      await db.insert(leads).values(insert);
-      inserted++;
+      if (!emailKey && nameKey && dedupe.namesNullEmail.has(nameKey)) {
+        duplicates++;
+        continue;
+      }
+      toInsert.push(ins);
+    }
+
+    if (toInsert.length > 0) {
+      try {
+        await db.insert(leads).values(toInsert);
+        inserted = toInsert.length;
+      } catch (err) {
+        // A race against another inserter could re-introduce a duplicate
+        // and fail the bulk insert. Fall back to one-by-one so partial
+        // success is preserved.
+        console.error(
+          "[import] bulk insert failed; falling back row-by-row:",
+          (err as Error).message,
+        );
+        for (const ins of toInsert) {
+          try {
+            await db.insert(leads).values(ins);
+            inserted++;
+          } catch {
+            duplicates++;
+          }
+        }
+      }
     }
 
     await db.insert(auditLog).values({

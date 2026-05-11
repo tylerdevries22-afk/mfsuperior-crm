@@ -34,10 +34,13 @@ export async function enrollLeadInSequence(
   if (!lead) return { created: false, enrollmentId: null, reason: "no_lead" };
 
   if (lead.email) {
+    // Case-insensitive compare — addSuppressionAction lowercases on insert,
+    // but legacy rows and direct DB imports may not. Match `lower(...)` on
+    // both sides so the check is robust regardless of source.
     const [supp] = await db
       .select({ email: suppressionList.email })
       .from(suppressionList)
-      .where(eq(suppressionList.email, lead.email))
+      .where(sql`lower(${suppressionList.email}) = lower(${lead.email})`)
       .limit(1);
     if (supp) {
       return { created: false, enrollmentId: null, reason: "suppressed" };

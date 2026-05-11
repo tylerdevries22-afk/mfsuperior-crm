@@ -110,7 +110,26 @@ export async function pollInbox(opts: PollOptions): Promise<InboxPollReport> {
     } catch (err) {
       report.errors++;
       if (err instanceof ProviderAuthError) {
-        notes.push(`auth error on thread ${t.threadId} — stopping poll`);
+        // Pause the offending enrollment so the next tick doesn't keep
+        // hitting the same auth failure. The operator can reconnect the
+        // mailbox and manually unpause from /inbox.
+        try {
+          await db
+            .update(leadSequenceEnrollments)
+            .set({
+              status: "paused",
+              pausedReason: "provider_auth_error",
+              updatedAt: new Date(),
+            })
+            .where(eq(leadSequenceEnrollments.id, t.enrollmentId));
+        } catch (pauseErr) {
+          notes.push(
+            `failed to pause enrollment ${t.enrollmentId} after auth error: ${(pauseErr as Error).message}`,
+          );
+        }
+        notes.push(
+          `auth error on thread ${t.threadId} — paused enrollment ${t.enrollmentId} and stopping poll`,
+        );
         break;
       }
       if (err instanceof ProviderRateLimitError) {

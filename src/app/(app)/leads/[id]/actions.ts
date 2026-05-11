@@ -29,6 +29,15 @@ export async function updateStageAction(formData: FormData) {
   const [before] = await db.select().from(leads).where(eq(leads.id, id));
   if (!before) throw new Error("Lead not found");
 
+  // Advancing past `new` implies the lead has been contacted somehow. If
+  // there's no email on the lead, no outbound sequence could have reached
+  // them — surface the contradiction loudly instead of silently mutating.
+  if (stage !== "new" && !before.email) {
+    throw new Error(
+      `Cannot advance lead to "${stage}": no email on file. Add an email first or keep stage = new.`,
+    );
+  }
+
   const lastContacted =
     stage !== "new" && stage !== before.stage ? sql`now()` : undefined;
 
@@ -176,6 +185,30 @@ export async function scheduleFollowUpAction(formData: FormData) {
     });
   } catch (err) {
     outcome = err instanceof ProviderAuthError ? "auth" : "create_failed";
+    // Write a persistent audit row so the operator can see WHY the event
+    // creation failed — without this, the only signal was the redirect
+    // query string, which gets lost on refresh.
+    try {
+      await db.insert(auditLog).values({
+        actorUserId: session.user.id,
+        entity: "lead",
+        entityId: lead.id,
+        action: "calendar_event_failed",
+        beforeJson: null,
+        afterJson: {
+          outcome,
+          errorName: (err as Error).name,
+          errorMessage: (err as Error).message.slice(0, 200),
+          summary,
+          startsAt: start.toISOString(),
+        },
+      });
+    } catch (auditErr) {
+      console.error(
+        "[scheduleFollowUp] audit log failed:",
+        (auditErr as Error).message,
+      );
+    }
   }
 
   revalidatePath(`/leads/${lead.id}`);
