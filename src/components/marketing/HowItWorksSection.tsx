@@ -529,7 +529,7 @@ export function HowItWorksSection() {
                 marginBottom: '32px',
               }}
             >
-              MF Superior Solutions handles your freight from pickup to final mile — professionally and on time, every time.
+              MF Superior Products handles your freight from pickup to final mile — professionally and on time, every time.
             </p>
 
             {/* Divider */}

@@ -9,7 +9,7 @@ const VALID_ENV = {
   CRON_SECRET: "x".repeat(16),
   ENCRYPTION_KEY: "test-encryption-key-test-encryption-key",
   GMAIL_USER: "tylerdevries22@gmail.com",
-  BUSINESS_NAME: "MF Superior Solutions",
+  BUSINESS_NAME: "MF Superior Products",
   BUSINESS_ADDRESS: "15321 E Louisiana Ave, Aurora, CO 80017",
   NODE_ENV: "test",
 };
@@ -106,19 +106,19 @@ describe("CAN-SPAM footer", () => {
     const { buildFooter } = await import("@/lib/compliance/footer");
     const f = buildFooter({
       leadId: "abcd1234-5678-9012-3456-789012345678",
-      businessName: "MF Superior Solutions",
+      businessName: "MF Superior Products",
       businessAddress: "15321 E Louisiana Ave\nAurora, CO 80017",
       businessMc: "MC-123456",
       businessUsdot: "USDOT 7654321",
     });
-    expect(f.html).toContain("MF Superior Solutions");
+    expect(f.html).toContain("MF Superior Products");
     expect(f.html).toContain("15321 E Louisiana Ave");
     expect(f.html).toContain("Aurora, CO 80017");
     expect(f.html).toContain("MC# MC-123456");
     expect(f.html).toContain("USDOT# USDOT 7654321");
     expect(f.html).toMatch(/\/api\/unsubscribe\/[A-Za-z0-9_\-.]+/);
 
-    expect(f.text).toContain("MF Superior Solutions");
+    expect(f.text).toContain("MF Superior Products");
     expect(f.text).toContain("15321 E Louisiana Ave");
     expect(f.text).toMatch(/Unsubscribe: http:\/\/localhost:3000\/api\/unsubscribe\//);
   });
@@ -152,7 +152,7 @@ describe("composeEmail integration", () => {
       settings: {
         senderName: "Tyler DeVries",
         senderEmail: "tylerdevries22@gmail.com",
-        businessName: "MF Superior Solutions",
+        businessName: "MF Superior Products",
         senderTitle: "Owner",
         senderPhone: "(303) 555-0119",
         businessMc: "MC-1",
@@ -166,7 +166,7 @@ describe("composeEmail integration", () => {
     expect(composed.html).toContain("/api/track/click/");
     expect(composed.html).not.toContain("https://mf.example/about");
     expect(composed.html).toContain("/api/track/open/");
-    expect(composed.html).toContain("MF Superior Solutions");
+    expect(composed.html).toContain("MF Superior Products");
     expect(composed.html).toContain("Aurora, CO 80017");
 
     expect(composed.text).toContain("Hi Sam,");

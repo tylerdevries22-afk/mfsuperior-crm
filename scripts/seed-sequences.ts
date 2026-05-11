@@ -24,7 +24,7 @@ async function main() {
   // ── 1. Ensure settings row exists with sender info ─────────────────────────
   const settingsValues = {
     id: 1 as const,
-    businessName: "MF Superior Solutions",
+    businessName: "MF Superior Products",
     businessAddress: "15321 E Louisiana Ave, Aurora, CO 80017, United States",
     businessMc: null,
     businessUsdot: null,

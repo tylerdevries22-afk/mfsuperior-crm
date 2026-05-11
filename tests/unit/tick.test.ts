@@ -23,7 +23,7 @@ vi.mock("../../src/lib/env", () => ({
     AUTH_GOOGLE_SECRET: "secret",
     CRON_SECRET: "x".repeat(16),
     ENCRYPTION_KEY: "x".repeat(32),
-    BUSINESS_NAME: "MF Superior Solutions",
+    BUSINESS_NAME: "MF Superior Products",
     BUSINESS_ADDRESS: "15321 E Louisiana Ave",
     DAILY_SEND_CAP: 20,
     WARMUP_DAYS: 0, // no warmup for tests
@@ -69,7 +69,7 @@ async function seedTickFixtures() {
     .insert(settings)
     .values({
       id: 1 as const,
-      businessName: "MF Superior Solutions",
+      businessName: "MF Superior Products",
       businessAddress: "15321 E Louisiana Ave, Aurora, CO 80017",
       senderName: "Tyler Devries",
       senderEmail: "info@mfsuperiorproducts.com",

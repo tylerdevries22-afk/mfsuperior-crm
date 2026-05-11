@@ -72,7 +72,7 @@ async function buildLeadsWorkbook(): Promise<{
     .where(isNull(leads.archivedAt));
 
   const wb = new ExcelJS.Workbook();
-  wb.creator = "MF Superior Solutions CRM";
+  wb.creator = "MF Superior Products CRM";
   wb.created = new Date();
   const sheet = wb.addWorksheet("Leads");
 

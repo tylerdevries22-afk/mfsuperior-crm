@@ -90,7 +90,7 @@ async function ensureSettings(): Promise<void> {
   if (existing.length === 0) {
     await db.insert(schema.settings).values({
       id: 1,
-      businessName: "MF Superior Solutions",
+      businessName: "MF Superior Products",
       businessAddress: "15321 E Louisiana Ave, Aurora, CO 80017, United States",
       senderName: "Tyler DeVries",
       senderEmail: "info@mfsuperiorproducts.com",

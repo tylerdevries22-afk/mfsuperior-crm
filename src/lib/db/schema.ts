@@ -111,7 +111,7 @@ export const verificationTokens = pgTable(
 
 export const settings = pgTable("settings", {
   id: integer("id").primaryKey().default(1),
-  businessName: text("business_name").notNull().default("MF Superior Solutions"),
+  businessName: text("business_name").notNull().default("MF Superior Products"),
   businessAddress: text("business_address").notNull().default(""),
   businessMc: text("business_mc"),
   businessUsdot: text("business_usdot"),

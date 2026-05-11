@@ -169,7 +169,7 @@ export default async function SettingsPage() {
                 id="businessName"
                 name="businessName"
                 required
-                defaultValue={current?.businessName ?? "MF Superior Solutions"}
+                defaultValue={current?.businessName ?? "MF Superior Products"}
               />
             </div>
             <div className="sm:col-span-2 grid gap-1.5">

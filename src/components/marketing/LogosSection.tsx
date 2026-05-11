@@ -54,7 +54,7 @@ export function LogosSection() {
           padding: '0 5.128vw',
         }}
       >
-        Colorado&apos;s top operators trust MF Superior Solutions
+        Colorado&apos;s top operators trust MF Superior Products
       </h2>
 
       {/* Infinite marquee */}

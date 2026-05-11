@@ -10,7 +10,7 @@ beforeAll(() => {
     CRON_SECRET: "x".repeat(16),
     ENCRYPTION_KEY: "test-encryption-key-test-encryption-key",
     GMAIL_USER: "tylerdevries22@gmail.com",
-    BUSINESS_NAME: "MF Superior Solutions",
+    BUSINESS_NAME: "MF Superior Products",
     BUSINESS_ADDRESS: "15321 E Louisiana Ave, Aurora, CO 80017",
     NODE_ENV: "test",
   });
