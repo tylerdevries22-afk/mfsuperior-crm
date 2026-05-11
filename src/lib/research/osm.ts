@@ -167,7 +167,14 @@ export async function fetchOsmBusinesses(args: {
           Accept: "application/json",
         },
         body: new URLSearchParams({ data: ql }),
-        signal: AbortSignal.timeout(90_000),
+        // 3s per-endpoint cap. The CLI variant fits within Node's full
+        // 90s budget anyway; the admin server-action variant must fit
+        // inside Vercel Hobby's 10s function timeout, and the outer
+        // generateLeadsAction caller also wraps this in a 4s Promise.race
+        // for total OSM budget. With 4 endpoints × 3s = 12s worst case,
+        // the outer race aborts first; whichever endpoint replies first
+        // wins.
+        signal: AbortSignal.timeout(3_000),
       });
       if (!res.ok) {
         log(
