@@ -91,6 +91,11 @@ export async function GET(
       firstName: lead.firstName,
       lastName: lead.lastName,
       email: lead.email,
+      // Email-trust pipeline output (verified / guessed / unverified
+      // / invalid / null). Drawer renders this as a chip next to the
+      // email so the operator knows at-a-glance whether to trust it.
+      emailTrust: lead.emailTrust,
+      emailValidatedAt: lead.emailValidatedAt,
       phone: lead.phone,
       website: lead.website,
       city: lead.city,

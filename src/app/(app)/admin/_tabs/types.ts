@@ -53,6 +53,16 @@ export type AdminSearch = {
   v_deleted?: string;
   v_dur?: string;
   validate_error?: string;
+  // ── Email-trust pipeline re-validate ─────────────────────────
+  trust_revalidated?: string;
+  t_checked?: string;
+  t_verified?: string;
+  t_guessed?: string;
+  t_unverified?: string;
+  t_invalid?: string;
+  t_archived?: string;
+  t_dur?: string;
+  trust_error?: string;
   // ── Denver batch 1 ───────────────────────────────────────────
   batch1?: string;
   b1_validated?: string;
