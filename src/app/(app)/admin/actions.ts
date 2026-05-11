@@ -1351,3 +1351,66 @@ export async function generateLeadsAction(formData: FormData): Promise<void> {
   if (errorMsg) params.set("gen_error", errorMsg);
   redirect(`/leads?${params.toString()}`);
 }
+
+/* ── Validate all lead emails (MX + hard-delete invalid) ────────── */
+
+/**
+ * One-shot bulk validator. Iterates every non-archived lead with a
+ * non-null email, MX-validates each, and hard-deletes the failures.
+ * Operator's decisions (locked in via clarifying questions):
+ *
+ *   - Method: MX-only (free, offline)
+ *   - On fail: hard DELETE (cascades safely; FK audit confirmed)
+ *   - Cadence: this manual button + weekly cron + per-send check
+ *   - Forensic: full deleted-row payload captured in auditLog.beforeJson
+ *     so an over-aggressive delete can be SQL-restored from the audit.
+ */
+export async function validateAllEmailsAction(): Promise<void> {
+  let errorMsg: string | null = null;
+  let checked = 0;
+  let valid = 0;
+  let invalid = 0;
+  let hardDeleted = 0;
+  let durationMs = 0;
+
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      errorMsg = "unauthorized";
+    } else {
+      env();
+      const { validateAllLeadEmails } = await import(
+        "@/lib/email/validate-bulk"
+      );
+      const report = await validateAllLeadEmails({
+        actorUserId: session.user.id,
+      });
+      checked = report.checked;
+      valid = report.valid;
+      invalid = report.invalid;
+      hardDeleted = report.hardDeleted;
+      durationMs = report.durationMs;
+      if (report.errors.length > 0) {
+        errorMsg = report.errors.slice(0, 3).join("; ").slice(0, 200);
+      }
+    }
+  } catch (err) {
+    errorMsg =
+      (err as Error).name + ": " + (err as Error).message.slice(0, 120);
+    console.error("[validateAllEmails] FATAL:", err);
+  }
+
+  revalidatePath("/leads");
+  revalidatePath("/admin");
+
+  const params = new URLSearchParams({
+    validated: "1",
+    v_checked: String(checked),
+    v_valid: String(valid),
+    v_invalid: String(invalid),
+    v_deleted: String(hardDeleted),
+    v_dur: String(durationMs),
+  });
+  if (errorMsg) params.set("validate_error", errorMsg);
+  redirect(`/admin?${params.toString()}`);
+}

@@ -1,0 +1,45 @@
+name: cron · validate-emails
+
+# Weekly bulk MX validation. Hits the /api/cron/validate-emails route
+# which iterates every non-archived lead, MX-checks each, and hard-
+# deletes the failures. Mirrors the tick-sequences pattern for auth
+# and diagnostics.
+#
+# Runs Mondays at 09:00 UTC (≈ 4am Eastern / 1am Pacific) so any
+# domain-drift cleanup is done before the workday starts.
+
+on:
+  schedule:
+    - cron: "0 9 * * 1"        # Monday 9:00 UTC
+  workflow_dispatch:           # manual trigger from the Actions tab
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: POST /api/cron/validate-emails
+        env:
+          APP_URL: ${{ vars.APP_URL || 'https://www.mfsuperiorproducts.com' }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CRON_SECRET}" ]; then
+            echo "::error::CRON_SECRET secret is missing on this repo (Settings → Secrets and variables → Actions → CRON_SECRET)"
+            exit 1
+          fi
+          status=$(curl -sS -o /tmp/response.json -w '%{http_code}' \
+            -X POST \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            "${APP_URL}/api/cron/validate-emails")
+          echo "HTTP $status"
+          echo "Response body:"
+          cat /tmp/response.json | head -c 4000
+          echo
+          if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
+            echo "::error::validate-emails returned HTTP $status"
+            if [ "$status" = "401" ]; then
+              echo "::error::Likely cause: CRON_SECRET in GitHub Actions doesn't match the value set in Vercel env."
+            fi
+            exit 1
+          fi

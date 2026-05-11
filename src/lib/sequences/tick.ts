@@ -29,6 +29,7 @@ export type TickReport = {
   completed: number;
   skippedSuppressed: number;
   skippedNoEmail: number;
+  skippedInvalidEmail: number;
   skippedCapped: number;
   failed: number;
   durationMs: number;
@@ -61,6 +62,7 @@ export async function tickSequences(opts: TickOptions): Promise<TickReport> {
     completed: 0,
     skippedSuppressed: 0,
     skippedNoEmail: 0,
+    skippedInvalidEmail: 0,
     skippedCapped: 0,
     failed: 0,
     durationMs: 0,
@@ -173,6 +175,9 @@ export async function tickSequences(opts: TickOptions): Promise<TickReport> {
       case "skipped_no_email":
         report.skippedNoEmail++;
         break;
+      case "skipped_invalid_email":
+        report.skippedInvalidEmail++;
+        break;
       case "failed":
         report.failed++;
         notes.push(`enrollment ${enrollment.id}: ${outcome.error}`);
@@ -238,7 +243,7 @@ type ProcessOneInput = {
 
 type Outcome =
   | { kind: "drafted" | "sent" | "completed" | "paused" }
-  | { kind: "skipped_suppressed" | "skipped_no_email" }
+  | { kind: "skipped_suppressed" | "skipped_no_email" | "skipped_invalid_email" }
   | { kind: "failed"; error: string };
 
 async function processOne(input: ProcessOneInput): Promise<Outcome> {
@@ -273,6 +278,32 @@ async function processOne(input: ProcessOneInput): Promise<Outcome> {
   if (supp) {
     await stopEnrollment(enrollment.id, "suppressed");
     return { kind: "skipped_suppressed" };
+  }
+
+  // Per-send MX safety net. The bulk validator (one-shot + weekly cron)
+  // hard-deletes leads whose MX records fail, but DNS records drift —
+  // a domain might pass last week and fail today. Validate right before
+  // we send so we never attempt delivery to a no_mx / disposable / role-
+  // on-no-MX address. Log the failure to emailEvents for traceability;
+  // pause the enrollment so the operator can fix or remove the lead.
+  const { validateEmail } = await import("@/lib/research/mx-validate");
+  const mxCheck = await validateEmail(lead.email);
+  if (mxCheck.confidence === "rejected") {
+    await db.insert(emailEvents).values({
+      leadId: lead.id,
+      enrollmentId: enrollment.id,
+      eventType: "failed",
+      templateId: null,
+      sequenceStep: enrollment.currentStep,
+      metadataJson: {
+        kind: "invalid_email",
+        mxStatus: mxCheck.status,
+        domain: mxCheck.domain,
+      },
+      occurredAt: sql`now()`,
+    });
+    await pauseEnrollment(enrollment.id, "invalid_email");
+    return { kind: "skipped_invalid_email" };
   }
 
   // Resolve the template for the current step.
