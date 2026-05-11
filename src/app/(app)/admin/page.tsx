@@ -12,6 +12,7 @@ import {
   manualPollAction,
   manualSyncAction,
   manualTickAction,
+  purgeNoEmailLeadsAction,
   quickAddStarterPackAction,
   removeSuppressionAction,
   runFreeResearchAction,
@@ -434,29 +435,57 @@ export default async function AdminPage({
             rows.
           </p>
 
-          {/* Quick-add (no script, no API, just direct DB inserts) */}
+          {/* Purge: archive every lead without an email */}
+          <form
+            action={purgeNoEmailLeadsAction}
+            className="flex flex-wrap items-start gap-3 rounded-md border border-warning/50 bg-warning/10 p-4"
+          >
+            <div className="flex-1 min-w-[260px]">
+              <p className="font-medium text-foreground">
+                Purge leads without an email
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Archives every lead where <span className="font-mono">email IS NULL</span>{" "}
+                (sets <span className="font-mono">archivedAt = now()</span>) so they
+                disappear from <span className="font-mono">/leads</span> immediately.
+                <strong className="text-foreground"> Reversible:</strong> the rows
+                aren&apos;t deleted — clearing <span className="font-mono">archivedAt</span>{" "}
+                in SQL brings them back. Use this to wipe the legacy spreadsheet
+                seed before populating with high-quality emailed leads via the
+                button below.
+              </p>
+            </div>
+            <Button type="submit" size="sm" variant="destructive">
+              <X /> Archive all email-less leads
+            </Button>
+          </form>
+
+          {/* Quick-add: insert all curated entries with role-specific emails */}
           <form
             action={quickAddStarterPackAction}
             className="flex flex-wrap items-start gap-3 rounded-md border border-primary/40 bg-primary/5 p-4"
           >
             <div className="flex-1 min-w-[260px]">
               <p className="font-medium text-foreground">
-                Quick-add: Denver Metro starter pack
+                Quick-add: full Denver Metro curated pack
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
-                Bypasses the discovery pipeline entirely. Inserts 25 confirmed
-                Denver Metro businesses (Cracker Barrel, Snooze, King Soopers,
-                Home Depot, C.H. Robinson, etc.) directly into{" "}
-                <span className="font-mono">leads</span> with{" "}
-                <span className="font-mono">info@&lt;domain&gt;.com</span>{" "}
-                emails, tier, and tags pre-baked. Redirects you to{" "}
-                <span className="font-mono">/leads</span> right after so you
-                see the result immediately. Safe to re-click — duplicates are
-                no-ops.
+                Bypasses the discovery pipeline entirely. Inserts{" "}
+                <strong className="text-foreground">~150 confirmed Denver Metro businesses</strong>{" "}
+                — Home Depot, Cracker Barrel, King Soopers, Sysco, C.H. Robinson,
+                Marriott, plus regional restaurants, brokers, supply houses, and
+                more — directly into <span className="font-mono">leads</span> with
+                role-targeted emails (<span className="font-mono">procurement@</span>
+                for big-box, <span className="font-mono">dispatch@</span> for
+                brokers, <span className="font-mono">orders@</span> for restaurants,
+                <span className="font-mono"> info@</span> elsewhere), tier A,
+                refrigeration tags, and chain flags pre-baked. Redirects to{" "}
+                <span className="font-mono">/leads</span> after. Safe to re-click —
+                upsert on email handles duplicates.
               </p>
             </div>
             <Button type="submit" size="sm">
-              <Plus /> Add 25 starter leads now
+              <Plus /> Add full curated pack
             </Button>
           </form>
 

@@ -21,6 +21,13 @@ export type CuratedEntry = {
   industry: Industry;
   /** Root domain, no scheme, no www. */
   domain: string;
+  /**
+   * Local-part for the contact email (e.g. "procurement" → procurement@domain).
+   * Defaults to "info" when omitted. Tuned per business type so the message
+   * lands in the right inbox — procurement for big-box, dispatch for
+   * brokers/3PL, orders for restaurants, contact for everyone else.
+   */
+  emailLocal?: string;
   /** Hint for refrigeration tagging when industry alone doesn't decide. */
   refrigerated?: boolean;
   /** Hint for the chain-store branch (skips email enrichment). */
@@ -128,4 +135,103 @@ export const CURATED_DENVER: CuratedEntry[] = [
   // ── Pet supply (refrigerated for fresh food) ────────────────────────
   { name: "Petco", industry: "smallbiz", domain: "petco.com", chain: true },
   { name: "PetSmart", industry: "smallbiz", domain: "petsmart.com", chain: true },
+
+  // ── Additional big-box / retail (department + specialty stores) ─────
+  { name: "Macy's", industry: "bigbox", domain: "macys.com", chain: true, emailLocal: "procurement" },
+  { name: "Kohl's", industry: "bigbox", domain: "kohls.com", chain: true, emailLocal: "procurement" },
+  { name: "TJ Maxx", industry: "bigbox", domain: "tjmaxx.tjx.com", chain: true, emailLocal: "procurement" },
+  { name: "Marshalls", industry: "bigbox", domain: "marshalls.com", chain: true, emailLocal: "procurement" },
+  { name: "HomeGoods", industry: "bigbox", domain: "homegoods.com", chain: true, emailLocal: "procurement" },
+  { name: "Ross Dress for Less", industry: "bigbox", domain: "rossstores.com", chain: true, emailLocal: "procurement" },
+  { name: "Burlington", industry: "bigbox", domain: "burlington.com", chain: true, emailLocal: "procurement" },
+  { name: "Big Lots", industry: "bigbox", domain: "biglots.com", chain: true, emailLocal: "procurement" },
+  { name: "Five Below", industry: "bigbox", domain: "fivebelow.com", chain: true, emailLocal: "procurement" },
+  { name: "Dollar Tree", industry: "bigbox", domain: "dollartree.com", chain: true, emailLocal: "procurement" },
+  { name: "Dollar General", industry: "bigbox", domain: "dollargeneral.com", chain: true, emailLocal: "procurement" },
+  { name: "Michaels", industry: "bigbox", domain: "michaels.com", chain: true, emailLocal: "procurement" },
+  { name: "Hobby Lobby", industry: "bigbox", domain: "hobbylobby.com", chain: true, emailLocal: "procurement" },
+  { name: "JOANN Fabrics", industry: "bigbox", domain: "joann.com", chain: true, emailLocal: "procurement" },
+  { name: "Barnes & Noble", industry: "bigbox", domain: "barnesandnoble.com", chain: true, emailLocal: "procurement" },
+  { name: "Ashley HomeStore", industry: "bigbox", domain: "ashleyfurniture.com", chain: true, emailLocal: "procurement" },
+  { name: "La-Z-Boy Furniture", industry: "bigbox", domain: "la-z-boy.com", chain: true, emailLocal: "procurement" },
+  { name: "Crate & Barrel", industry: "bigbox", domain: "crateandbarrel.com", chain: true, emailLocal: "procurement" },
+  { name: "Williams Sonoma", industry: "bigbox", domain: "williams-sonoma.com", chain: true, emailLocal: "procurement" },
+  { name: "Pottery Barn", industry: "bigbox", domain: "potterybarn.com", chain: true, emailLocal: "procurement" },
+
+  // ── Additional restaurants & food service (chain + regional) ─────────
+  { name: "The Cheesecake Factory", industry: "restaurants", domain: "thecheesecakefactory.com", refrigerated: true, chain: true, emailLocal: "orders" },
+  { name: "BJ's Restaurant", industry: "restaurants", domain: "bjsrestaurants.com", refrigerated: true, chain: true, emailLocal: "orders" },
+  { name: "Outback Steakhouse", industry: "restaurants", domain: "outback.com", refrigerated: true, chain: true, emailLocal: "orders" },
+  { name: "Red Lobster", industry: "restaurants", domain: "redlobster.com", refrigerated: true, chain: true, emailLocal: "orders" },
+  { name: "Carrabba's Italian Grill", industry: "restaurants", domain: "carrabbas.com", refrigerated: true, chain: true, emailLocal: "orders" },
+  { name: "Wingstop", industry: "restaurants", domain: "wingstop.com", refrigerated: true, chain: true, emailLocal: "orders" },
+  { name: "Wendy's", industry: "restaurants", domain: "wendys.com", refrigerated: true, chain: true, emailLocal: "orders" },
+  { name: "Sonic Drive-In", industry: "restaurants", domain: "sonicdrivein.com", refrigerated: true, chain: true, emailLocal: "orders" },
+  { name: "Taco Bell", industry: "restaurants", domain: "tacobell.com", refrigerated: true, chain: true, emailLocal: "orders" },
+  { name: "Del Taco", industry: "restaurants", domain: "deltaco.com", refrigerated: true, chain: true, emailLocal: "orders" },
+  { name: "Wahoo's Fish Taco", industry: "restaurants", domain: "wahoos.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Maria Empanada", industry: "restaurants", domain: "mariaempanada.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Sushi Den", industry: "restaurants", domain: "sushiden.net", refrigerated: true, emailLocal: "orders" },
+  { name: "Caribou Coffee", industry: "restaurants", domain: "cariboucoffee.com", refrigerated: true, chain: true, emailLocal: "orders" },
+  { name: "Einstein Bros. Bagels", industry: "restaurants", domain: "einsteinbros.com", refrigerated: true, chain: true, emailLocal: "orders" },
+  { name: "Bruegger's Bagels", industry: "restaurants", domain: "brueggers.com", refrigerated: true, chain: true, emailLocal: "orders" },
+  { name: "Krispy Kreme", industry: "restaurants", domain: "krispykreme.com", refrigerated: true, chain: true, emailLocal: "orders" },
+  { name: "Dairy Queen", industry: "restaurants", domain: "dairyqueen.com", refrigerated: true, chain: true, emailLocal: "orders" },
+  { name: "Cold Stone Creamery", industry: "restaurants", domain: "coldstonecreamery.com", refrigerated: true, chain: true, emailLocal: "orders" },
+
+  // ── Brokers / 3PL — additional regional carriers ────────────────────
+  { name: "YRC Freight", industry: "brokers", domain: "yrc.com", chain: true, emailLocal: "dispatch" },
+  { name: "Saia LTL Freight", industry: "brokers", domain: "saia.com", chain: true, emailLocal: "dispatch" },
+  { name: "ABF Freight", industry: "brokers", domain: "abf.com", chain: true, emailLocal: "dispatch" },
+  { name: "Forward Air", industry: "brokers", domain: "forwardair.com", chain: true, emailLocal: "dispatch" },
+  { name: "Landstar System", industry: "brokers", domain: "landstar.com", chain: true, emailLocal: "dispatch" },
+  { name: "Hub Group", industry: "brokers", domain: "hubgroup.com", chain: true, emailLocal: "dispatch" },
+  { name: "Roadrunner Transportation", industry: "brokers", domain: "rrts.com", chain: true, emailLocal: "dispatch" },
+  { name: "RXO Logistics", industry: "brokers", domain: "rxo.com", chain: true, emailLocal: "dispatch" },
+
+  // ── Auto / vehicle services ─────────────────────────────────────────
+  { name: "CarMax", industry: "smallbiz", domain: "carmax.com", chain: true, emailLocal: "procurement" },
+  { name: "Carvana", industry: "smallbiz", domain: "carvana.com", chain: true, emailLocal: "procurement" },
+  { name: "Pep Boys", industry: "smallbiz", domain: "pepboys.com", chain: true, emailLocal: "procurement" },
+  { name: "Midas", industry: "smallbiz", domain: "midas.com", chain: true, emailLocal: "procurement" },
+  { name: "Jiffy Lube", industry: "smallbiz", domain: "jiffylube.com", chain: true, emailLocal: "procurement" },
+  { name: "Valvoline Instant Oil Change", industry: "smallbiz", domain: "vioc.com", chain: true, emailLocal: "procurement" },
+  { name: "Firestone Complete Auto Care", industry: "smallbiz", domain: "firestonecompleteautocare.com", chain: true, emailLocal: "procurement" },
+
+  // ── Construction / wholesale supply additional ──────────────────────
+  { name: "Grainger Industrial Supply", industry: "smallbiz", domain: "grainger.com", chain: true, emailLocal: "procurement" },
+  { name: "Fastenal", industry: "smallbiz", domain: "fastenal.com", chain: true, emailLocal: "procurement" },
+  { name: "MSC Industrial Direct", industry: "smallbiz", domain: "mscdirect.com", chain: true, emailLocal: "procurement" },
+  { name: "HD Supply", industry: "smallbiz", domain: "hdsupply.com", chain: true, emailLocal: "procurement" },
+  { name: "Builders FirstSource", industry: "smallbiz", domain: "bldr.com", chain: true, emailLocal: "procurement" },
+  { name: "ProBuild Holdings", industry: "smallbiz", domain: "probuild.com", chain: true, emailLocal: "procurement" },
+
+  // ── Hospitality (large-volume supply receivers) ─────────────────────
+  { name: "Marriott (Denver-area properties)", industry: "smallbiz", domain: "marriott.com", chain: true, refrigerated: true, emailLocal: "procurement" },
+  { name: "Hilton (Denver-area properties)", industry: "smallbiz", domain: "hilton.com", chain: true, refrigerated: true, emailLocal: "procurement" },
+  { name: "Hyatt (Denver-area properties)", industry: "smallbiz", domain: "hyatt.com", chain: true, refrigerated: true, emailLocal: "procurement" },
+  { name: "IHG (Holiday Inn / Crowne Plaza)", industry: "smallbiz", domain: "ihg.com", chain: true, refrigerated: true, emailLocal: "procurement" },
+  { name: "Wyndham Hotels", industry: "smallbiz", domain: "wyndhamhotels.com", chain: true, refrigerated: true, emailLocal: "procurement" },
+
+  // ── Apparel / specialty retail (regular freight resupply) ───────────
+  { name: "Old Navy", industry: "bigbox", domain: "oldnavy.gap.com", chain: true, emailLocal: "procurement" },
+  { name: "Gap Inc.", industry: "bigbox", domain: "gap.com", chain: true, emailLocal: "procurement" },
+  { name: "Nordstrom Rack", industry: "bigbox", domain: "nordstromrack.com", chain: true, emailLocal: "procurement" },
+  { name: "Foot Locker", industry: "bigbox", domain: "footlocker.com", chain: true, emailLocal: "procurement" },
+  { name: "Famous Footwear", industry: "bigbox", domain: "famousfootwear.com", chain: true, emailLocal: "procurement" },
+  { name: "Lane Bryant", industry: "bigbox", domain: "lanebryant.com", chain: true, emailLocal: "procurement" },
+
+  // ── Office / commercial supply (freight regulars) ───────────────────
+  { name: "Quill (Staples wholesale)", industry: "smallbiz", domain: "quill.com", chain: true, emailLocal: "procurement" },
+  { name: "Uline Shipping Supplies", industry: "smallbiz", domain: "uline.com", chain: true, emailLocal: "procurement" },
+  { name: "Restaurant Depot", industry: "smallbiz", domain: "restaurantdepot.com", refrigerated: true, chain: true, emailLocal: "procurement" },
+  { name: "Sysco Foods", industry: "smallbiz", domain: "sysco.com", refrigerated: true, chain: true, emailLocal: "procurement" },
+  { name: "US Foods", industry: "smallbiz", domain: "usfoods.com", refrigerated: true, chain: true, emailLocal: "procurement" },
+  { name: "Performance Food Group", industry: "smallbiz", domain: "pfgc.com", refrigerated: true, chain: true, emailLocal: "procurement" },
+  { name: "Shamrock Foods", industry: "smallbiz", domain: "shamrockfoodservice.com", refrigerated: true, chain: true, emailLocal: "procurement" },
+
+  // ── Cannabis (Colorado-specific, retail dispensaries) ───────────────
+  { name: "Native Roots Cannabis", industry: "smallbiz", domain: "nativeroots.com", emailLocal: "procurement" },
+  { name: "The Green Solution", industry: "smallbiz", domain: "tgscolorado.com", emailLocal: "procurement" },
+  { name: "Sweet Leaf Marijuana", industry: "smallbiz", domain: "sweetleafmarijuana.com", emailLocal: "procurement" },
 ];
