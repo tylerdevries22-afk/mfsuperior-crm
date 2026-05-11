@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll } from "vitest";
+import fs from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { parseLeadWorkbook, toLeadInsert, type ParseReport } from "@/lib/xlsx";
@@ -8,6 +9,7 @@ const FIXTURE = path.resolve(__dirname, "../../../01_Lead_List.xlsx");
 let report: ParseReport;
 
 beforeAll(async () => {
+  if (!fs.existsSync(FIXTURE)) return; // describe.skipIf handles the suite
   const file = await readFile(FIXTURE);
   // Convert Buffer to ArrayBuffer slice (Buffer is a view over a larger pool)
   const buffer = file.buffer.slice(
@@ -17,7 +19,9 @@ beforeAll(async () => {
   report = await parseLeadWorkbook(buffer);
 });
 
-describe("parseLeadWorkbook against 01_Lead_List.xlsx", () => {
+// 01_Lead_List.xlsx is a local-only fixture (gitignored). Skip when
+// it's not present so CI / fresh checkouts don't fail.
+describe.skipIf(!fs.existsSync(FIXTURE))("parseLeadWorkbook against 01_Lead_List.xlsx", () => {
   it("parses 50 leads from the Top 50 Leads sheet", () => {
     expect(report.leads.length).toBe(50);
   });
@@ -70,7 +74,7 @@ describe("parseLeadWorkbook against 01_Lead_List.xlsx", () => {
   });
 });
 
-describe("toLeadInsert", () => {
+describe.skipIf(!fs.existsSync(FIXTURE))("toLeadInsert", () => {
   it("derives tier-X and vertical tags + composes a notes blob with score breakdown", () => {
     const r1 = report.leads.find((l) => l.rank === 1)!;
     const insert = toLeadInsert(r1, "denver_kit_2026");

@@ -290,9 +290,11 @@ function ScrollChar({
   charStart,
   charEnd,
   char,
-  // `restColor` is intentionally unused now — see the per-letter
-  // timing comment below. We keep it on the props so existing call
-  // sites compile without changes; the visual contribution is gone.
+  // `restColor` is intentionally consumed here only to swallow the
+  // prop (no visual contribution any more — see the per-letter timing
+  // comment below). Kept on the props so existing call sites compile
+  // without changes.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   restColor: _restColor,
   flashColor,
   finalColor,

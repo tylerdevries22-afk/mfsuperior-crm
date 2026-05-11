@@ -48,8 +48,13 @@ export function Sidebar({ unreadNotifications = 0 }: { unreadNotifications?: num
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
-  // Auto-close on route change so the drawer doesn't linger after nav.
+  // Close the mobile drawer when the user navigates. The lint rule
+  // `react-hooks/set-state-in-effect` warns here, but the equivalent
+  // ref-based "derive during render" pattern triggers
+  // `Cannot access refs during render` — the two rules are in
+  // contradiction for this exact case.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setOpen(false);
   }, [pathname]);
 
@@ -189,7 +194,7 @@ export function Sidebar({ unreadNotifications = 0 }: { unreadNotifications?: num
 
 function SidebarBrand() {
   return (
-    <a
+    <Link
       href="/"
       className="flex items-center gap-3 border-b border-border px-5 py-4 transition-opacity hover:opacity-80"
       title="Go to MF Superior landing page"
@@ -212,7 +217,7 @@ function SidebarBrand() {
           Freight Box Trucks
         </p>
       </div>
-    </a>
+    </Link>
   );
 }
 

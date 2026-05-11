@@ -451,7 +451,7 @@ function EmptyState({
           <>
             <p className="font-medium text-foreground">No leads yet.</p>
             <p className="text-muted-foreground">
-              Import your existing spreadsheet to seed the pipeline. The kit's{" "}
+              Import your existing spreadsheet to seed the pipeline. The kit&apos;s{" "}
               <span className="font-mono">01_Lead_List.xlsx</span> with 50
               ranked Denver leads is the right starting point.
             </p>

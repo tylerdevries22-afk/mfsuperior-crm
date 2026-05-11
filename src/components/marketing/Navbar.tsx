@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { MFLogo, LockIcon } from './icons';
 
 /**
@@ -118,14 +119,14 @@ export default function Navbar() {
             mark stays proportionate on phones without crowding the
             mobile call/menu cluster. CSS controls width on each
             breakpoint via .mkt-nav-logo (defined in globals.css). */}
-        <a
+        <Link
           href="/"
           aria-label="MF Superior — home"
           className="mkt-nav-logo"
           style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}
         >
           <MFLogo width={90} height={54} />
-        </a>
+        </Link>
 
         {/* Desktop: center nav links */}
         <div

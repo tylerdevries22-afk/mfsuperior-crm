@@ -18,8 +18,12 @@ import { Button } from "@/components/ui/button";
 
 export const metadata = { title: "Dashboard" };
 
+function sevenDaysAgo(): Date {
+  return new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+}
+
 export default async function DashboardPage() {
-  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const since = sevenDaysAgo();
 
   const [
     [{ activeEnrollments }],
@@ -40,7 +44,7 @@ export default async function DashboardPage() {
       .where(
         and(
           eq(emailEvents.eventType, "draft_created"),
-          gte(emailEvents.occurredAt, sevenDaysAgo),
+          gte(emailEvents.occurredAt, since),
         ),
       ),
 
@@ -50,7 +54,7 @@ export default async function DashboardPage() {
       .where(
         and(
           eq(emailEvents.eventType, "replied"),
-          gte(emailEvents.occurredAt, sevenDaysAgo),
+          gte(emailEvents.occurredAt, since),
         ),
       ),
 
@@ -60,7 +64,7 @@ export default async function DashboardPage() {
       .where(
         and(
           eq(emailEvents.eventType, "opened"),
-          gte(emailEvents.occurredAt, sevenDaysAgo),
+          gte(emailEvents.occurredAt, since),
         ),
       ),
 
@@ -80,7 +84,7 @@ export default async function DashboardPage() {
       .where(
         and(
           isNull(leads.archivedAt),
-          gte(leads.createdAt, sevenDaysAgo),
+          gte(leads.createdAt, since),
         ),
       ),
   ]);

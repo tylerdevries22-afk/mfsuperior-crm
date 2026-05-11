@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { desc, isNull, sql } from "drizzle-orm";
-import { Bell, BellOff, CheckCheck } from "lucide-react";
+import { BellOff, CheckCheck } from "lucide-react";
 import { db } from "@/lib/db/client";
 import { notifications } from "@/lib/db/schema";
 import { Button } from "@/components/ui/button";
