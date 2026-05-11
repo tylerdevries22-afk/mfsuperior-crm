@@ -26,47 +26,37 @@ const MAX_BYTES = 8 * 1024 * 1024; // 8 MB
 async function buildDedupeIndex(
   inserts: LeadInsert[],
 ): Promise<{ emails: Set<string>; namesNullEmail: Set<string> }> {
-  const emailsLower = Array.from(
-    new Set(
-      inserts
-        .map((i) => i.email?.toLowerCase().trim())
-        .filter((e): e is string => !!e),
-    ),
+  const targetEmails = new Set(
+    inserts
+      .map((i) => i.email?.toLowerCase().trim())
+      .filter((e): e is string => !!e),
   );
-  const namesLower = Array.from(
-    new Set(
-      inserts
-        .filter((i) => !i.email)
-        .map((i) => i.companyName?.toLowerCase().trim())
-        .filter((n): n is string => !!n),
-    ),
+  const targetNames = new Set(
+    inserts
+      .filter((i) => !i.email)
+      .map((i) => i.companyName?.toLowerCase().trim())
+      .filter((n): n is string => !!n),
   );
+
+  // Fetch every lead once and dedupe in JS. The previous WHERE used
+  // `sql\`LOWER(x) = ANY(${jsArray})\`` which doesn't bind reliably
+  // through Drizzle — Postgres rejected the query as malformed in some
+  // runtime conditions. The leads table is small enough (hundreds of
+  // rows, not millions) that one full SELECT is faster than fighting
+  // the array-binding edge case.
+  const rows = await db
+    .select({ email: leads.email, companyName: leads.companyName })
+    .from(leads);
 
   const emailsHit = new Set<string>();
   const namesHit = new Set<string>();
-
-  if (emailsLower.length > 0) {
-    const rows = await db
-      .select({ email: leads.email })
-      .from(leads)
-      .where(sql`LOWER(${leads.email}) = ANY(${emailsLower})`);
-    for (const r of rows) {
-      if (r.email) emailsHit.add(r.email.toLowerCase());
-    }
-  }
-
-  if (namesLower.length > 0) {
-    const rows = await db
-      .select({ companyName: leads.companyName })
-      .from(leads)
-      .where(
-        and(
-          isNull(leads.email),
-          sql`LOWER(${leads.companyName}) = ANY(${namesLower})`,
-        ),
-      );
-    for (const r of rows) {
-      if (r.companyName) namesHit.add(r.companyName.toLowerCase());
+  for (const r of rows) {
+    if (r.email) {
+      const e = r.email.toLowerCase();
+      if (targetEmails.has(e)) emailsHit.add(e);
+    } else if (r.companyName) {
+      const n = r.companyName.toLowerCase();
+      if (targetNames.has(n)) namesHit.add(n);
     }
   }
 

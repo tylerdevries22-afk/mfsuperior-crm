@@ -22,16 +22,15 @@ const DEFAULT_PAGE_SIZE = 50;
 const STAGES = ["new", "contacted", "replied", "quoted", "won", "lost"] as const;
 const TIERS = ["A", "B", "C"] as const;
 
+// Source filter values. The labels are intentionally collapsed into a few
+// high-signal groupings so the operator sees clear provenance — not the
+// long history of how each path evolved. Less-used legacy values still
+// match if the operator types ?source=... in the URL.
 const SOURCES = [
-  { value: "lead-gen", label: "Generate leads (OSM + curated + scrape + MX)" },
-  { value: "website-scrape", label: "Verified Quick-add (website scrape)" },
-  { value: "research-free-admin", label: "Research (free, admin button)" },
-  { value: "research-paid-admin", label: "Research (paid, admin button)" },
-  { value: "research-free", label: "Research CLI (free)" },
-  { value: "research-paid", label: "Research CLI (paid)" },
-  { value: "starter-pack", label: "Quick-add starter pack (legacy)" },
-  { value: "spreadsheet", label: "Spreadsheet import" },
-  { value: "website_contact", label: "Website contact form" },
+  { value: "lead-gen", label: "Generated (OSM + scrape + MX)" },
+  { value: "website-scrape", label: "Generated (curated + scrape + MX)" },
+  { value: "spreadsheet", label: "Imported (spreadsheet)" },
+  { value: "website_contact", label: "Inbound (website contact form)" },
   { value: "manual", label: "Manually added" },
 ] as const;
 
