@@ -11,6 +11,10 @@ import { LeadsTable } from "@/components/leads/leads-table";
 import { quickAddStarterPackAction } from "@/app/(app)/admin/actions";
 
 export const metadata = { title: "Leads" };
+// Quick-add curated pack server action runs from this page; give it
+// breathing room beyond the 10s Hobby default in case the bulk SELECT +
+// INSERT + parallel UPDATEs hit a Neon cold start.
+export const maxDuration = 60;
 
 const PAGE_SIZE_OPTIONS = [25, 50, 100, 200] as const;
 const DEFAULT_PAGE_SIZE = 50;

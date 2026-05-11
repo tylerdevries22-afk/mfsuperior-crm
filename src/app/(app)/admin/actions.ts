@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { env } from "@/lib/env";
 import { db } from "@/lib/db/client";
@@ -234,6 +234,11 @@ export async function runPaidResearchAction(formData: FormData): Promise<void> {
 export async function quickAddStarterPackAction(): Promise<void> {
   // Capture every possible failure mode and surface it in the redirect
   // URL so the operator sees something visible instead of a silent no-op.
+  //
+  // Performance note: 150 entries × 3 serial DB roundtrips = ~450 queries,
+  // which blows Vercel Hobby's 10s function limit on Neon cold starts.
+  // This implementation does ONE bulk SELECT + ONE bulk INSERT + parallel
+  // UPDATE batches → typically <2s total.
   let errorMsg: string | null = null;
   let inserted = 0;
   let updated = 0;
@@ -260,104 +265,205 @@ export async function quickAddStarterPackAction(): Promise<void> {
         smallbiz: "Small business",
       };
 
-      for (const c of sample) {
-        const tags: string[] = ["tier-A", verticalLabel[c.industry], "email-guessed"];
+      // Build a normalized work item per curated entry.
+      type Work = {
+        c: (typeof sample)[number];
+        email: string;
+        website: string;
+        vertical: string;
+        tags: string[];
+      };
+      const work: Work[] = sample.map((c) => {
+        const tags: string[] = [
+          "tier-A",
+          verticalLabel[c.industry],
+          "email-guessed",
+        ];
         if (c.refrigerated || c.industry === "restaurants") tags.push("refrigerated");
         if (c.chain) tags.push("chain-store");
+        return {
+          c,
+          email: `${c.emailLocal ?? "info"}@${c.domain}`,
+          website: `https://${c.domain}`,
+          vertical: verticalLabel[c.industry],
+          tags,
+        };
+      });
 
-        const localPart = c.emailLocal ?? "info";
-        const email = `${localPart}@${c.domain}`;
-        const website = `https://${c.domain}`;
-        const vertical = verticalLabel[c.industry];
+      const allEmails = work.map((w) => w.email);
+      const allNames = work.map((w) => w.c.name);
 
-        try {
-          // 1. Match on email (exact) — the partial unique index doesn't
-          //    cover this with ON CONFLICT, so we do an explicit lookup.
-          const [byEmail] = await db
-            .select({ id: leadsTable.id, archivedAt: leadsTable.archivedAt })
-            .from(leadsTable)
-            .where(eq(leadsTable.email, email))
-            .limit(1);
+      // ── ONE bulk SELECT for every possible match ────────────────────
+      // Fetches: (a) rows whose email matches any expected email,
+      //          (b) rows whose companyName matches any expected name
+      //              AND email IS NULL (legacy spreadsheet rows).
+      const existing = await db
+        .select({
+          id: leadsTable.id,
+          email: leadsTable.email,
+          companyName: leadsTable.companyName,
+          archivedAt: leadsTable.archivedAt,
+        })
+        .from(leadsTable)
+        .where(
+          or(
+            inArray(leadsTable.email, allEmails),
+            and(
+              inArray(leadsTable.companyName, allNames),
+              isNull(leadsTable.email),
+            ),
+          ),
+        );
 
-          if (byEmail) {
-            const wasArchived = byEmail.archivedAt !== null;
-            await db
-              .update(leadsTable)
-              .set({
-                companyName: c.name,
-                vertical,
-                website,
-                tier: "A",
-                score: 75,
-                tags,
-                archivedAt: null,
-                updatedAt: new Date(),
-              })
-              .where(eq(leadsTable.id, byEmail.id));
-            updated++;
-            if (wasArchived) unarchived++;
-            continue;
-          }
-
-          // 2. Match on companyName where email IS NULL — this is the
-          //    legacy-spreadsheet case the operator wants enriched.
-          const [byName] = await db
-            .select({ id: leadsTable.id, archivedAt: leadsTable.archivedAt })
-            .from(leadsTable)
-            .where(
-              and(
-                eq(leadsTable.companyName, c.name),
-                isNull(leadsTable.email),
-              ),
-            )
-            .limit(1);
-
-          if (byName) {
-            const wasArchived = byName.archivedAt !== null;
-            await db
-              .update(leadsTable)
-              .set({
-                email,
-                website,
-                vertical,
-                tier: "A",
-                score: 75,
-                tags,
-                source: "starter-pack",
-                archivedAt: null,
-                updatedAt: new Date(),
-              })
-              .where(eq(leadsTable.id, byName.id));
-            enriched++;
-            if (wasArchived) unarchived++;
-            continue;
-          }
-
-          // 3. Brand new — insert.
-          await db.insert(leadsTable).values({
-            email,
-            phone: null,
-            companyName: c.name,
-            website,
-            vertical,
-            address: null,
-            city: "Denver Metro",
-            state: "CO",
-            source: "starter-pack",
-            tier: "A",
-            score: 75,
-            tags,
-            notes:
-              "Denver Metro starter pack — backfill specific store address as needed.",
+      const byEmailMap = new Map<
+        string,
+        { id: string; archivedAt: Date | null }
+      >();
+      const byNameNullEmailMap = new Map<
+        string,
+        { id: string; archivedAt: Date | null }
+      >();
+      for (const row of existing) {
+        if (row.email) {
+          byEmailMap.set(row.email, { id: row.id, archivedAt: row.archivedAt });
+        } else if (row.companyName) {
+          byNameNullEmailMap.set(row.companyName, {
+            id: row.id,
+            archivedAt: row.archivedAt,
           });
-          inserted++;
+        }
+      }
+
+      // ── Categorize each work item in memory ─────────────────────────
+      type UpdatePayload = {
+        id: string;
+        email: string | null; // null when path 1 (email already matches)
+        companyName: string;
+        vertical: string;
+        website: string;
+        tags: string[];
+        wasArchived: boolean;
+        path: "update" | "enrich";
+      };
+      const toUpdate: UpdatePayload[] = [];
+      const toInsert: Array<{
+        email: string;
+        companyName: string;
+        website: string;
+        vertical: string;
+        tags: string[];
+      }> = [];
+
+      for (const w of work) {
+        const matchByEmail = byEmailMap.get(w.email);
+        if (matchByEmail) {
+          toUpdate.push({
+            id: matchByEmail.id,
+            email: null,
+            companyName: w.c.name,
+            vertical: w.vertical,
+            website: w.website,
+            tags: w.tags,
+            wasArchived: matchByEmail.archivedAt !== null,
+            path: "update",
+          });
+          continue;
+        }
+        const matchByName = byNameNullEmailMap.get(w.c.name);
+        if (matchByName) {
+          toUpdate.push({
+            id: matchByName.id,
+            email: w.email,
+            companyName: w.c.name,
+            vertical: w.vertical,
+            website: w.website,
+            tags: w.tags,
+            wasArchived: matchByName.archivedAt !== null,
+            path: "enrich",
+          });
+          continue;
+        }
+        toInsert.push({
+          email: w.email,
+          companyName: w.c.name,
+          website: w.website,
+          vertical: w.vertical,
+          tags: w.tags,
+        });
+      }
+
+      // ── ONE bulk INSERT for all new rows ────────────────────────────
+      if (toInsert.length > 0) {
+        try {
+          await db.insert(leadsTable).values(
+            toInsert.map((i) => ({
+              email: i.email,
+              phone: null,
+              companyName: i.companyName,
+              website: i.website,
+              vertical: i.vertical,
+              address: null,
+              city: "Denver Metro",
+              state: "CO",
+              source: "starter-pack",
+              tier: "A" as const,
+              score: 75,
+              tags: i.tags,
+              notes:
+                "Denver Metro starter pack — backfill specific store address as needed.",
+            })),
+          );
+          inserted = toInsert.length;
         } catch (err) {
-          skipped++;
+          skipped += toInsert.length;
           console.error(
-            "[quickAdd] failed for",
-            c.name,
+            "[quickAdd] bulk insert failed:",
             (err as Error).message,
           );
+        }
+      }
+
+      // ── Parallel UPDATEs in batches of 20 ───────────────────────────
+      const BATCH = 20;
+      for (let i = 0; i < toUpdate.length; i += BATCH) {
+        const slice = toUpdate.slice(i, i + BATCH);
+        const results = await Promise.allSettled(
+          slice.map((u) => {
+            const set: Record<string, unknown> = {
+              companyName: u.companyName,
+              vertical: u.vertical,
+              website: u.website,
+              tier: "A",
+              score: 75,
+              tags: u.tags,
+              archivedAt: null,
+              updatedAt: new Date(),
+            };
+            if (u.email !== null) {
+              set.email = u.email;
+              set.source = "starter-pack";
+            }
+            return db
+              .update(leadsTable)
+              .set(set)
+              .where(eq(leadsTable.id, u.id));
+          }),
+        );
+        for (let j = 0; j < results.length; j++) {
+          const r = results[j];
+          const u = slice[j];
+          if (r.status === "fulfilled") {
+            if (u.path === "update") updated++;
+            else enriched++;
+            if (u.wasArchived) unarchived++;
+          } else {
+            skipped++;
+            console.error(
+              "[quickAdd] update failed for",
+              u.companyName,
+              (r.reason as Error)?.message,
+            );
+          }
         }
       }
 
