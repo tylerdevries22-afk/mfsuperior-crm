@@ -2,12 +2,12 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Send, Loader2, X } from "lucide-react";
+import { Send, Loader2, X, Archive } from "lucide-react";
 import { useFormStatus } from "react-dom";
 import type { leads as leadsTable } from "@/lib/db/schema";
 import { Button } from "@/components/ui/button";
 import { StageChip, TagBadges, TierChip } from "@/components/leads/stage-chip";
-import { bulkSendAction } from "@/app/(app)/leads/actions";
+import { bulkArchiveAction, bulkSendAction } from "@/app/(app)/leads/actions";
 
 type Lead = typeof leadsTable.$inferSelect;
 type Sequence = { id: string; name: string };
@@ -291,13 +291,17 @@ function BulkActionForm({
 }) {
   const [sequenceId, setSequenceId] = React.useState(sequences[0]?.id ?? "");
 
+  const [archiveConfirmOpen, setArchiveConfirmOpen] = React.useState(false);
+
   return (
-    <form action={bulkSendAction}>
-      {/* Hidden inputs — these are what bulkSendAction reads via FormData. */}
-      <input type="hidden" name="sequenceId" value={sequenceId} />
-      {selectedIds.map((id) => (
-        <input key={id} type="hidden" name="leadIds" value={id} />
-      ))}
+    <>
+      {/* Hidden Send form — referenced by SubmitButton via form="bulk-send-form" */}
+      <form action={bulkSendAction} id="bulk-send-form" className="hidden">
+        <input type="hidden" name="sequenceId" value={sequenceId} />
+        {selectedIds.map((id) => (
+          <input key={id} type="hidden" name="leadIds" value={id} />
+        ))}
+      </form>
 
       {/* Bottom sticky bar */}
       <div
@@ -324,6 +328,14 @@ function BulkActionForm({
           </button>
 
           <div className="ml-auto flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setArchiveConfirmOpen(true)}
+            >
+              <Archive /> Archive{count > 1 ? ` (${count})` : ""}
+            </Button>
             <label className="text-xs text-muted-foreground">
               Sequence
               <select
@@ -358,6 +370,57 @@ function BulkActionForm({
           </div>
         </div>
       </div>
+
+      {/* Archive confirm modal — submits its own form */}
+      {archiveConfirmOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="bulk-archive-title"
+          className="fixed inset-0 z-30 flex items-center justify-center bg-black/40 p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setArchiveConfirmOpen(false);
+          }}
+        >
+          <div className="w-full max-w-md rounded-md border border-border bg-card p-5 shadow-lg">
+            <h2
+              id="bulk-archive-title"
+              className="text-base font-semibold text-foreground"
+            >
+              Archive {count} lead{count === 1 ? "" : "s"}?
+            </h2>
+            <div className="mt-3 space-y-2 text-sm text-muted-foreground">
+              <p>
+                Sets <span className="font-mono">archivedAt = now()</span> on
+                each selected row. Archived leads disappear from this list
+                but the data is preserved.
+              </p>
+              <p className="text-xs">
+                Reversible via SQL:{" "}
+                <span className="font-mono">
+                  UPDATE leads SET archived_at = NULL WHERE id IN (...);
+                </span>
+              </p>
+            </div>
+            <form action={bulkArchiveAction}>
+              {selectedIds.map((id) => (
+                <input key={id} type="hidden" name="leadIds" value={id} />
+              ))}
+              <div className="mt-5 flex items-center justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setArchiveConfirmOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <ArchiveSubmit count={count} />
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Confirm modal — the submit button here actually fires the action */}
       {confirmOpen && (
@@ -413,7 +476,7 @@ function BulkActionForm({
           </div>
         </div>
       )}
-    </form>
+    </>
   );
 }
 
@@ -422,7 +485,12 @@ function BulkActionForm({
 function SubmitButton({ disabled }: { disabled?: boolean }) {
   const { pending } = useFormStatus();
   return (
-    <Button size="sm" type="submit" disabled={disabled || pending}>
+    <Button
+      size="sm"
+      type="submit"
+      form="bulk-send-form"
+      disabled={disabled || pending}
+    >
       {pending ? (
         <>
           <Loader2 className="size-4 animate-spin" /> Sending…
@@ -430,6 +498,23 @@ function SubmitButton({ disabled }: { disabled?: boolean }) {
       ) : (
         <>
           <Send /> Send now
+        </>
+      )}
+    </Button>
+  );
+}
+
+function ArchiveSubmit({ count }: { count: number }) {
+  const { pending } = useFormStatus();
+  return (
+    <Button size="sm" type="submit" variant="destructive" disabled={pending}>
+      {pending ? (
+        <>
+          <Loader2 className="size-4 animate-spin" /> Archiving…
+        </>
+      ) : (
+        <>
+          <Archive /> Archive {count}
         </>
       )}
     </Button>
