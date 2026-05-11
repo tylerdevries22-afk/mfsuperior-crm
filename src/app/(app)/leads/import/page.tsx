@@ -53,7 +53,7 @@ export default async function ImportLeadsPage({
         <p className="mt-1 text-sm text-muted-foreground">
           Upload an .xlsx with a header row containing Company, Tier, Score,
           and the other lead fields. Existing rows are matched by email; if
-          email is empty they're matched by company name.
+          email is empty they&apos;re matched by company name.
         </p>
       </header>
 
@@ -120,7 +120,7 @@ export default async function ImportLeadsPage({
               />
               <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <FileSpreadsheet className="size-3.5" />
-                Try the kit's <span className="font-mono text-foreground">01_Lead_List.xlsx</span>.
+                Try the kit&apos;s <span className="font-mono text-foreground">01_Lead_List.xlsx</span>.
               </p>
             </div>
 
@@ -150,7 +150,7 @@ export default async function ImportLeadsPage({
                 </span>
                 <span className="text-xs text-muted-foreground">
                   Parse and report counts without writing to the database. Run
-                  this first if you're not sure the headers match.
+                  this first if you&apos;re not sure the headers match.
                 </span>
               </span>
             </label>

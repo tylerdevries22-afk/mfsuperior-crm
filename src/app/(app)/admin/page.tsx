@@ -211,7 +211,7 @@ export default async function AdminPage({
             <p className="text-sm text-muted-foreground">
               Cron runs every 5 minutes in production via{" "}
               <span className="font-mono">/api/cron/poll-replies</span>.
-              Detects replies and bounces on every active enrollment's Gmail
+              Detects replies and bounces on every active enrollment&apos;s Gmail
               thread, idempotently.
             </p>
             <form action={manualPollAction} className="flex flex-wrap items-center gap-2">

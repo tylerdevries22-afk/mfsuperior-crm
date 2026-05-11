@@ -7,7 +7,6 @@ import { useFormStatus } from "react-dom";
 import type { leads as leadsTable } from "@/lib/db/schema";
 import { Button } from "@/components/ui/button";
 import { StageChip, TagBadges, TierChip } from "@/components/leads/stage-chip";
-import { Card, CardContent } from "@/components/ui/card";
 import { bulkSendAction } from "@/app/(app)/leads/actions";
 
 type Lead = typeof leadsTable.$inferSelect;

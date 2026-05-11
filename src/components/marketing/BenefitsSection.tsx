@@ -35,21 +35,6 @@ const benefits: Benefit[] = [
   },
 ];
 
-function HeadingWithUnderline({ text }: { text: string }) {
-  const match = text.match(/^(.*?)(\s*)(\S+?)([.,!?]*)$/);
-  if (!match) return <>{text}</>;
-  const [, before, space, lastWord, punctuation] = match;
-  return (
-    <>
-      {before}
-      {space}
-      <span style={{ textDecoration: 'underline', textDecorationThickness: '1px', textUnderlineOffset: '4px' }}>
-        {lastWord}
-      </span>
-      {punctuation}
-    </>
-  );
-}
 
 interface BenefitVideoProps {
   src: string;

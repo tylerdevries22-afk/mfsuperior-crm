@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { composeEmail } from "../../src/lib/email/compose";
 
 // Mock env so pixelUrl doesn't throw on missing APP_URL

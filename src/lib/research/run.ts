@@ -604,7 +604,7 @@ export async function runResearch(opts: RunOptions): Promise<RunReport> {
     // If the score is below the C threshold, surface it as Tier C with a
     // `tier-untriaged` tag instead of dropping silently. The operator
     // sees every discovered lead in the CRM and can manually filter.
-    let effectiveTier: "A" | "B" | "C" = result.tier ?? "C";
+    const effectiveTier: "A" | "B" | "C" = result.tier ?? "C";
     if (!result.tier) {
       counts.dropped++;
       counts.tierC++;

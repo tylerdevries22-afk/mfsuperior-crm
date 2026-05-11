@@ -39,7 +39,7 @@ export default async function SequencesPage() {
             Sequences
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Multi-step automation. The Day 0 / 4 / 10 cadence is the kit's
+            Multi-step automation. The Day 0 / 4 / 10 cadence is the kit&apos;s
             default; cron ticks every 15 minutes.
           </p>
         </div>

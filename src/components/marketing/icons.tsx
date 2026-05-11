@@ -32,7 +32,8 @@ export function TerminalLogo(props: SVGProps & { className?: string; width?: num
   return <MFMark width={props.width ?? 60} height={props.height ?? 60} className={props.className} />;
 }
 
-export function TerminalWordmark({ className }: { className?: string }) {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function TerminalWordmark(_props: { className?: string }) {
   return null;
 }
 

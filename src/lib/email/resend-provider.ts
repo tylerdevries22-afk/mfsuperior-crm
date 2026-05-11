@@ -63,6 +63,7 @@ export class ResendProvider implements EmailProvider {
     };
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async getThreadMessages(_threadId: string) {
     // Resend does not expose thread/inbox data — reply detection is not
     // available with this provider.

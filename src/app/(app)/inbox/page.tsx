@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { and, desc, eq, gte, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, sql, type SQL } from "drizzle-orm";
 import {
   Send,
   Eye,

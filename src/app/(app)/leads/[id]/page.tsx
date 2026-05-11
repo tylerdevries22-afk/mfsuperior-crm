@@ -288,7 +288,7 @@ export default async function LeadDetailPage({
                 <p className="text-sm text-muted-foreground">
                   No active sequence templates yet.{" "}
                   <Link href="/templates" className="text-primary hover:underline">
-                    Seed the kit's Day 0/4/10 templates
+                    Seed the kit&apos;s Day 0/4/10 templates
                   </Link>{" "}
                   first.
                 </p>
