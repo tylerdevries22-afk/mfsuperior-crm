@@ -59,7 +59,9 @@ export async function manualTickAction(): Promise<void> {
       ? encodeURIComponent(report.notes.join("|"))
       : "",
   });
-  redirect(`/admin?${params.toString()}`);
+  // Keep the operator on the Engine tab after a manual tick so the
+  // result panel they just triggered remains visible.
+  redirect(`/admin?tab=tick&${params.toString()}`);
 }
 
 export async function manualPollAction(): Promise<void> {
@@ -82,7 +84,7 @@ export async function manualPollAction(): Promise<void> {
       ? encodeURIComponent(report.notes.join("|"))
       : "",
   });
-  redirect(`/admin?${params.toString()}`);
+  redirect(`/admin?tab=tick&${params.toString()}`);
 }
 
 export async function addSuppressionAction(formData: FormData): Promise<void> {
@@ -169,7 +171,7 @@ async function runResearchAction(formData: FormData): Promise<void> {
         research_mode: "paid",
         research_error: "missing_api_keys",
       });
-      redirect(`/admin?${params.toString()}`);
+      redirect(`/admin?tab=imports&${params.toString()}`);
     }
   }
 
@@ -215,7 +217,7 @@ async function runResearchAction(formData: FormData): Promise<void> {
     r_role: String(report.roleAccount),
     r_dur: String(dur),
   });
-  redirect(`/admin?${params.toString()}`);
+  redirect(`/admin?tab=imports&${params.toString()}`);
 }
 
 export async function runFreeResearchAction(formData: FormData): Promise<void> {
@@ -605,7 +607,7 @@ export async function manualSyncAction(): Promise<void> {
       ? encodeURIComponent(report.notes.join("|"))
       : "",
   });
-  redirect(`/admin?${params.toString()}`);
+  redirect(`/admin?tab=tick&${params.toString()}`);
 }
 
 /* ── Verified Quick-add (website-extracted emails, never guessed) ── */
@@ -1412,6 +1414,7 @@ export async function validateAllEmailsAction(): Promise<void> {
     v_dur: String(durationMs),
   });
   if (errorMsg) params.set("validate_error", errorMsg);
+  params.set("tab", "operations");
   redirect(`/admin?${params.toString()}`);
 }
 
@@ -1478,6 +1481,7 @@ export async function fixBusinessNameAction(): Promise<void> {
     bizfix_updated: String(updated),
   });
   if (errorMsg) params.set("bizfix_error", errorMsg);
+  params.set("tab", "operations");
   redirect(`/admin?${params.toString()}`);
 }
 
@@ -1677,5 +1681,6 @@ export async function importDenverBatch1Action(): Promise<void> {
   });
   if (sequenceName) params.set("b1_sequence", sequenceName);
   if (errorMsg) params.set("b1_error", errorMsg);
+  params.set("tab", "imports");
   redirect(`/admin?${params.toString()}`);
 }
