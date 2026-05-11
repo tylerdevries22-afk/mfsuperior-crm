@@ -232,12 +232,14 @@ export async function runPaidResearchAction(formData: FormData): Promise<void> {
  * sees the inserted rows.
  */
 export async function quickAddStarterPackAction(): Promise<void> {
-  // Capture every possible failure mode (auth, env, db) and surface it
-  // in the redirect URL so the operator sees something visible instead
-  // of a silent 500 / no-op.
+  // Capture every possible failure mode and surface it in the redirect
+  // URL so the operator sees something visible instead of a silent no-op.
   let errorMsg: string | null = null;
   let inserted = 0;
   let updated = 0;
+  let enriched = 0; // existing email-null rows whose email we filled in
+  let unarchived = 0; // matches that were archived; brought back to life
+  let skipped = 0;
   let attempted = 0;
   const start = Date.now();
 
@@ -248,10 +250,6 @@ export async function quickAddStarterPackAction(): Promise<void> {
     } else {
       env();
 
-      // Insert ALL curated entries. The list ships in the repo so this is
-      // fast (no network, no scrape). Each entry uses its preferred
-      // contact-email local-part (info/procurement/dispatch/orders) so the
-      // resulting address actually routes to the right inbox.
       const sample = CURATED_DENVER;
       attempted = sample.length;
 
@@ -269,54 +267,100 @@ export async function quickAddStarterPackAction(): Promise<void> {
 
         const localPart = c.emailLocal ?? "info";
         const email = `${localPart}@${c.domain}`;
+        const website = `https://${c.domain}`;
+        const vertical = verticalLabel[c.industry];
 
         try {
-          const [row] = await db
-            .insert(leadsTable)
-            .values({
-              email,
-              phone: null,
-              companyName: c.name,
-              website: `https://${c.domain}`,
-              vertical: verticalLabel[c.industry],
-              address: null,
-              city: "Denver Metro",
-              state: "CO",
-              source: "starter-pack",
-              tier: "A",
-              score: 75,
-              tags,
-              notes:
-                "Denver Metro starter pack — backfill specific store address as needed.",
-            })
-            .onConflictDoUpdate({
-              target: leadsTable.email,
-              set: {
+          // 1. Match on email (exact) — the partial unique index doesn't
+          //    cover this with ON CONFLICT, so we do an explicit lookup.
+          const [byEmail] = await db
+            .select({ id: leadsTable.id, archivedAt: leadsTable.archivedAt })
+            .from(leadsTable)
+            .where(eq(leadsTable.email, email))
+            .limit(1);
+
+          if (byEmail) {
+            const wasArchived = byEmail.archivedAt !== null;
+            await db
+              .update(leadsTable)
+              .set({
                 companyName: c.name,
-                vertical: verticalLabel[c.industry],
-                website: `https://${c.domain}`,
+                vertical,
+                website,
                 tier: "A",
                 score: 75,
                 tags,
+                archivedAt: null,
                 updatedAt: new Date(),
-              },
-            })
-            .returning({
-              id: leadsTable.id,
-              createdAt: leadsTable.createdAt,
-              updatedAt: leadsTable.updatedAt,
-            });
-          if (row && Math.abs(row.createdAt.getTime() - row.updatedAt.getTime()) < 1000) {
-            inserted++;
-          } else {
+              })
+              .where(eq(leadsTable.id, byEmail.id));
             updated++;
+            if (wasArchived) unarchived++;
+            continue;
           }
+
+          // 2. Match on companyName where email IS NULL — this is the
+          //    legacy-spreadsheet case the operator wants enriched.
+          const [byName] = await db
+            .select({ id: leadsTable.id, archivedAt: leadsTable.archivedAt })
+            .from(leadsTable)
+            .where(
+              and(
+                eq(leadsTable.companyName, c.name),
+                isNull(leadsTable.email),
+              ),
+            )
+            .limit(1);
+
+          if (byName) {
+            const wasArchived = byName.archivedAt !== null;
+            await db
+              .update(leadsTable)
+              .set({
+                email,
+                website,
+                vertical,
+                tier: "A",
+                score: 75,
+                tags,
+                source: "starter-pack",
+                archivedAt: null,
+                updatedAt: new Date(),
+              })
+              .where(eq(leadsTable.id, byName.id));
+            enriched++;
+            if (wasArchived) unarchived++;
+            continue;
+          }
+
+          // 3. Brand new — insert.
+          await db.insert(leadsTable).values({
+            email,
+            phone: null,
+            companyName: c.name,
+            website,
+            vertical,
+            address: null,
+            city: "Denver Metro",
+            state: "CO",
+            source: "starter-pack",
+            tier: "A",
+            score: 75,
+            tags,
+            notes:
+              "Denver Metro starter pack — backfill specific store address as needed.",
+          });
+          inserted++;
         } catch (err) {
-          console.error("[quickAdd] insert failed for", c.name, (err as Error).message);
+          skipped++;
+          console.error(
+            "[quickAdd] failed for",
+            c.name,
+            (err as Error).message,
+          );
         }
       }
 
-      // Audit log — best-effort; doesn't block the redirect.
       try {
         await db.insert(auditLog).values({
           actorUserId: session.user.id,
@@ -327,6 +371,9 @@ export async function quickAddStarterPackAction(): Promise<void> {
           afterJson: {
             inserted,
             updated,
+            enriched,
+            unarchived,
+            skipped,
             total: attempted,
             durationMs: Date.now() - start,
           },
@@ -337,8 +384,6 @@ export async function quickAddStarterPackAction(): Promise<void> {
       }
     }
   } catch (err) {
-    // Anything unexpected (env validation, db connection refused, etc.)
-    // gets surfaced in the URL so the operator sees the actual reason.
     errorMsg =
       (err as Error).name + ": " + (err as Error).message.slice(0, 120);
     console.error("[quickAdd] FATAL:", err);
@@ -350,6 +395,9 @@ export async function quickAddStarterPackAction(): Promise<void> {
   const params = new URLSearchParams({
     just_added: String(inserted),
     just_updated: String(updated),
+    just_enriched: String(enriched),
+    just_unarchived: String(unarchived),
+    just_skipped: String(skipped),
     starter: "1",
     stage: "all",
   });
