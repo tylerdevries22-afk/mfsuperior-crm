@@ -46,6 +46,13 @@ async function sendEmail(to: string, subject: string, html: string, text: string
   }
 }
 
+// Preflight handler so cross-origin POSTs from embedded contact forms
+// (e.g. a marketing iframe on a different domain) succeed instead of
+// failing the CORS preflight. Headers themselves are set in next.config.ts.
+export async function OPTIONS(): Promise<NextResponse> {
+  return new NextResponse(null, { status: 204 });
+}
+
 export async function POST(req: NextRequest) {
   const APP_URL = env().APP_URL;
   let body: ContactBody;
