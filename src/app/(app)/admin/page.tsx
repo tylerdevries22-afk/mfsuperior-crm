@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import {
   addSuppressionAction,
+  fixBusinessNameAction,
   generateLeadsAction,
   manualPollAction,
   manualSyncAction,
@@ -84,6 +85,10 @@ type Search = {
   v_deleted?: string;
   v_dur?: string;
   validate_error?: string;
+  // fixBusinessNameAction redirect params
+  bizfix?: string;
+  bizfix_updated?: string;
+  bizfix_error?: string;
 };
 
 export default async function AdminPage({
@@ -504,6 +509,47 @@ export default async function AdminPage({
             </div>
             <Button type="submit" size="sm" variant="destructive">
               <X /> Archive all email-less leads
+            </Button>
+          </form>
+
+          {/* One-shot: fix legacy "Solutions" → "Products" in the settings table */}
+          <form
+            action={fixBusinessNameAction}
+            className="flex flex-wrap items-start gap-3 rounded-md border border-primary/30 bg-primary/5 p-4"
+          >
+            <div className="flex-1 min-w-[260px]">
+              <p className="font-medium text-foreground">
+                Fix legacy business name in settings
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Runs{" "}
+                <span className="font-mono">
+                  UPDATE settings SET business_name = &apos;MF Superior Products&apos;
+                  WHERE business_name = &apos;MF Superior Solutions&apos;
+                </span>
+                . The schema default was corrected in PR #31, but existing
+                rows still hold the old typo, which means the compliance
+                footer on outbound emails signs as &quot;Solutions&quot;.
+                Idempotent — clicking after the fix lands updates 0 rows.
+              </p>
+              {sp.bizfix === "1" && sp.bizfix_error ? (
+                <p className="mt-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 font-mono text-[11px] text-destructive">
+                  {decodeURIComponent(sp.bizfix_error)}
+                </p>
+              ) : sp.bizfix === "1" ? (
+                <p className="mt-2 rounded-md border border-success/40 bg-success/10 px-3 py-2 text-xs text-foreground">
+                  Updated{" "}
+                  <span className="font-mono tabular-nums">
+                    {Number(sp.bizfix_updated ?? 0)}
+                  </span>{" "}
+                  settings row
+                  {Number(sp.bizfix_updated ?? 0) === 1 ? "" : "s"}.
+                  Outbound emails will now sign as &quot;MF Superior Products&quot;.
+                </p>
+              ) : null}
+            </div>
+            <Button type="submit" size="sm">
+              Fix business name
             </Button>
           </form>
 
