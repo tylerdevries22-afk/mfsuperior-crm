@@ -109,14 +109,32 @@ export function HeroSection() {
       const viewH = window.innerHeight;
       const scrolled = Math.max(0, -rect.top);
       const maxScroll = section.offsetHeight - viewH;
-      const progress = maxScroll > 0 ? Math.min(1, scrolled / maxScroll) : 0;
+      const sectionProgress =
+        maxScroll > 0 ? Math.min(1, scrolled / maxScroll) : 0;
+
+      // Map BOTH animations (video scrub + cascade text) into a
+      // sub-range of section scroll progress so they complete BEFORE
+      // the next section enters the viewport. Without this, the
+      // animations finish exactly when the sticky frame stops
+      // pinning — i.e., right as the next section appears below.
+      // The user's eye is already on the new content, so the final
+      // 10-15% of the scrub looks like it never happened.
+      //
+      // ANIM_END = 0.85 means both animations are fully complete at
+      // 85% of section scroll. The remaining 15% is a "settled
+      // hero" buffer — the video is on frame 149, the headline is
+      // in final white, and the user has another ~30vh of scroll
+      // before the runway releases and the next section starts to
+      // come in. Standard Apple / Stripe hero pattern.
+      const ANIM_END = 0.85;
+      const animProgress = Math.min(1, sectionProgress / ANIM_END);
 
       // CascadeText reads this MotionValue every render — keep it
       // current even before the video is seekable.
-      heroProgress.set(progress);
+      heroProgress.set(animProgress);
 
       if (video.duration > 0) {
-        applySeek(progress * video.duration);
+        applySeek(animProgress * video.duration);
       }
     };
 
@@ -294,12 +312,14 @@ export function HeroSection() {
             the headline letters reveal letter-by-letter at the same
             pace. They finish together at the bottom of the section.
 
-            Both animations use range [0, 1] of section scroll
-            progress:
-               cascade  → [0, 1]   spans full scroll
-               video    → [0, 1]   spans full scroll
-            They reach their settled state on the exact same frame
-            at the bottom of the runway.
+            Both animations share the same mapped progress curve:
+            section scroll progress 0 → 0.85 drives both video AND
+            cascade from 0 → 1 in lockstep. Section progress 0.85
+            → 1.0 is the "settled hero" buffer — video sits on
+            frame 149 and the headline holds in final white while
+            the user finishes scrolling past the runway. This
+            ensures the entire scrub is visible BEFORE the next
+            section enters the viewport from below.
           */}
           <h1
             style={{
