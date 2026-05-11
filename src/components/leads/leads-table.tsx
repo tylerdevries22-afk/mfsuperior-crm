@@ -7,6 +7,7 @@ import { useFormStatus } from "react-dom";
 import type { leads as leadsTable } from "@/lib/db/schema";
 import { Button } from "@/components/ui/button";
 import { StageChip, TagBadges, TierChip } from "@/components/leads/stage-chip";
+import { LeadDrawer } from "@/components/leads/lead-drawer";
 import { bulkArchiveAction, bulkSendAction } from "@/app/(app)/leads/actions";
 
 type Lead = typeof leadsTable.$inferSelect;
@@ -21,6 +22,11 @@ export function LeadsTable({
 }) {
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const [confirmOpen, setConfirmOpen] = React.useState(false);
+  // Drawer state: clicking a row sets this to the lead's id, which
+  // mounts <LeadDrawer> and triggers its /api/leads/[id]/summary
+  // fetch. null = closed. Full-page route /leads/[id] is unchanged
+  // and still works for deep links.
+  const [drawerLeadId, setDrawerLeadId] = React.useState<string | null>(null);
 
   const allRowIds = React.useMemo(() => rows.map((r) => r.id), [rows]);
   const allSelected =
@@ -103,8 +109,19 @@ export function LeadsTable({
                 return (
                   <tr
                     key={lead.id}
+                    onClick={(e) => {
+                      // Open the drawer when the operator clicks
+                      // empty row chrome. Don't hijack clicks on
+                      // interactive children — links / buttons /
+                      // checkboxes still do their default thing, and
+                      // ⌘/Ctrl/middle-click on the company-name Link
+                      // still opens the full route in a new tab.
+                      const target = e.target as HTMLElement;
+                      if (target.closest("a, button, input, label")) return;
+                      setDrawerLeadId(lead.id);
+                    }}
                     className={
-                      "group transition-colors " +
+                      "group cursor-pointer transition-colors " +
                       (checked
                         ? "bg-primary/5 hover:bg-primary/10"
                         : "hover:bg-secondary/40")
@@ -244,6 +261,14 @@ export function LeadsTable({
           setConfirmOpen={setConfirmOpen}
         />
       )}
+
+      {/* Drawer overlay — mounts whenever a row was clicked. Closing
+          via Esc / backdrop / X / Open-full-page-link all funnel
+          through the single `setDrawerLeadId(null)` callback. */}
+      <LeadDrawer
+        leadId={drawerLeadId}
+        onClose={() => setDrawerLeadId(null)}
+      />
     </>
   );
 }
