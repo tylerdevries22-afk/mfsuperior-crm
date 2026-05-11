@@ -1,0 +1,5 @@
+2026-05-11T15:00:00Z
+
+Empty file used to trigger Vercel redeploys when env vars change
+(env-var changes alone don't propagate to running serverless functions
+without a redeploy). Touch the timestamp above and push to main.
