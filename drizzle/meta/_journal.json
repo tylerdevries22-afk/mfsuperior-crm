@@ -15,6 +15,13 @@
       "when": 1778186582069,
       "tag": "0001_petite_golden_guardian",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1778538254054,
+      "tag": "0002_email_trust",
+      "breakpoints": true
     }
   ]
 }

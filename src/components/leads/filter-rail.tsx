@@ -53,6 +53,17 @@ const HAS_EMAIL = [
   { value: "no", label: "No email" },
 ] as const;
 
+/** Email-trust facet. Multi-select so an operator can include both
+ * "verified" + "guessed" while excluding "invalid", or whatever
+ * combination matches the workflow at hand. Sourced from the new
+ * `email_trust` column populated by the trust pipeline. */
+const EMAIL_TRUST = [
+  { value: "verified", label: "Verified" },
+  { value: "guessed", label: "Guessed" },
+  { value: "unverified", label: "Unverified" },
+  { value: "invalid", label: "Invalid" },
+] as const;
+
 /** Same fallback as filter-bar; only used when the parent page didn't
  * pass `availableTags` (which currently always passes a fresh distinct
  * query result from the DB). */
@@ -79,6 +90,9 @@ export type FilterRailProps = {
   lastContacted: string;
   enrollment: string;
   hasEmail: string;
+  /** CSV-multi: which email-trust buckets to include. Empty array
+   * means "any trust level". */
+  emailTrust: string[];
   perPage: number;
 };
 
@@ -106,6 +120,7 @@ export function FilterRail(props: FilterRailProps) {
   const tiersCsv = props.tiers.join(",");
   const sourcesCsv = props.sources.join(",");
   const tagsCsv = props.tags.join(",");
+  const emailTrustCsv = props.emailTrust.join(",");
 
   const baseParams = {
     q: props.q,
@@ -116,6 +131,7 @@ export function FilterRail(props: FilterRailProps) {
     lastContacted: props.lastContacted,
     enrollment: props.enrollment,
     hasEmail: props.hasEmail,
+    emailTrust: emailTrustCsv,
     perPage: String(props.perPage),
   };
 
@@ -124,6 +140,7 @@ export function FilterRail(props: FilterRailProps) {
     props.tiers.length +
     props.sources.length +
     props.tags.length +
+    props.emailTrust.length +
     (props.lastContacted !== "any" ? 1 : 0) +
     (props.enrollment !== "any" ? 1 : 0) +
     (props.hasEmail !== "any" ? 1 : 0);
@@ -187,6 +204,18 @@ export function FilterRail(props: FilterRailProps) {
           options={HAS_EMAIL}
           selected={props.hasEmail}
           baseParams={baseParams}
+        />
+        {/* Email-trust pipeline output. Operators who only want to
+            send to confirmed addresses pick "verified" alone; the
+            cleanup-day workflow is "guessed + unverified" so the
+            list shows only candidates that need attention. */}
+        <MultiSection
+          title="Email trust"
+          paramName="emailTrust"
+          options={EMAIL_TRUST.map((t) => ({ value: t.value, label: t.label }))}
+          selected={props.emailTrust}
+          baseParams={baseParams}
+          defaultOpen
         />
         <SingleSection
           title="Enrollment"

@@ -8,6 +8,7 @@ import type { leads as leadsTable } from "@/lib/db/schema";
 import { Button } from "@/components/ui/button";
 import { StageChip, TagBadges, TierChip } from "@/components/leads/stage-chip";
 import { LeadDrawer } from "@/components/leads/lead-drawer";
+import { EmailTrustChip } from "@/components/leads/email-trust-chip";
 import { bulkArchiveAction, bulkSendAction } from "@/app/(app)/leads/actions";
 
 type Lead = typeof leadsTable.$inferSelect;
@@ -153,8 +154,22 @@ export function LeadsTable({
                         {lead.companyName ?? "—"}
                       </Link>
                       {lead.email ? (
-                        <p className="font-mono text-[11px] text-muted-foreground">
-                          {lead.email}
+                        <p className="flex items-center gap-1.5 font-mono text-[11px] text-muted-foreground">
+                          <span className="truncate">{lead.email}</span>
+                          {/* Trust chip lives inline so the operator
+                              can scan a column of emails and instantly
+                              see which are guesses vs. verified. */}
+                          <EmailTrustChip
+                            trust={lead.emailTrust as
+                              | "verified"
+                              | "guessed"
+                              | "unverified"
+                              | "invalid"
+                              | null
+                              | undefined}
+                            size="xs"
+                            showLabel={false}
+                          />
                         </p>
                       ) : (
                         <p className="font-mono text-[11px] italic text-muted-foreground/60">

@@ -29,6 +29,8 @@ export type LeadsToolbarProps = {
   lastContacted: string;
   enrollment: string;
   hasEmail: string;
+  /** CSV-multi: email-trust buckets to include. Empty = any. */
+  emailTrust: string[];
   perPage: number;
   /** Pre-computed total of active filter facets. The rail computes
    * this too — passing it from the page keeps both sides in sync. */
@@ -40,6 +42,7 @@ export function LeadsToolbar(props: LeadsToolbarProps) {
   const tiersCsv = props.tiers.join(",");
   const sourcesCsv = props.sources.join(",");
   const tagsCsv = props.tags.join(",");
+  const emailTrustCsv = props.emailTrust.join(",");
 
   return (
     <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -58,6 +61,7 @@ export function LeadsToolbar(props: LeadsToolbarProps) {
         <input type="hidden" name="lastContacted" value={props.lastContacted} />
         <input type="hidden" name="enrollment" value={props.enrollment} />
         <input type="hidden" name="hasEmail" value={props.hasEmail} />
+        <input type="hidden" name="emailTrust" value={emailTrustCsv} />
         <input type="hidden" name="perPage" value={String(props.perPage)} />
         <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
         <Input
@@ -79,6 +83,7 @@ export function LeadsToolbar(props: LeadsToolbarProps) {
           lastContacted: props.lastContacted,
           enrollment: props.enrollment,
           hasEmail: props.hasEmail,
+          emailTrust: emailTrustCsv,
         }}
       />
 

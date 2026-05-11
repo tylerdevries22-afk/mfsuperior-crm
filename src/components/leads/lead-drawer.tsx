@@ -12,6 +12,7 @@ import {
   X as XIcon,
 } from "lucide-react";
 import { StageChip, TagBadges, TierChip } from "@/components/leads/stage-chip";
+import { EmailTrustChip } from "@/components/leads/email-trust-chip";
 
 /**
  * Slide-in lead-detail drawer — opens when an operator clicks a row
@@ -39,6 +40,13 @@ type SummaryLead = {
   firstName: string | null;
   lastName: string | null;
   email: string | null;
+  emailTrust:
+    | "verified"
+    | "guessed"
+    | "unverified"
+    | "invalid"
+    | null;
+  emailValidatedAt: string | null;
   phone: string | null;
   website: string | null;
   city: string | null;
@@ -228,12 +236,18 @@ export function LeadDrawer({
                     label="Email"
                   >
                     {lead.email ? (
-                      <a
-                        href={`mailto:${lead.email}`}
-                        className="font-mono text-[12px] text-foreground hover:text-primary"
-                      >
-                        {lead.email}
-                      </a>
+                      <span className="inline-flex items-center gap-1.5">
+                        <a
+                          href={`mailto:${lead.email}`}
+                          className="font-mono text-[12px] text-foreground hover:text-primary"
+                        >
+                          {lead.email}
+                        </a>
+                        {/* Trust chip with the full text label and
+                            hover tooltip — drawer has the vertical
+                            space the table row doesn't. */}
+                        <EmailTrustChip trust={lead.emailTrust} />
+                      </span>
                     ) : (
                       <span className="italic text-muted-foreground">
                         none on file

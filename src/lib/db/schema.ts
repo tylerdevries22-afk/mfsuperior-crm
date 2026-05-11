@@ -163,6 +163,27 @@ export const leads = pgTable(
     nextFollowUpAt: timestamp("next_follow_up_at", { withTimezone: true }),
     lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
     archivedAt: timestamp("archived_at", { withTimezone: true }),
+    /**
+     * Composite trust level for `email`, populated by
+     * src/lib/leads/email-trust.ts. Mirrors the EmailTrust union:
+     *   • "verified"   — confirmed by website scrape or upstream tag
+     *   • "guessed"    — role-pattern address (info@/sales@), MX-only
+     *   • "unverified" — passed syntax+MX, provenance unknown
+     *   • "invalid"    — failed MX / syntax / disposable filter
+     *   • null         — never run through the pipeline yet
+     *
+     * Stored as a plain text column (not an enum) so adding new
+     * categories doesn't require a schema migration. The filter
+     * rail + EmailTrustChip read this directly.
+     */
+    emailTrust: text("email_trust"),
+    /**
+     * Timestamp of the most recent pipeline run. Used by the weekly
+     * cron to skip rows already classified inside the window.
+     */
+    emailValidatedAt: timestamp("email_validated_at", {
+      withTimezone: true,
+    }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),

@@ -1418,6 +1418,83 @@ export async function validateAllEmailsAction(): Promise<void> {
   redirect(`/admin?${params.toString()}`);
 }
 
+/* ── Email-trust pipeline backfill ──────────────────────────────── */
+
+/**
+ * Runs the full email-trust classifier (see
+ * src/lib/leads/email-trust.ts — "10 approaches" research doc) over
+ * every non-archived lead with an email. Populates the new
+ * `email_trust` + `email_validated_at` columns, archives leads
+ * that fail validation (instead of hard-deleting them like
+ * validateAllEmailsAction does), and tags archived rows
+ * `email-invalid` for reversibility.
+ *
+ * Distinct from validateAllEmailsAction:
+ *   • Classifies into 4 trust levels (not just pass/fail), so the
+ *     UI can show a per-row trust chip.
+ *   • Archives + tags instead of hard-deleting → operator can
+ *     restore a false-positive by clearing archivedAt + removing
+ *     the tag from /admin Operations.
+ *   • Walks every lead, regardless of prior validation state, so
+ *     the UI surfaces a chip for every row.
+ */
+export async function revalidateAllLeadEmailsAction(): Promise<void> {
+  let errorMsg: string | null = null;
+  let checked = 0;
+  let verified = 0;
+  let guessed = 0;
+  let unverified = 0;
+  let invalid = 0;
+  let archivedAsInvalid = 0;
+  let durationMs = 0;
+
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      errorMsg = "unauthorized";
+    } else {
+      env();
+      const { revalidateAllLeadEmails } = await import(
+        "@/lib/leads/email-trust"
+      );
+      const report = await revalidateAllLeadEmails({
+        actorUserId: session.user.id,
+      });
+      checked = report.checked;
+      verified = report.byTrust.verified;
+      guessed = report.byTrust.guessed;
+      unverified = report.byTrust.unverified;
+      invalid = report.byTrust.invalid;
+      archivedAsInvalid = report.archivedAsInvalid;
+      durationMs = report.durationMs;
+      if (report.errors.length > 0) {
+        errorMsg = report.errors.slice(0, 3).join("; ").slice(0, 200);
+      }
+    }
+  } catch (err) {
+    errorMsg =
+      (err as Error).name + ": " + (err as Error).message.slice(0, 120);
+    console.error("[revalidateAllLeadEmails] FATAL:", err);
+  }
+
+  revalidatePath("/leads");
+  revalidatePath("/admin");
+
+  const params = new URLSearchParams({
+    trust_revalidated: "1",
+    t_checked: String(checked),
+    t_verified: String(verified),
+    t_guessed: String(guessed),
+    t_unverified: String(unverified),
+    t_invalid: String(invalid),
+    t_archived: String(archivedAsInvalid),
+    t_dur: String(durationMs),
+  });
+  if (errorMsg) params.set("trust_error", errorMsg);
+  params.set("tab", "operations");
+  redirect(`/admin?${params.toString()}`);
+}
+
 /* ── One-shot business-name fix ─────────────────────────────────── */
 
 /**

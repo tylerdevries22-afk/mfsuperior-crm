@@ -50,6 +50,7 @@ type Search = {
   lastContacted?: string; // "7d" | "30d" | "90d" | "never" | "any"
   enrollment?: string; // "any" | "none" | "active" | "paused" | "completed"
   hasEmail?: string; // "yes" | "no" | "any"
+  emailTrust?: string; // CSV of "verified" | "guessed" | "unverified" | "invalid"
   perPage?: string;
   page?: string;
   // Quick-add starter pack redirect params
@@ -147,6 +148,16 @@ export default async function LeadsPage({
     .filter((s) => s.length > 0 && s.length < 60)
     .slice(0, 20);
 
+  // Email-trust facet (from the rail). Allowlist enforced so the SQL
+  // IN-clause can't be coerced into accepting arbitrary values.
+  const EMAIL_TRUST_VALUES = ["verified", "guessed", "unverified", "invalid"] as const;
+  const emailTrust = (sp.emailTrust ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s): s is (typeof EMAIL_TRUST_VALUES)[number] =>
+      (EMAIL_TRUST_VALUES as readonly string[]).includes(s),
+    );
+
   const lastContacted = (["7d", "30d", "90d", "never", "any"] as const).includes(
     (sp.lastContacted ?? "any") as "7d" | "30d" | "90d" | "never" | "any",
   )
@@ -239,6 +250,13 @@ export default async function LeadsPage({
   if (hasEmail === "yes") filters.push(isNotNull(leads.email));
   else if (hasEmail === "no") filters.push(isNull(leads.email));
 
+  // Email-trust facet — multi-select. When set, leads must match
+  // one of the selected trust levels. Allowlist enforced above so
+  // the IN values are safe to interpolate.
+  if (emailTrust.length > 0) {
+    filters.push(inArray(leads.emailTrust, emailTrust));
+  }
+
   const where = filters.length === 1 ? filters[0] : and(...filters);
 
   const [[{ count }], rows, sequenceRows, distinctTagRows] = await Promise.all([
@@ -299,6 +317,7 @@ export default async function LeadsPage({
     tiers.length +
     sources.length +
     tags.length +
+    emailTrust.length +
     (lastContacted !== "any" ? 1 : 0) +
     (enrollment !== "any" ? 1 : 0) +
     (hasEmail !== "any" ? 1 : 0);
@@ -320,6 +339,7 @@ export default async function LeadsPage({
         lastContacted={lastContacted}
         enrollment={enrollment}
         hasEmail={hasEmail}
+        emailTrust={emailTrust}
         perPage={perPage}
       />
 
@@ -370,6 +390,7 @@ export default async function LeadsPage({
           lastContacted={lastContacted}
           enrollment={enrollment}
           hasEmail={hasEmail}
+          emailTrust={emailTrust}
           perPage={perPage}
           activeCount={activeFilterCount}
         />
@@ -420,6 +441,7 @@ export default async function LeadsPage({
               lastContacted: lastContacted !== "any" ? lastContacted : undefined,
               enrollment: enrollment !== "any" ? enrollment : undefined,
               hasEmail: hasEmail !== "any" ? hasEmail : undefined,
+              emailTrust: emailTrust.length > 0 ? emailTrust.join(",") : undefined,
               perPage:
                 perPage === DEFAULT_PAGE_SIZE ? undefined : String(perPage),
             }}
@@ -529,6 +551,7 @@ function Pagination({
     lastContacted?: string;
     enrollment?: string;
     hasEmail?: string;
+    emailTrust?: string;
     perPage?: string;
   };
 }) {

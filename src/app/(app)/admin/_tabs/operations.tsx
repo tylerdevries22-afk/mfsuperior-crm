@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   fixBusinessNameAction,
   purgeNoEmailLeadsAction,
+  revalidateAllLeadEmailsAction,
   unarchiveAllLeadsAction,
   validateAllEmailsAction,
   wipeGuessedLeadsAction,
@@ -215,6 +216,77 @@ export function OperationsTab({ sp }: { sp: AdminSearch }) {
           </div>
           <Button type="submit" size="sm" variant="destructive">
             <X /> Archive all email-guessed
+          </Button>
+        </form>
+
+        {/* Re-validate trust pipeline: runs the 10-approach
+            email-trust classifier over every non-archived lead.
+            See src/lib/leads/email-trust.ts for the full research
+            doc. Archives (NOT deletes) any lead whose email fails
+            validation, so a false positive is reversible. */}
+        <form
+          action={revalidateAllLeadEmailsAction}
+          className="flex flex-wrap items-start gap-3 rounded-md border border-primary/40 bg-primary/5 p-4"
+        >
+          <div className="flex-1 min-w-[260px]">
+            <p className="font-medium text-foreground">
+              Re-validate email trust (all leads)
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Runs the full email-trust pipeline (syntax → MX →
+              disposable/freemail blocklist → role-account heuristic →
+              tag-prior + website-confirm) on every non-archived lead
+              and writes the result into{" "}
+              <span className="font-mono">email_trust</span>. Each row
+              becomes one of:{" "}
+              <span className="font-mono">verified</span>,{" "}
+              <span className="font-mono">guessed</span>,{" "}
+              <span className="font-mono">unverified</span>,{" "}
+              <span className="font-mono">invalid</span>. Invalids are
+              archived + tagged{" "}
+              <span className="font-mono">email-invalid</span> (NOT
+              hard-deleted — reversible).
+            </p>
+            {sp.trust_revalidated === "1" && sp.trust_error ? (
+              <p className="mt-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 font-mono text-[11px] text-destructive">
+                {decodeURIComponent(sp.trust_error)}
+              </p>
+            ) : sp.trust_revalidated === "1" ? (
+              <p className="mt-2 rounded-md border border-success/40 bg-success/10 px-3 py-2 text-xs text-foreground">
+                Checked{" "}
+                <span className="font-mono tabular-nums">
+                  {Number(sp.t_checked ?? 0)}
+                </span>{" "}
+                · verified{" "}
+                <span className="font-mono tabular-nums text-primary">
+                  {Number(sp.t_verified ?? 0)}
+                </span>{" "}
+                · guessed{" "}
+                <span className="font-mono tabular-nums text-warning">
+                  {Number(sp.t_guessed ?? 0)}
+                </span>{" "}
+                · unverified{" "}
+                <span className="font-mono tabular-nums text-muted-foreground">
+                  {Number(sp.t_unverified ?? 0)}
+                </span>{" "}
+                · invalid{" "}
+                <span className="font-mono tabular-nums text-destructive">
+                  {Number(sp.t_invalid ?? 0)}
+                </span>{" "}
+                · archived{" "}
+                <span className="font-mono tabular-nums">
+                  {Number(sp.t_archived ?? 0)}
+                </span>{" "}
+                in{" "}
+                <span className="font-mono tabular-nums">
+                  {Number(sp.t_dur ?? 0)}
+                </span>
+                ms.
+              </p>
+            ) : null}
+          </div>
+          <Button type="submit" size="sm">
+            Re-validate all
           </Button>
         </form>
       </CardContent>
