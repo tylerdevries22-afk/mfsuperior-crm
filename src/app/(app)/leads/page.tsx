@@ -9,6 +9,7 @@ import { Select } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { LeadsTable } from "@/components/leads/leads-table";
 import { FilterBar } from "@/components/leads/filter-bar";
+import { ResultToastBridge } from "@/components/leads/result-toast-bridge";
 import { verifiedQuickAddAction } from "@/app/(app)/admin/actions";
 
 export const metadata = { title: "Leads" };
@@ -239,7 +240,7 @@ export default async function LeadsPage({
 
   const where = filters.length === 1 ? filters[0] : and(...filters);
 
-  const [[{ count }], rows, sequenceRows] = await Promise.all([
+  const [[{ count }], rows, sequenceRows, distinctTagRows] = await Promise.all([
     db
       .select({ count: sql<number>`count(*)::int` })
       .from(leads)
@@ -260,10 +261,20 @@ export default async function LeadsPage({
       .from(emailSequences)
       .where(eq(emailSequences.status, "active"))
       .orderBy(asc(emailSequences.name)),
+    // Live tag set: distinct tags from every non-archived lead. Replaces
+    // the stale hardcoded `KNOWN_TAGS` allowlist in FilterBar so the
+    // dropdown always matches what's actually in the DB. Operators were
+    // hitting "my tag doesn't show up" because new tags from imports
+    // weren't being added to the allowlist.
+    db.execute<{ tag: string }>(
+      sql`SELECT DISTINCT unnest(tags) AS tag FROM leads WHERE archived_at IS NULL ORDER BY tag`,
+    ),
   ]);
+  const availableTags = (distinctTagRows as unknown as { tag: string }[])
+    .map((r) => r.tag)
+    .filter((t): t is string => Boolean(t));
 
   const totalPages = Math.max(1, Math.ceil(count / perPage));
-  const showSentBanner = sp.sent === "1";
 
   // If filters are hiding leads but the operator has leads in other
   // stages/sources, surface that so they don't think the page is broken.
@@ -325,321 +336,20 @@ export default async function LeadsPage({
         tiers={tiers}
         sources={sources}
         tags={tags}
+        availableTags={availableTags}
         lastContacted={lastContacted}
         enrollment={enrollment}
         hasEmail={hasEmail}
         perPage={perPage}
       />
 
-      {sp.purged === "1" && sp.purge_error ? (
-        <div className="mb-5 flex items-start gap-3 rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm">
-          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" />
-          <div>
-            <p className="font-medium text-foreground">Purge failed.</p>
-            <p className="mt-1 font-mono text-xs text-muted-foreground">
-              {decodeURIComponent(sp.purge_error)}
-            </p>
-          </div>
-        </div>
-      ) : sp.purged === "1" ? (
-        <div className="mb-5 flex items-start gap-3 rounded-md border border-success/40 bg-success/10 px-4 py-3 text-sm">
-          <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-success" />
-          <div>
-            <p className="font-medium text-foreground">
-              Archived{" "}
-              <span className="font-mono tabular-nums">{Number(sp.archived ?? 0)}</span>{" "}
-              email-less leads.
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              They&apos;re hidden from the worklist but not deleted. Click
-              Quick-add on <Link href="/admin" className="underline hover:text-foreground">/admin</Link>{" "}
-              to populate with high-quality emailed leads.
-            </p>
-          </div>
-        </div>
-      ) : null}
-
-      {sp.archived_bulk === "1" && sp.archive_error ? (
-        <div className="mb-5 flex items-start gap-3 rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm">
-          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" />
-          <div>
-            <p className="font-medium text-foreground">
-              Bulk archive failed.
-            </p>
-            <p className="mt-1 font-mono text-xs text-muted-foreground">
-              {decodeURIComponent(sp.archive_error)}
-            </p>
-          </div>
-        </div>
-      ) : sp.archived_bulk === "1" ? (
-        <div className="mb-5 flex items-start gap-3 rounded-md border border-success/40 bg-success/10 px-4 py-3 text-sm">
-          <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-success" />
-          <div>
-            <p className="font-medium text-foreground">
-              Archived{" "}
-              <span className="font-mono tabular-nums">{Number(sp.archived ?? 0)}</span>{" "}
-              of{" "}
-              <span className="font-mono tabular-nums">{Number(sp.requested ?? 0)}</span>{" "}
-              selected leads.
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Reversible via{" "}
-              <span className="font-mono text-[11px]">
-                UPDATE leads SET archived_at = NULL WHERE id IN (...);
-              </span>
-            </p>
-          </div>
-        </div>
-      ) : null}
-
-      {sp.verified === "1" && sp.verified_error ? (
-        <div className="mb-5 flex items-start gap-3 rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm">
-          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" />
-          <div>
-            <p className="font-medium text-foreground">
-              Verified quick-add failed.
-            </p>
-            <p className="mt-1 font-mono text-xs text-muted-foreground">
-              {decodeURIComponent(sp.verified_error)}
-            </p>
-          </div>
-        </div>
-      ) : sp.verified === "1" ? (
-        <div className="mb-5 flex items-start gap-3 rounded-md border border-success/40 bg-success/10 px-4 py-3 text-sm">
-          <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-success" />
-          <div>
-            <p className="font-medium text-foreground">
-              Verified quick-add —{" "}
-              <span className="font-mono tabular-nums">
-                {Number(sp.v_inserted ?? 0)}
-              </span>{" "}
-              new leads with website-extracted, MX-validated emails (from{" "}
-              <span className="font-mono tabular-nums">
-                {Number(sp.v_attempted ?? 0)}
-              </span>{" "}
-              attempted).
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Skips:{" "}
-              <span className="font-mono tabular-nums">
-                {Number(sp.v_already ?? 0)}
-              </span>{" "}
-              already in CRM,{" "}
-              <span className="font-mono tabular-nums">
-                {Number(sp.v_no_email ?? 0)}
-              </span>{" "}
-              no email on website,{" "}
-              <span className="font-mono tabular-nums">
-                {Number(sp.v_no_html ?? 0)}
-              </span>{" "}
-              website unreachable,{" "}
-              <span className="font-mono tabular-nums">
-                {Number(sp.v_mx_failed ?? 0)}
-              </span>{" "}
-              MX failed,{" "}
-              <span className="font-mono tabular-nums">
-                {Number(sp.v_timeout ?? 0)}
-              </span>{" "}
-              timed out,{" "}
-              <span className="font-mono tabular-nums">
-                {Number(sp.v_other ?? 0)}
-              </span>{" "}
-              other. Filter Source to{" "}
-              <span className="font-mono">website-scrape</span> to see only
-              these.
-            </p>
-          </div>
-        </div>
-      ) : null}
-
-      {sp.wiped_guessed === "1" && sp.wipe_error ? (
-        <div className="mb-5 flex items-start gap-3 rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm">
-          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" />
-          <div>
-            <p className="font-medium text-foreground">Wipe-guessed failed.</p>
-            <p className="mt-1 font-mono text-xs text-muted-foreground">
-              {decodeURIComponent(sp.wipe_error)}
-            </p>
-          </div>
-        </div>
-      ) : sp.wiped_guessed === "1" ? (
-        <div className="mb-5 flex items-start gap-3 rounded-md border border-success/40 bg-success/10 px-4 py-3 text-sm">
-          <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-success" />
-          <div>
-            <p className="font-medium text-foreground">
-              Archived{" "}
-              <span className="font-mono tabular-nums">
-                {Number(sp.archived ?? 0)}
-              </span>{" "}
-              email-guessed leads.
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Now click <span className="font-mono">Quick-add (verified)</span>{" "}
-              to repopulate with website-extracted, MX-validated emails.
-            </p>
-          </div>
-        </div>
-      ) : null}
-
-      {sp.unarchived === "1" && sp.unarchive_error ? (
-        <div className="mb-5 flex items-start gap-3 rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm">
-          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" />
-          <div>
-            <p className="font-medium text-foreground">Unarchive failed.</p>
-            <p className="mt-1 font-mono text-xs text-muted-foreground">
-              {decodeURIComponent(sp.unarchive_error)}
-            </p>
-          </div>
-        </div>
-      ) : sp.unarchived === "1" ? (
-        <div className="mb-5 flex items-start gap-3 rounded-md border border-success/40 bg-success/10 px-4 py-3 text-sm">
-          <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-success" />
-          <div>
-            <p className="font-medium text-foreground">
-              Unarchived{" "}
-              <span className="font-mono tabular-nums">
-                {Number(sp.unarchived_count ?? 0)}
-              </span>{" "}
-              leads
-              {sp.unarchived_since && sp.unarchived_since !== "all"
-                ? ` (window: ${sp.unarchived_since})`
-                : ""}
-              .
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              They&apos;re back on the worklist with their previous data
-              intact.
-            </p>
-          </div>
-        </div>
-      ) : null}
-
-      {sp.gen === "1" && sp.gen_error ? (
-        <div className="mb-5 flex items-start gap-3 rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm">
-          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" />
-          <div>
-            <p className="font-medium text-foreground">
-              Generate leads failed.
-            </p>
-            <p className="mt-1 font-mono text-xs text-muted-foreground">
-              {decodeURIComponent(sp.gen_error)}
-            </p>
-          </div>
-        </div>
-      ) : sp.gen === "1" ? (
-        <div className="mb-5 flex items-start gap-3 rounded-md border border-success/40 bg-success/10 px-4 py-3 text-sm">
-          <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-success" />
-          <div>
-            <p className="font-medium text-foreground">
-              Generated{" "}
-              <span className="font-mono tabular-nums">
-                {Number(sp.g_inserted ?? 0)}
-              </span>{" "}
-              new leads with website-extracted, MX-validated emails (from{" "}
-              <span className="font-mono tabular-nums">
-                {Number(sp.g_attempted ?? 0)}
-              </span>{" "}
-              attempted).
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Discovery:{" "}
-              <span className="font-mono tabular-nums">
-                {Number(sp.g_osm ?? 0)}
-              </span>{" "}
-              via OSM,{" "}
-              <span className="font-mono tabular-nums">
-                {Number(sp.g_curated ?? 0)}
-              </span>{" "}
-              via curated fallback. Skips:{" "}
-              <span className="font-mono tabular-nums">
-                {Number(sp.g_already ?? 0)}
-              </span>{" "}
-              already in CRM,{" "}
-              <span className="font-mono tabular-nums">
-                {Number(sp.g_no_website ?? 0)}
-              </span>{" "}
-              no website,{" "}
-              <span className="font-mono tabular-nums">
-                {Number(sp.g_no_email ?? 0)}
-              </span>{" "}
-              no email on site,{" "}
-              <span className="font-mono tabular-nums">
-                {Number(sp.g_mx_failed ?? 0)}
-              </span>{" "}
-              MX failed,{" "}
-              <span className="font-mono tabular-nums">
-                {Number(sp.g_timeout ?? 0)}
-              </span>{" "}
-              timed out. Filter Source to{" "}
-              <span className="font-mono">lead-gen</span> to see only these.
-            </p>
-          </div>
-        </div>
-      ) : null}
-
-      {sp.starter === "1" && sp.starter_error ? (
-        <div className="mb-5 flex items-start gap-3 rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm">
-          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" />
-          <div>
-            <p className="font-medium text-foreground">
-              Starter pack action failed.
-            </p>
-            <p className="mt-1 font-mono text-xs text-muted-foreground">
-              {decodeURIComponent(sp.starter_error)}
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Inserted {Number(sp.just_added ?? 0)} / Updated {Number(sp.just_updated ?? 0)}{" "}
-              before the error. Most common causes: not signed in
-              (re-login), or a missing required env var on Vercel.
-            </p>
-          </div>
-        </div>
-      ) : sp.starter === "1" ? (
-        <div className="mb-5 flex items-start gap-3 rounded-md border border-success/40 bg-success/10 px-4 py-3 text-sm">
-          <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-success" />
-          <div>
-            <p className="font-medium text-foreground">
-              Starter pack added —{" "}
-              <span className="font-mono tabular-nums">{Number(sp.just_added ?? 0)}</span>{" "}
-              new,{" "}
-              <span className="font-mono tabular-nums">{Number(sp.just_enriched ?? 0)}</span>{" "}
-              enriched,{" "}
-              <span className="font-mono tabular-nums">{Number(sp.just_updated ?? 0)}</span>{" "}
-              updated
-              {Number(sp.just_unarchived ?? 0) > 0 ? (
-                <>
-                  {", "}
-                  <span className="font-mono tabular-nums">
-                    {Number(sp.just_unarchived ?? 0)}
-                  </span>{" "}
-                  unarchived
-                </>
-              ) : null}
-              {Number(sp.just_skipped ?? 0) > 0 ? (
-                <>
-                  {", "}
-                  <span className="font-mono tabular-nums">
-                    {Number(sp.just_skipped ?? 0)}
-                  </span>{" "}
-                  skipped
-                </>
-              ) : null}
-              .
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Role-targeted emails ({" "}
-              <span className="font-mono">procurement@</span>,{" "}
-              <span className="font-mono">orders@</span>,{" "}
-              <span className="font-mono">dispatch@</span>,{" "}
-              <span className="font-mono">info@</span>), tier A, refrigerated +
-              chain-store tags where applicable. <em>Enriched</em> = legacy
-              email-less rows whose email was just filled in. Filter Source to{" "}
-              <span className="font-mono">starter-pack</span> to see only these.
-            </p>
-          </div>
-        </div>
-      ) : null}
-      {showSentBanner && <SendResultBanner sp={sp} />}
+      {/* Single toast bridge replaces ~300 lines of inline banner JSX.
+          Reads server-action redirect params from the URL once on
+          mount and fires a sonner toast for the relevant outcome:
+          archive / purge / bulk-archive / unarchive / quick-add /
+          bulk-send / import. Each fires exactly once per redirect
+          (URL params clear on next navigation). */}
+      <ResultToastBridge sp={sp} />
 
       {rows.length === 0 ? (
         <EmptyState
@@ -692,82 +402,6 @@ export default async function LeadsPage({
   );
 }
 
-/* ───── Send-result banner ───────────────────────────────────── */
-
-function SendResultBanner({ sp }: { sp: Search }) {
-  const requested = Number(sp.requested ?? 0);
-  const enrolled = Number(sp.enrolled ?? 0);
-  const already = Number(sp.already ?? 0);
-  const suppressed = Number(sp.suppressed ?? 0);
-  const noStep = Number(sp.no_step ?? 0);
-  const tickSent = Number(sp.tick_sent ?? 0);
-  const tickDrafted = Number(sp.tick_drafted ?? 0);
-  const tickFailed = Number(sp.tick_failed ?? 0);
-  const tickCapped = Number(sp.tick_capped ?? 0);
-  const tickNoEmail = Number(sp.tick_no_email ?? 0);
-
-  const hasIssue =
-    tickFailed > 0 || suppressed > 0 || noStep > 0 || tickCapped > 0 || tickNoEmail > 0;
-  const Icon = hasIssue ? AlertTriangle : CheckCircle2;
-  const color = hasIssue ? "warning" : "success";
-
-  return (
-    <div
-      className={
-        "mb-5 flex items-start gap-3 rounded-md border px-4 py-3 text-sm " +
-        (color === "warning"
-          ? "border-warning/40 bg-warning/10"
-          : "border-success/40 bg-success/10")
-      }
-    >
-      <Icon
-        className={
-          "mt-0.5 size-4 shrink-0 " +
-          (color === "warning" ? "text-warning" : "text-success")
-        }
-      />
-      <div className="min-w-0 flex-1 space-y-1">
-        <p className="font-medium text-foreground">
-          Send fired for {requested} lead{requested === 1 ? "" : "s"}
-        </p>
-        <p className="text-xs text-muted-foreground">
-          {[
-            tickSent > 0 ? `${tickSent} sent` : null,
-            tickDrafted > 0 ? `${tickDrafted} drafted` : null,
-            enrolled > 0 ? `${enrolled} newly enrolled` : null,
-            already > 0 ? `${already} already enrolled` : null,
-            suppressed > 0 ? `${suppressed} suppressed` : null,
-            noStep > 0 ? `${noStep} sequence has no active step` : null,
-            tickCapped > 0 ? `${tickCapped} held by daily cap` : null,
-            tickNoEmail > 0 ? `${tickNoEmail} skipped (no email)` : null,
-            tickFailed > 0 ? `${tickFailed} failed` : null,
-          ]
-            .filter(Boolean)
-            .join(" · ") || "No work to do."}
-        </p>
-        {sp.tick_notes && (
-          <ul className="text-xs text-muted-foreground">
-            {decodeURIComponent(sp.tick_notes)
-              .split("|")
-              .filter(Boolean)
-              .map((n) => (
-                <li key={n}>· {n}</li>
-              ))}
-          </ul>
-        )}
-        <p className="text-xs text-muted-foreground">
-          Successful sends advanced from{" "}
-          <span className="font-mono">stage=new</span> to{" "}
-          <span className="font-mono">contacted</span> and now live in{" "}
-          <Link href="/inbox" className="underline hover:text-foreground">
-            /inbox
-          </Link>
-          .
-        </p>
-      </div>
-    </div>
-  );
-}
 
 /* ───── Empty state ─────────────────────────────────────────── */
 
