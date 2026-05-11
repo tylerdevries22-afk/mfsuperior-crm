@@ -69,6 +69,11 @@ type Search = {
   // Wipe-guessed redirect params (from wipeGuessedLeadsAction)
   wiped_guessed?: string;
   wipe_error?: string;
+  // Unarchive redirect params (from unarchiveAllLeadsAction)
+  unarchived?: string;
+  unarchived_count?: string;
+  unarchived_since?: string;
+  unarchive_error?: string;
   // Bulk-send result banner params (from bulkSendAction redirect).
   sent?: string;
   requested?: string;
@@ -415,6 +420,39 @@ export default async function LeadsPage({
             <p className="mt-1 text-xs text-muted-foreground">
               Now click <span className="font-mono">Quick-add (verified)</span>{" "}
               to repopulate with website-extracted, MX-validated emails.
+            </p>
+          </div>
+        </div>
+      ) : null}
+
+      {sp.unarchived === "1" && sp.unarchive_error ? (
+        <div className="mb-5 flex items-start gap-3 rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" />
+          <div>
+            <p className="font-medium text-foreground">Unarchive failed.</p>
+            <p className="mt-1 font-mono text-xs text-muted-foreground">
+              {decodeURIComponent(sp.unarchive_error)}
+            </p>
+          </div>
+        </div>
+      ) : sp.unarchived === "1" ? (
+        <div className="mb-5 flex items-start gap-3 rounded-md border border-success/40 bg-success/10 px-4 py-3 text-sm">
+          <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-success" />
+          <div>
+            <p className="font-medium text-foreground">
+              Unarchived{" "}
+              <span className="font-mono tabular-nums">
+                {Number(sp.unarchived_count ?? 0)}
+              </span>{" "}
+              leads
+              {sp.unarchived_since && sp.unarchived_since !== "all"
+                ? ` (window: ${sp.unarchived_since})`
+                : ""}
+              .
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              They&apos;re back on the worklist with their previous data
+              intact.
             </p>
           </div>
         </div>

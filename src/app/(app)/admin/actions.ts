@@ -894,3 +894,86 @@ export async function wipeGuessedLeadsAction(): Promise<void> {
   if (errorMsg) params.set("wipe_error", errorMsg);
   redirect(`/leads?${params.toString()}`);
 }
+
+/* ── Unarchive all leads (reverse of every archive action) ─────── */
+
+/**
+ * Sets archivedAt back to NULL for every currently-archived lead — the
+ * inverse of purgeNoEmailLeadsAction + wipeGuessedLeadsAction + the bulk
+ * archive on /leads. Use this to recover after an over-aggressive archive
+ * click.
+ *
+ * Equivalent SQL (for direct Neon recovery):
+ *   UPDATE leads SET archived_at = NULL, updated_at = now()
+ *   WHERE archived_at IS NOT NULL;
+ *
+ * Pass formData with `since=15m` (or `1h` / `24h` / `all`) to narrow the
+ * recovery window. Default = `all`.
+ */
+export async function unarchiveAllLeadsAction(
+  formData?: FormData,
+): Promise<void> {
+  let errorMsg: string | null = null;
+  let unarchived = 0;
+  const since = String(formData?.get("since") ?? "all");
+
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      errorMsg = "unauthorized";
+    } else {
+      env();
+
+      // Optional time-window filter so the operator can recover JUST the
+      // most-recent batch instead of every historical archive.
+      const intervalMap: Record<string, string | null> = {
+        "15m": "15 minutes",
+        "1h": "1 hour",
+        "24h": "24 hours",
+        all: null,
+      };
+      const interval = intervalMap[since] ?? null;
+
+      const whereClause = interval
+        ? sql`${leadsTable.archivedAt} IS NOT NULL AND ${leadsTable.archivedAt} > now() - interval ${sql.raw(`'${interval}'`)}`
+        : sql`${leadsTable.archivedAt} IS NOT NULL`;
+
+      const result = await db
+        .update(leadsTable)
+        .set({ archivedAt: null, updatedAt: new Date() })
+        .where(whereClause)
+        .returning({ id: leadsTable.id });
+      unarchived = result.length;
+
+      try {
+        await db.insert(auditLog).values({
+          actorUserId: session.user.id,
+          entity: "leads",
+          entityId: null,
+          action: "unarchive_all",
+          beforeJson: null,
+          afterJson: { unarchived, since },
+          occurredAt: sql`now()`,
+        });
+      } catch (err) {
+        console.error("[unarchive] audit failed:", (err as Error).message);
+      }
+    }
+  } catch (err) {
+    errorMsg =
+      (err as Error).name + ": " + (err as Error).message.slice(0, 120);
+    console.error("[unarchive] FATAL:", err);
+  }
+
+  revalidatePath("/leads");
+  revalidatePath("/admin");
+
+  const params = new URLSearchParams({
+    unarchived: "1",
+    unarchived_count: String(unarchived),
+    unarchived_since: since,
+    stage: "all",
+  });
+  if (errorMsg) params.set("unarchive_error", errorMsg);
+  redirect(`/leads?${params.toString()}`);
+}
