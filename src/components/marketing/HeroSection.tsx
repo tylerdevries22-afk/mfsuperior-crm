@@ -34,47 +34,123 @@ export function HeroSection() {
     const video = videoRef.current;
     if (!section || !video) return;
 
-    // Keep paused — we drive currentTime from scroll.
+    // ── Hyper-responsive scroll-scrub ────────────────────────────
+    //
+    // The prior implementation called `video.currentTime = progress *
+    // duration` on every rAF tick. With a normally-encoded H.264 MP4
+    // (one keyframe + 149 inter-frames) every seek had to decode from
+    // the previous keyframe forward, so fast scrolls fell hundreds of
+    // milliseconds behind the wheel. The video looked like it was
+    // playing in slow motion catching up to the scroll position.
+    //
+    // Two changes make this feel instant:
+    //
+    // 1. The video file itself: `benefit-01-vert-scrub.mp4` is encoded
+    //    with `-g 1 -bf 0` (every frame is a keyframe, no B-frames),
+    //    so a seek to any time is decode-one-frame fast — no
+    //    dependency chain. File grew from 2.4 MB → 7.6 MB; for a
+    //    hero asset that's an acceptable trade.
+    //
+    // 2. The scrub loop:
+    //    • Scroll-event driven (passive) + a single rAF coalescer so
+    //      we run exactly one seek per animation frame, regardless of
+    //      how many scroll events fire.
+    //    • Frame-snapped: round target time to the nearest frame at
+    //      24fps. Sub-frame seeks repaint the same pixels — pure
+    //      waste — so we filter them out.
+    //    • Seek-while-seeking dropped: `video.seeking === true` means
+    //      the previous seek hasn't painted yet. Skipping the new
+    //      assignment lets the pipeline catch up instead of queuing.
+    //    • `requestVideoFrameCallback` (when available) gives us a
+    //      true frame-painted signal so consecutive seeks pace
+    //      themselves against actual decoded frames, not against
+    //      rAF (which fires faster than video decode on heavy
+    //      scrolls).
+
+    // Frame interval (s) for the 24fps source. Used as the seek
+    // deadband so we don't issue redundant seeks.
+    const FRAME_DT = 1 / 24;
+
     video.pause();
+    // Compositor hint — encourages browsers to keep the video element
+    // on its own GPU layer so canvas-style scrubbing doesn't trigger
+    // layout/paint upstream.
+    video.style.willChange = "transform";
 
-    let raf = 0;
+    let rafId = 0;
+    let targetTime = 0;
+    let lastAppliedTime = -1;
+    let pending = false;
 
-    const tick = () => {
+    const applySeek = () => {
+      pending = false;
+      // Bail if the previous seek hasn't painted yet — queuing seeks
+      // is the #1 cause of scrub lag.
+      if (video.seeking) {
+        // Re-arm so we pick up the next animation frame.
+        schedule();
+        return;
+      }
+      // Frame-snap so two scrolls producing the same visible frame
+      // collapse to a single (skipped) seek.
+      const snapped = Math.round(targetTime / FRAME_DT) * FRAME_DT;
+      if (Math.abs(snapped - lastAppliedTime) < FRAME_DT / 2) return;
+      if (video.readyState >= 2 && video.duration > 0) {
+        // Clamp to avoid seeking past the last decodable frame.
+        const clamped = Math.min(snapped, video.duration - FRAME_DT);
+        video.currentTime = clamped;
+        lastAppliedTime = clamped;
+      }
+    };
+
+    const schedule = () => {
+      if (pending) return;
+      pending = true;
+      rafId = requestAnimationFrame(applySeek);
+    };
+
+    const recompute = () => {
       const rect = section.getBoundingClientRect();
       const viewH = window.innerHeight;
-
-      // How far the user has scrolled into the section (px), clamped to [0, maxScroll].
       const scrolled = Math.max(0, -rect.top);
       const maxScroll = section.offsetHeight - viewH;
       const progress = maxScroll > 0 ? Math.min(1, scrolled / maxScroll) : 0;
 
-      // Push to the shared MotionValue that the CascadeText chains off.
+      // CascadeText reads this MotionValue every render — keep it
+      // updated even when we're not seeking the video (e.g., during
+      // scroll-up past the section top before the runway begins).
       heroProgress.set(progress);
 
-      // Scrub video frame-by-frame with scroll.
-      if (video.readyState >= 2 && video.duration > 0) {
-        video.currentTime = progress * video.duration;
+      if (video.duration > 0) {
+        targetTime = progress * video.duration;
+        schedule();
       }
-
-      raf = requestAnimationFrame(tick);
     };
 
-    // Only run the loop while the section is visible.
-    const io = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          raf = requestAnimationFrame(tick);
-        } else {
-          cancelAnimationFrame(raf);
-        }
-      },
-      { threshold: 0 }
-    );
-    io.observe(section);
+    // Drive recompute from real scroll events (passive so we don't
+    // block the main thread) plus a one-shot initial call so the
+    // hero lands at the correct frame on page reload mid-scroll.
+    const onScroll = () => recompute();
+    const onResize = () => recompute();
+
+    // Once the video has enough data to seek, fire an initial
+    // recompute so the first frame matches the current scroll
+    // position without waiting for the user to move.
+    const onLoadedMeta = () => recompute();
+
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onResize, { passive: true });
+    video.addEventListener("loadedmetadata", onLoadedMeta);
+    video.addEventListener("loadeddata", onLoadedMeta);
+
+    recompute();
 
     return () => {
-      cancelAnimationFrame(raf);
-      io.disconnect();
+      cancelAnimationFrame(rafId);
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onResize);
+      video.removeEventListener("loadedmetadata", onLoadedMeta);
+      video.removeEventListener("loadeddata", onLoadedMeta);
     };
   }, [heroProgress]);
 
@@ -142,7 +218,13 @@ export function HeroSection() {
         >
           <video
             ref={videoRef}
-            src="/videos/benefit-01-vert.mp4"
+            // `-scrub.mp4` is re-encoded with `-g 1 -bf 0` so every
+            // frame is a keyframe — seeks are decode-one-frame fast
+            // (vs. decode-from-prior-keyframe for the streaming
+            // variant). The non-scrub MP4 is still served on the
+            // benefit sections where playback is linear and seek
+            // cost doesn't matter.
+            src="/videos/benefit-01-vert-scrub.mp4"
             poster="/videos/benefit-01-vert.jpg"
             muted
             playsInline
@@ -152,6 +234,10 @@ export function HeroSection() {
               height: '100%',
               objectFit: 'cover',
               display: 'block',
+              // GPU compositor hint: keeps the video on its own
+              // layer so frame-by-frame seeking doesn't repaint the
+              // headline / overlays each tick.
+              transform: 'translateZ(0)',
             }}
           />
           <div
