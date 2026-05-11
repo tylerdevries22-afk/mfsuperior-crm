@@ -19,6 +19,21 @@ export function YosSection() {
     const section = sectionRef.current;
     if (!section) return;
 
+    // Viewport-aware MF font-size bounds. Was hardcoded 48 → 240px —
+    // on a 375px phone that overflowed; on a 1440px desktop it
+    // underwhelmed. New scheme reads live viewport width on every
+    // tick so a resize-while-scrolling stays in sync:
+    //
+    //   min size: 14% of vw, floor 32px, ceiling 64px
+    //   max size: 38% of vw, floor 120px, ceiling 280px
+    //
+    // Desktop 1440px: 56 → 280px (was 48 → 240).
+    // Phone 375px:    53 → 142px (was 48 → 240 — overflowed).
+    const sizeBoundsFor = (vw: number) => ({
+      min: Math.min(64, Math.max(32, vw * 0.14)),
+      max: Math.min(280, Math.max(120, vw * 0.38)),
+    });
+
     let raf = 0;
 
     const tick = () => {
@@ -33,13 +48,13 @@ export function YosSection() {
       const phase2Opacity = progress < 0.4
         ? 0
         : Math.min(1, (progress - 0.4) / 0.2);
-      // MF text grows from 0.4 → 0.7 of section progress (was 0.4 → 1.0).
-      // This compresses the size animation into the first 70% of the
-      // section so the LAST 30% can be reserved for the "Superior
-      // Products" cascade — kicking in only after MF has already
-      // reached its full size at progress = 0.7.
+      // MF text grows from 0.4 → 0.7 of section progress. Compresses
+      // size animation into the first 70% of the section so the LAST
+      // 30% can be reserved for the "Superior Products" cascade —
+      // kicking in only after MF has reached its full size at 0.7.
       const yosProgress = progress < 0.4 ? 0 : Math.min(1, (progress - 0.4) / 0.3);
-      const yosFontSize = 48 + (240 - 48) * yosProgress;
+      const { min: minSize, max: maxSize } = sizeBoundsFor(window.innerWidth);
+      const yosFontSize = minSize + (maxSize - minSize) * yosProgress;
 
       if (phase1Ref.current) phase1Ref.current.style.opacity = String(phase1Opacity);
       if (phase2Ref.current) phase2Ref.current.style.opacity = String(phase2Opacity);
@@ -76,15 +91,14 @@ export function YosSection() {
   return (
     <section
       ref={sectionRef}
+      className="mkt-yos-runway"
       style={{
-        // 200vh → 160vh trim. The phase swap + MF size animation +
-        // Superior Products cascade all happen within this scroll
-        // runway (mapped via the existing yosProgress curve), so a
-        // shorter section just compresses how much the user has to
-        // scroll without changing the *feel* of any animation. Cuts
-        // 40vh of dead scroll between Features and Benefits.
+        // Runway height lives in CSS (.mkt-yos-runway in globals.css):
+        // 160vh desktop, 200vh mobile so the phase swap doesn't
+        // happen instantly on short viewports. yosProgress remains
+        // proportional, so swap point + cascade timing stay perfectly
+        // relative regardless of height.
         position: 'relative',
-        height: '160vh',
       }}
     >
       {/* Sticky container */}
@@ -182,7 +196,10 @@ export function YosSection() {
           <h2
             ref={mfTextRef}
             style={{
-              fontSize: '48px',
+              // Initial size matches the rAF's computed min for a
+              // typical viewport. The first tick overwrites this
+              // within ~16ms with the actual viewport-aware value.
+              fontSize: 'clamp(32px, 14vw, 64px)',
               fontWeight: 400,
               color: '#000',
               fontFamily: 'var(--font-primary)',

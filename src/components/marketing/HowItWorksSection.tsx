@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useMotionValue } from 'motion/react';
 import { CascadeText } from './CascadeText';
 
 interface FormState {
@@ -95,6 +96,36 @@ function FormTextarea({
 type SubmitState = 'idle' | 'submitting' | 'success' | 'error';
 
 export function HowItWorksSection() {
+  // Scroll-linked heading cascade (was one-shot whileInView). Now
+  // matches the Hero/Features/Yos/Benefits/Testimonial rhythm.
+  const sectionRef = useRef<HTMLElement>(null);
+  const progress = useMotionValue(0);
+
+  useEffect(() => {
+    const section = sectionRef.current;
+    if (!section) return;
+    let raf = 0;
+    const tick = () => {
+      const rect = section.getBoundingClientRect();
+      const viewH = window.innerHeight;
+      const p = (viewH - rect.top) / (viewH + rect.height);
+      progress.set(Math.max(0, Math.min(1, p)));
+      raf = requestAnimationFrame(tick);
+    };
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) raf = requestAnimationFrame(tick);
+        else cancelAnimationFrame(raf);
+      },
+      { threshold: 0 },
+    );
+    io.observe(section);
+    return () => {
+      cancelAnimationFrame(raf);
+      io.disconnect();
+    };
+  }, [progress]);
+
   const [form, setForm] = useState<FormState>({
     firstName: '',
     lastName: '',
@@ -148,6 +179,7 @@ export function HowItWorksSection() {
   return (
     <section
       id="contact"
+      ref={sectionRef}
       style={{
         backgroundColor: '#fff',
         position: 'relative',
@@ -222,10 +254,14 @@ export function HowItWorksSection() {
             color: '#111111',
           }}
         >
+          {/* Scroll-linked: reveals as the heading band passes through
+              the viewport. Range [0.35, 0.70] is when the heading sits
+              centered on a typical viewport. */}
           <CascadeText
             text="Tell us your freight needs — we'll handle the rest"
-            stagger={0.022}
-            duration={0.5}
+            progress={progress}
+            range={[0.35, 0.70]}
+            spread={1}
             finalColor="#111111"
             flashColor="#D4E030"
             restColor="rgba(17,17,17,0.2)"
