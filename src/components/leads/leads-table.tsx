@@ -72,10 +72,10 @@ export function LeadsTable({
       {/* Desktop */}
       <div className="hidden md:block overflow-hidden rounded-md border border-border">
         <div className="max-h-[calc(100vh-260px)] overflow-y-auto">
-          <table className="w-full text-sm">
-            <thead className="sticky top-0 z-10 bg-card text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          <table className="w-full text-[13px]">
+            <thead className="sticky top-0 z-10 bg-card text-left text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
               <tr className="border-b border-border">
-                <th className="w-10 px-3 py-2.5">
+                <th className="w-9 px-2.5 py-2">
                   <Checkbox
                     ref={headerCheckboxRef}
                     checked={allSelected}
@@ -85,18 +85,20 @@ export function LeadsTable({
                     }
                   />
                 </th>
-                <th className="px-3 py-2.5 text-right font-medium w-12">#</th>
-                <th className="px-2 py-2.5 font-medium w-12">Tier</th>
-                <th className="px-2 py-2.5 text-right font-medium w-16">Score</th>
-                <th className="px-3 py-2.5 font-medium">Company</th>
-                <th className="px-3 py-2.5 font-medium">Vertical</th>
-                <th className="px-3 py-2.5 font-medium">City</th>
-                <th className="px-3 py-2.5 font-medium">Stage</th>
-                <th className="px-3 py-2.5 font-medium">Last contacted</th>
+                {/* `#` column dropped (PR B): the row index was
+                    cosmetic, didn't survive sorting, and ate a column
+                    on narrow viewports. Audit flagged this. */}
+                <th className="px-2 py-2 font-medium w-10">Tier</th>
+                <th className="px-2 py-2 text-right font-medium w-12">Score</th>
+                <th className="px-2.5 py-2 font-medium">Company</th>
+                <th className="px-2.5 py-2 font-medium">Vertical</th>
+                <th className="px-2.5 py-2 font-medium">City</th>
+                <th className="px-2.5 py-2 font-medium">Stage</th>
+                <th className="px-2.5 py-2 font-medium">Last contacted</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border bg-background">
-              {rows.map((lead, i) => {
+              {rows.map((lead) => {
                 const checked = selected.has(lead.id);
                 return (
                   <tr
@@ -108,7 +110,7 @@ export function LeadsTable({
                         : "hover:bg-secondary/40")
                     }
                   >
-                    <td className="px-3 py-2.5">
+                    <td className="px-2.5 py-1.5">
                       <Checkbox
                         checked={checked}
                         onChange={() => toggleOne(lead.id)}
@@ -120,16 +122,13 @@ export function LeadsTable({
                         }
                       />
                     </td>
-                    <td className="px-3 py-2.5 text-right font-mono text-xs tabular-nums text-muted-foreground">
-                      {i + 1}
-                    </td>
-                    <td className="px-2 py-2.5">
+                    <td className="px-2 py-1.5">
                       <TierChip tier={lead.tier} />
                     </td>
-                    <td className="px-2 py-2.5 text-right font-mono text-sm tabular-nums text-foreground">
+                    <td className="px-2 py-1.5 text-right font-mono text-[13px] tabular-nums text-foreground">
                       {lead.score ?? <span className="text-muted-foreground">—</span>}
                     </td>
-                    <td className="px-3 py-2.5">
+                    <td className="px-2.5 py-1.5">
                       <Link
                         href={`/leads/${lead.id}`}
                         className="font-medium text-foreground transition-colors hover:text-primary"
@@ -137,27 +136,27 @@ export function LeadsTable({
                         {lead.companyName ?? "—"}
                       </Link>
                       {lead.email ? (
-                        <p className="font-mono text-xs text-muted-foreground">
+                        <p className="font-mono text-[11px] text-muted-foreground">
                           {lead.email}
                         </p>
                       ) : (
-                        <p className="font-mono text-xs italic text-muted-foreground/60">
+                        <p className="font-mono text-[11px] italic text-muted-foreground/60">
                           no email
                         </p>
                       )}
-                      <TagBadges tags={lead.tags ?? []} className="mt-1" max={10} />
+                      <TagBadges tags={lead.tags ?? []} className="mt-0.5" max={10} />
                     </td>
-                    <td className="px-3 py-2.5 text-muted-foreground">
+                    <td className="px-2.5 py-1.5 text-muted-foreground">
                       {lead.vertical ?? "—"}
                     </td>
-                    <td className="px-3 py-2.5 text-muted-foreground">
+                    <td className="px-2.5 py-1.5 text-muted-foreground">
                       {lead.city ?? "—"}
                       {lead.state ? `, ${lead.state}` : ""}
                     </td>
-                    <td className="px-3 py-2.5">
+                    <td className="px-2.5 py-1.5">
                       <StageChip stage={lead.stage} />
                     </td>
-                    <td className="px-3 py-2.5 font-mono text-xs tabular-nums text-muted-foreground">
+                    <td className="px-2.5 py-1.5 font-mono text-[11px] tabular-nums text-muted-foreground">
                       {lead.lastContactedAt
                         ? new Date(lead.lastContactedAt).toISOString().slice(0, 10)
                         : "—"}

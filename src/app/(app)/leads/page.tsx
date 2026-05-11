@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { LeadsTable } from "@/components/leads/leads-table";
-import { FilterBar } from "@/components/leads/filter-bar";
+import { FilterRail } from "@/components/leads/filter-rail";
+import { LeadsToolbar } from "@/components/leads/leads-toolbar";
 import { ResultToastBridge } from "@/components/leads/result-toast-bridge";
 import { verifiedQuickAddAction } from "@/app/(app)/admin/actions";
 
@@ -293,44 +294,23 @@ export default async function LeadsPage({
     hiddenInOtherStagesCount = otherCount;
   }
 
-  return (
-    <div className="px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
-      <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-            Leads
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            <span className="font-mono tabular-nums">{count}</span>
-            {stages.length > 0 ? ` · stage ${stages.join(", ")}` : " total"}
-            {sources.length > 0 ? ` · source ${sources.join(", ")}` : ""}
-            {" · "}ranked by score
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <form action={verifiedQuickAddAction}>
-            <Button
-              type="submit"
-              variant="secondary"
-              title="Scrapes each curated company's website (/, /contact, /about, /team, /leadership) for real mailto: emails, MX-validates each one, and inserts ONLY companies with verified deliverable addresses. NEVER guesses. Expect 20-60 inserts from ~150 attempts since many chains don't publish a public email."
-            >
-              <Zap /> Quick-add (verified)
-            </Button>
-          </form>
-          <Link href="/leads/import">
-            <Button variant="secondary">
-              <Upload /> Import
-            </Button>
-          </Link>
-          <Link href="/leads/new">
-            <Button>
-              <Plus /> New lead
-            </Button>
-          </Link>
-        </div>
-      </header>
+  const activeFilterCount =
+    stages.length +
+    tiers.length +
+    sources.length +
+    tags.length +
+    (lastContacted !== "any" ? 1 : 0) +
+    (enrollment !== "any" ? 1 : 0) +
+    (hasEmail !== "any" ? 1 : 0);
 
-      <FilterBar
+  return (
+    // Two-column shell: faceted filter rail on the left, main content
+    // on the right. The rail collapses below `lg` breakpoint (mobile
+    // falls back to top-of-page Clear-all + the legacy URL params).
+    // `h-full` lets the rail's internal `overflow-y-auto` work
+    // against the layout's viewport box from (app)/layout.tsx.
+    <div className="flex h-full">
+      <FilterRail
         q={q}
         stages={stages}
         tiers={tiers}
@@ -343,13 +323,61 @@ export default async function LeadsPage({
         perPage={perPage}
       />
 
-      {/* Single toast bridge replaces ~300 lines of inline banner JSX.
-          Reads server-action redirect params from the URL once on
-          mount and fires a sonner toast for the relevant outcome:
-          archive / purge / bulk-archive / unarchive / quick-add /
-          bulk-send / import. Each fires exactly once per redirect
-          (URL params clear on next navigation). */}
-      <ResultToastBridge sp={sp} />
+      <div className="flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+        <header className="mb-5 flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+              Leads
+            </h1>
+            <p className="mt-1 text-[13px] text-muted-foreground">
+              <span className="font-mono tabular-nums">{count}</span>
+              {activeFilterCount > 0
+                ? ` matching · ${activeFilterCount} filter${activeFilterCount === 1 ? "" : "s"} active`
+                : " total"}
+              {" · "}ranked by score
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <form action={verifiedQuickAddAction}>
+              <Button
+                type="submit"
+                variant="secondary"
+                size="sm"
+                title="Scrapes each curated company's website (/, /contact, /about, /team, /leadership) for real mailto: emails, MX-validates each one, and inserts ONLY companies with verified deliverable addresses. NEVER guesses. Expect 20-60 inserts from ~150 attempts since many chains don't publish a public email."
+              >
+                <Zap /> Quick-add
+              </Button>
+            </form>
+            <Link href="/leads/import">
+              <Button variant="secondary" size="sm">
+                <Upload /> Import
+              </Button>
+            </Link>
+            <Link href="/leads/new">
+              <Button size="sm">
+                <Plus /> New lead
+              </Button>
+            </Link>
+          </div>
+        </header>
+
+        <LeadsToolbar
+          q={q}
+          stages={stages}
+          tiers={tiers}
+          sources={sources}
+          tags={tags}
+          lastContacted={lastContacted}
+          enrollment={enrollment}
+          hasEmail={hasEmail}
+          perPage={perPage}
+          activeCount={activeFilterCount}
+        />
+
+        {/* Single toast bridge replaces ~300 lines of inline banner JSX.
+            Reads server-action redirect params from the URL once on
+            mount and fires a sonner toast for the relevant outcome. */}
+        <ResultToastBridge sp={sp} />
 
       {rows.length === 0 ? (
         <EmptyState
@@ -396,8 +424,9 @@ export default async function LeadsPage({
                 perPage === DEFAULT_PAGE_SIZE ? undefined : String(perPage),
             }}
           />
-        </>
-      )}
+          </>
+        )}
+      </div>
     </div>
   );
 }
