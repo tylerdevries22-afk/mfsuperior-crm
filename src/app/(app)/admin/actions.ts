@@ -19,7 +19,13 @@ import {
 } from "@/lib/sequences/poll-inbox";
 import { syncDrive } from "@/lib/sequences/sync-drive";
 import { runResearch, type RunMode } from "@/lib/research/run";
-import { COUNTIES, type County } from "@/lib/research/osm";
+import {
+  COUNTIES,
+  fetchOsmBusinesses,
+  rootDomain,
+  type Business,
+  type County,
+} from "@/lib/research/osm";
 import type { Industry } from "@/lib/research/score";
 import { verifyWebsiteEmail } from "@/lib/research/verify-website-email";
 
@@ -975,5 +981,352 @@ export async function unarchiveAllLeadsAction(
     stage: "all",
   });
   if (errorMsg) params.set("unarchive_error", errorMsg);
+  redirect(`/leads?${params.toString()}`);
+}
+
+/* ── Unified lead generator (OSM + curated fallback + scrape + MX) ── */
+
+/**
+ * The single coherent lead-generation pipeline. Replaces the old
+ * Free/Paid research buttons and the curated quick-add variants. Every
+ * inserted lead has a real, MX-validated email — companies without a
+ * deliverable address are SKIPPED, never guessed.
+ *
+ * Pipeline:
+ *   1. Auth + parse form (industries, counties, limit, source)
+ *   2. Build dedupe set from existing leads (one bulk SELECT)
+ *   3. Discovery — try OSM with 4s hard cap, supplement from curated
+ *      list if OSM yielded < limit/2 new candidates (the "OSM with
+ *      curated fallback" mode the operator picked)
+ *   4. Verify each candidate's website with the PR #25 scraper + MX
+ *      validator. Skip on no-email. Per-company hard cap 1.5s.
+ *   5. Bulk insert survivors with `source: "lead-gen"`,
+ *      `tags: ["email-verified", "discovered-via-{osm|curated}", vertical, ...]`
+ *   6. Audit log + redirect with full skip breakdown
+ *
+ * Vercel Hobby 10s budget:
+ *   100ms auth + 200ms dedupe SELECT + 4000ms OSM + 2500ms verify (parallel)
+ *   + 500ms bulk INSERT + 200ms audit/redirect = ~7500ms worst case.
+ */
+const ALL_INDUSTRIES_LIST: readonly Industry[] = [
+  "restaurants",
+  "bigbox",
+  "brokers",
+  "smallbiz",
+] as const;
+
+const generateLeadsSchema = z.object({
+  industries: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s
+        ? (s
+            .split(",")
+            .filter((i) => ALL_INDUSTRIES_LIST.includes(i as Industry)) as Industry[])
+        : [...ALL_INDUSTRIES_LIST],
+    ),
+  counties: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s
+        ? (s.split(",").filter((c) =>
+            (COUNTIES as readonly string[]).includes(c),
+          ) as County[])
+        : [...COUNTIES],
+    ),
+  limit: z.coerce.number().int().min(1).max(20).default(8),
+  source: z
+    .enum(["osm+curated", "osm", "curated"])
+    .default("osm+curated"),
+});
+
+export async function generateLeadsAction(formData: FormData): Promise<void> {
+  let errorMsg: string | null = null;
+  let discoveredOsm = 0;
+  let discoveredCurated = 0;
+  let attempted = 0;
+  let inserted = 0;
+  let skippedAlreadyExists = 0;
+  let skippedNoWebsite = 0;
+  let skippedNoEmail = 0;
+  let skippedMxFailed = 0;
+  let skippedTimeout = 0;
+  let skippedOther = 0;
+  const start = Date.now();
+
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      errorMsg = "unauthorized";
+    } else {
+      env();
+
+      const parsed = generateLeadsSchema.parse({
+        industries: formData.get("industries") ?? undefined,
+        counties: formData.get("counties") ?? undefined,
+        limit: formData.get("limit") ?? 8,
+        source: formData.get("source") ?? "osm+curated",
+      });
+
+      // ── Dedupe index: pull every non-archived domain we already have.
+      // OSM and curated will produce a `domain`; we skip any candidate
+      // whose domain matches an existing lead's email or website.
+      const existingRows = await db
+        .select({ email: leadsTable.email, website: leadsTable.website })
+        .from(leadsTable)
+        .where(isNull(leadsTable.archivedAt));
+      const existingDomains = new Set<string>();
+      for (const r of existingRows) {
+        if (r.email) {
+          const d = r.email.split("@")[1];
+          if (d) existingDomains.add(d.toLowerCase());
+        }
+        if (r.website) {
+          const d = rootDomain(r.website);
+          if (d) existingDomains.add(d.toLowerCase());
+        }
+      }
+
+      // ── Discovery: OSM (with 4s hard cap) → curated fallback.
+      type Candidate = {
+        name: string;
+        domain: string;
+        industry: Industry;
+        source: "osm" | "curated";
+        lat?: number;
+        lon?: number;
+        phone?: string | null;
+        city?: string | null;
+        state?: string | null;
+      };
+      const candidates: Candidate[] = [];
+
+      const useOsm = parsed.source !== "curated";
+      const useCurated = parsed.source !== "osm";
+
+      if (useOsm) {
+        // Sample one (industry, county) cell per discovery call. For Hobby
+        // budget we only do ONE OSM call per click — the operator can re-
+        // click for different cells.
+        const industry = parsed.industries[0];
+        const county = parsed.counties[0];
+        try {
+          const osmRes = await Promise.race([
+            fetchOsmBusinesses({ industry, county }),
+            new Promise<Business[]>((resolve) =>
+              setTimeout(() => resolve([]), 4_000),
+            ),
+          ]);
+          for (const b of osmRes) {
+            const dom = rootDomain(b.website);
+            if (!dom) {
+              skippedNoWebsite++;
+              continue;
+            }
+            if (existingDomains.has(dom.toLowerCase())) {
+              skippedAlreadyExists++;
+              continue;
+            }
+            if (candidates.some((c) => c.domain === dom)) continue;
+            candidates.push({
+              name: b.name,
+              domain: dom,
+              industry,
+              source: "osm",
+              lat: b.lat,
+              lon: b.lon,
+              phone: b.phone,
+              city: b.city,
+              state: b.state,
+            });
+            existingDomains.add(dom.toLowerCase());
+            if (candidates.length >= parsed.limit * 2) break;
+          }
+          discoveredOsm = osmRes.length;
+        } catch (err) {
+          console.error("[generateLeads] OSM failed:", (err as Error).message);
+        }
+      }
+
+      // Supplement from curated if (a) source is curated-only, or (b)
+      // OSM + curated and discovery yielded fewer than `limit` candidates.
+      if (useCurated && candidates.length < parsed.limit) {
+        const curated = CURATED_DENVER.filter((c) =>
+          parsed.industries.includes(c.industry),
+        );
+        for (const c of curated) {
+          if (existingDomains.has(c.domain.toLowerCase())) {
+            skippedAlreadyExists++;
+            continue;
+          }
+          if (candidates.some((cand) => cand.domain === c.domain)) continue;
+          candidates.push({
+            name: c.name,
+            domain: c.domain,
+            industry: c.industry,
+            source: "curated",
+          });
+          existingDomains.add(c.domain.toLowerCase());
+          discoveredCurated++;
+          if (candidates.length >= parsed.limit) break;
+        }
+      }
+
+      attempted = candidates.length;
+
+      // ── Verify each candidate in parallel with a tight per-company cap.
+      type VerifiedHit = { c: Candidate; email: string; sourcePath: string };
+      const verifyResults = await Promise.allSettled(
+        candidates
+          .slice(0, parsed.limit)
+          .map(async (c) => {
+            const r = await verifyWebsiteEmail(c.domain, 2_000);
+            return { c, r };
+          }),
+      );
+
+      const verified: VerifiedHit[] = [];
+      for (const s of verifyResults) {
+        if (s.status === "rejected") {
+          skippedOther++;
+          continue;
+        }
+        const { c, r } = s.value;
+        if (r.kind === "verified") {
+          verified.push({ c, email: r.email, sourcePath: r.sourcePath });
+          continue;
+        }
+        switch (r.reason) {
+          case "no_html":
+          case "no_domain":
+            skippedNoWebsite++;
+            break;
+          case "no_emails_on_website":
+          case "no_usable_email":
+            skippedNoEmail++;
+            break;
+          case "mx_failed":
+            skippedMxFailed++;
+            break;
+          case "timeout":
+            skippedTimeout++;
+            break;
+          default:
+            skippedOther++;
+        }
+      }
+
+      // ── Bulk insert survivors.
+      const verticalLabel: Record<Industry, string> = {
+        restaurants: "Restaurant",
+        bigbox: "Big-box retail",
+        brokers: "Freight broker / 3PL",
+        smallbiz: "Small business",
+      };
+
+      if (verified.length > 0) {
+        const values = verified.map(({ c, email, sourcePath }) => {
+          const vertical = verticalLabel[c.industry];
+          const tags: string[] = [
+            "tier-A",
+            vertical,
+            "email-verified",
+            `discovered-via-${c.source}`,
+          ];
+          if (c.industry === "restaurants") tags.push("refrigerated");
+          return {
+            email,
+            phone: c.phone ?? null,
+            companyName: c.name,
+            website: `https://${c.domain}`,
+            vertical,
+            address: null,
+            city: c.city ?? "Denver Metro",
+            state: c.state ?? "CO",
+            source: "lead-gen" as const,
+            tier: "A" as const,
+            score: 80,
+            tags,
+            notes: `Discovered via ${c.source}; email from https://${c.domain}${sourcePath}; MX-validated.`,
+          };
+        });
+        try {
+          await db.insert(leadsTable).values(values);
+          inserted = verified.length;
+        } catch (err) {
+          console.error(
+            "[generateLeads] bulk insert failed; falling back:",
+            (err as Error).message,
+          );
+          for (const v of values) {
+            try {
+              await db.insert(leadsTable).values(v);
+              inserted++;
+            } catch {
+              skippedOther++;
+            }
+          }
+        }
+      }
+
+      try {
+        await db.insert(auditLog).values({
+          actorUserId: session.user.id,
+          entity: "leads",
+          entityId: null,
+          action: "lead_gen",
+          beforeJson: null,
+          afterJson: {
+            industries: parsed.industries,
+            counties: parsed.counties,
+            limit: parsed.limit,
+            source: parsed.source,
+            discoveredOsm,
+            discoveredCurated,
+            attempted,
+            inserted,
+            skippedAlreadyExists,
+            skippedNoWebsite,
+            skippedNoEmail,
+            skippedMxFailed,
+            skippedTimeout,
+            skippedOther,
+            durationMs: Date.now() - start,
+          },
+          occurredAt: sql`now()`,
+        });
+      } catch (err) {
+        console.error(
+          "[generateLeads] audit failed:",
+          (err as Error).message,
+        );
+      }
+    }
+  } catch (err) {
+    errorMsg =
+      (err as Error).name + ": " + (err as Error).message.slice(0, 120);
+    console.error("[generateLeads] FATAL:", err);
+  }
+
+  revalidatePath("/leads");
+  revalidatePath("/admin");
+
+  const params = new URLSearchParams({
+    gen: "1",
+    g_inserted: String(inserted),
+    g_attempted: String(attempted),
+    g_osm: String(discoveredOsm),
+    g_curated: String(discoveredCurated),
+    g_already: String(skippedAlreadyExists),
+    g_no_website: String(skippedNoWebsite),
+    g_no_email: String(skippedNoEmail),
+    g_mx_failed: String(skippedMxFailed),
+    g_timeout: String(skippedTimeout),
+    g_other: String(skippedOther),
+    stage: "all",
+  });
+  if (errorMsg) params.set("gen_error", errorMsg);
   redirect(`/leads?${params.toString()}`);
 }

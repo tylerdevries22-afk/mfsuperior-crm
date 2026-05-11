@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import {
   addSuppressionAction,
+  generateLeadsAction,
   manualPollAction,
   manualSyncAction,
   manualTickAction,
@@ -525,6 +526,111 @@ export default async function AdminPage({
             </Button>
           </form>
 
+          {/* Unified lead generator (replaces Free/Paid/Quick-add buttons below) */}
+          <form
+            action={generateLeadsAction}
+            className="flex flex-col gap-4 rounded-md border border-primary/40 bg-primary/5 p-4"
+          >
+            <div>
+              <p className="font-medium text-foreground">
+                Generate leads — OSM discovery + website scrape + MX validation
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Single coherent pipeline. Discovers businesses via OSM
+                Overpass (with curated-list fallback), scrapes each candidate
+                site for real <span className="font-mono">mailto:</span> +
+                visible emails, MX-validates the address, and inserts ONLY
+                companies whose websites yield a deliverable address —{" "}
+                <strong className="text-foreground">
+                  no guessing, ever.
+                </strong>{" "}
+                Companies without a public email are <em>skipped</em>, not
+                inserted. Already-in-CRM domains are skipped automatically.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <label className="flex flex-col gap-1 text-xs">
+                <span className="font-medium text-foreground">
+                  Industries (comma-separated)
+                </span>
+                <input
+                  name="industries"
+                  defaultValue="restaurants,bigbox,brokers,smallbiz"
+                  className="h-9 rounded-md border border-input bg-background px-2 font-mono text-xs text-foreground"
+                  placeholder="restaurants,bigbox,brokers,smallbiz"
+                />
+                <span className="text-[11px] text-muted-foreground">
+                  Allowed: restaurants, bigbox, brokers, smallbiz
+                </span>
+              </label>
+
+              <label className="flex flex-col gap-1 text-xs">
+                <span className="font-medium text-foreground">
+                  Counties (comma-separated)
+                </span>
+                <input
+                  name="counties"
+                  defaultValue="Arapahoe,Denver,Jefferson"
+                  className="h-9 rounded-md border border-input bg-background px-2 font-mono text-xs text-foreground"
+                  placeholder="Adams,Arapahoe,Boulder,Broomfield,Denver,Douglas,Jefferson"
+                />
+                <span className="text-[11px] text-muted-foreground">
+                  Allowed: Adams, Arapahoe, Boulder, Broomfield, Denver,
+                  Douglas, Jefferson
+                </span>
+              </label>
+
+              <label className="flex flex-col gap-1 text-xs">
+                <span className="font-medium text-foreground">
+                  Discovery source
+                </span>
+                <select
+                  name="source"
+                  defaultValue="osm+curated"
+                  className="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground"
+                >
+                  <option value="osm+curated">
+                    OSM with curated fallback (recommended)
+                  </option>
+                  <option value="osm">OSM only (skip if Overpass fails)</option>
+                  <option value="curated">Curated list only (fast)</option>
+                </select>
+                <span className="text-[11px] text-muted-foreground">
+                  OSM is unreliable from Vercel; fallback ensures progress.
+                </span>
+              </label>
+
+              <label className="flex flex-col gap-1 text-xs">
+                <span className="font-medium text-foreground">
+                  Limit (max candidates to verify)
+                </span>
+                <input
+                  type="number"
+                  name="limit"
+                  defaultValue={8}
+                  min={1}
+                  max={20}
+                  className="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground"
+                />
+                <span className="text-[11px] text-muted-foreground">
+                  1-20. Each verified candidate runs ~1.5s of scrape + MX.
+                </span>
+              </label>
+            </div>
+
+            <Button type="submit" size="sm" className="self-start">
+              <Plus /> Generate leads
+            </Button>
+          </form>
+
+          {/* Legacy lead-gen buttons — kept as fallbacks; will be removed in a follow-up PR. */}
+          <details className="rounded-md border border-border bg-secondary/20 p-4">
+            <summary className="cursor-pointer text-sm text-muted-foreground hover:text-foreground">
+              Legacy lead-gen buttons (deprecated — use Generate leads above)
+            </summary>
+            <div className="mt-3 space-y-3">
+
           {/* Verified Quick-add: scrape + MX-validate, never guess */}
           <form
             action={verifiedQuickAddAction}
@@ -644,6 +750,8 @@ export default async function AdminPage({
               </Button>
             </form>
           </div>
+          </div>
+          </details>
         </CardContent>
       </Card>
 

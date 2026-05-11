@@ -23,11 +23,13 @@ const STAGES = ["new", "contacted", "replied", "quoted", "won", "lost"] as const
 const TIERS = ["A", "B", "C"] as const;
 
 const SOURCES = [
+  { value: "lead-gen", label: "Generate leads (OSM + curated + scrape + MX)" },
+  { value: "website-scrape", label: "Verified Quick-add (website scrape)" },
   { value: "research-free-admin", label: "Research (free, admin button)" },
   { value: "research-paid-admin", label: "Research (paid, admin button)" },
   { value: "research-free", label: "Research CLI (free)" },
   { value: "research-paid", label: "Research CLI (paid)" },
-  { value: "starter-pack", label: "Quick-add starter pack" },
+  { value: "starter-pack", label: "Quick-add starter pack (legacy)" },
   { value: "spreadsheet", label: "Spreadsheet import" },
   { value: "website_contact", label: "Website contact form" },
   { value: "manual", label: "Manually added" },
@@ -74,6 +76,19 @@ type Search = {
   unarchived_count?: string;
   unarchived_since?: string;
   unarchive_error?: string;
+  // Generate-leads redirect params (from generateLeadsAction)
+  gen?: string;
+  g_inserted?: string;
+  g_attempted?: string;
+  g_osm?: string;
+  g_curated?: string;
+  g_already?: string;
+  g_no_website?: string;
+  g_no_email?: string;
+  g_mx_failed?: string;
+  g_timeout?: string;
+  g_other?: string;
+  gen_error?: string;
   // Bulk-send result banner params (from bulkSendAction redirect).
   sent?: string;
   requested?: string;
@@ -453,6 +468,69 @@ export default async function LeadsPage({
             <p className="mt-1 text-xs text-muted-foreground">
               They&apos;re back on the worklist with their previous data
               intact.
+            </p>
+          </div>
+        </div>
+      ) : null}
+
+      {sp.gen === "1" && sp.gen_error ? (
+        <div className="mb-5 flex items-start gap-3 rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" />
+          <div>
+            <p className="font-medium text-foreground">
+              Generate leads failed.
+            </p>
+            <p className="mt-1 font-mono text-xs text-muted-foreground">
+              {decodeURIComponent(sp.gen_error)}
+            </p>
+          </div>
+        </div>
+      ) : sp.gen === "1" ? (
+        <div className="mb-5 flex items-start gap-3 rounded-md border border-success/40 bg-success/10 px-4 py-3 text-sm">
+          <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-success" />
+          <div>
+            <p className="font-medium text-foreground">
+              Generated{" "}
+              <span className="font-mono tabular-nums">
+                {Number(sp.g_inserted ?? 0)}
+              </span>{" "}
+              new leads with website-extracted, MX-validated emails (from{" "}
+              <span className="font-mono tabular-nums">
+                {Number(sp.g_attempted ?? 0)}
+              </span>{" "}
+              attempted).
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Discovery:{" "}
+              <span className="font-mono tabular-nums">
+                {Number(sp.g_osm ?? 0)}
+              </span>{" "}
+              via OSM,{" "}
+              <span className="font-mono tabular-nums">
+                {Number(sp.g_curated ?? 0)}
+              </span>{" "}
+              via curated fallback. Skips:{" "}
+              <span className="font-mono tabular-nums">
+                {Number(sp.g_already ?? 0)}
+              </span>{" "}
+              already in CRM,{" "}
+              <span className="font-mono tabular-nums">
+                {Number(sp.g_no_website ?? 0)}
+              </span>{" "}
+              no website,{" "}
+              <span className="font-mono tabular-nums">
+                {Number(sp.g_no_email ?? 0)}
+              </span>{" "}
+              no email on site,{" "}
+              <span className="font-mono tabular-nums">
+                {Number(sp.g_mx_failed ?? 0)}
+              </span>{" "}
+              MX failed,{" "}
+              <span className="font-mono tabular-nums">
+                {Number(sp.g_timeout ?? 0)}
+              </span>{" "}
+              timed out. Filter Source to{" "}
+              <span className="font-mono">lead-gen</span> to see only these.
             </p>
           </div>
         </div>
