@@ -652,31 +652,39 @@ export async function verifiedQuickAddAction(): Promise<void> {
       // 1. Pre-fetch every existing non-archived lead matching one of our
       //    candidate domains or company names — single SELECT.
       const allDomains = sample.map((c) => c.domain);
-      const allNames = sample.map((c) => c.name);
-      const existing = await db
+      // Fetch every non-archived lead and dedupe in JS. Previous version
+      // used `sql\`split_part(...) = ANY(${jsArray})\`` which doesn't bind
+      // reliably through Drizzle — Postgres rejected the query as malformed.
+      // The leads table is small (hundreds of rows, not millions); this
+      // one-shot fetch is faster and more robust than the conditional WHERE.
+      const allExisting = await db
         .select({
           email: leadsTable.email,
           companyName: leadsTable.companyName,
           website: leadsTable.website,
         })
         .from(leadsTable)
-        .where(
-          and(
-            isNull(leadsTable.archivedAt),
-            or(
-              inArray(leadsTable.companyName, allNames),
-              // email LIKE '%@domain' for any domain
-              sql`split_part(${leadsTable.email}, '@', 2) = ANY(${allDomains})`,
-            ),
-          ),
-        );
+        .where(isNull(leadsTable.archivedAt));
+
+      const candidateDomains = new Set(
+        allDomains.map((d) => d.toLowerCase()),
+      );
+      const candidateNames = new Set(sample.map((c) => c.name));
+
       const existingDomains = new Set<string>();
       const existingNames = new Set<string>();
-      for (const r of existing) {
-        if (r.companyName) existingNames.add(r.companyName);
+      for (const r of allExisting) {
+        if (r.companyName && candidateNames.has(r.companyName)) {
+          existingNames.add(r.companyName);
+        }
         if (r.email) {
-          const d = r.email.split("@")[1];
-          if (d) existingDomains.add(d);
+          const d = r.email.split("@")[1]?.toLowerCase();
+          if (d && candidateDomains.has(d)) existingDomains.add(d);
+        }
+        if (r.website) {
+          const m = r.website.match(/^https?:\/\/(?:www\.)?([^/]+)/i);
+          const d = m?.[1]?.toLowerCase();
+          if (d && candidateDomains.has(d)) existingDomains.add(d);
         }
       }
 
@@ -692,7 +700,10 @@ export async function verifiedQuickAddAction(): Promise<void> {
       // 2. Verify-or-skip each remaining entry, in parallel with a hard
       //    per-company timeout so one stuck site can't blow our budget.
       const work = sample.filter((c) => {
-        if (existingDomains.has(c.domain) || existingNames.has(c.name)) {
+        if (
+          existingDomains.has(c.domain.toLowerCase()) ||
+          existingNames.has(c.name)
+        ) {
           skippedAlreadyExists++;
           return false;
         }
