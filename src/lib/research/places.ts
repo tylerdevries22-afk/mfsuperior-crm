@@ -80,10 +80,25 @@ export const QUERIES_BY_INDUSTRY: Record<Industry, (county: County) => Query[]> 
   ],
   smallbiz: (c) => [
     { textQuery: `manufacturer in ${c} County, CO` },
-    { textQuery: `construction supply in ${c} County, CO` },
     { textQuery: `medical supply in ${c} County, CO` },
     { textQuery: `auto parts wholesale in ${c} County, CO` },
     { textQuery: `grocery store in ${c} County, CO`, includedType: "grocery_store" },
+  ],
+  construction: (c) => [
+    { textQuery: `general contractor in ${c} County, CO` },
+    { textQuery: `lumber yard in ${c} County, CO` },
+    { textQuery: `electrical supply in ${c} County, CO` },
+    { textQuery: `plumbing supply in ${c} County, CO` },
+    { textQuery: `cabinet shop in ${c} County, CO` },
+    { textQuery: `roofing contractor in ${c} County, CO` },
+    { textQuery: `building materials in ${c} County, CO` },
+    { textQuery: `concrete supplier in ${c} County, CO` },
+  ],
+  cannabis: (c) => [
+    { textQuery: `dispensary in ${c} County, CO` },
+    { textQuery: `cannabis cultivation in ${c} County, CO` },
+    { textQuery: `marijuana dispensary in ${c} County, CO` },
+    { textQuery: `cannabis distributor in ${c} County, CO` },
   ],
 };
 

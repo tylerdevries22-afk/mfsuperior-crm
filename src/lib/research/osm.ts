@@ -131,6 +131,27 @@ const OSM_FILTERS: Record<Industry, string[]> = {
     'nwr["craft"]',
     'nwr["office"="company"]',
   ],
+  construction: [
+    'nwr["shop"="hardware"]',
+    'nwr["shop"="doityourself"]',
+    'nwr["shop"="trade"]',
+    'nwr["shop"="building_materials"]',
+    'nwr["craft"="electrician"]',
+    'nwr["craft"="plumber"]',
+    'nwr["craft"="carpenter"]',
+    'nwr["craft"="hvac"]',
+    'nwr["craft"="painter"]',
+    'nwr["craft"="builder"]',
+    'nwr["craft"="roofer"]',
+    'nwr["office"="construction_company"]',
+  ],
+  cannabis: [
+    // OSM tags for cannabis are sparse; most dispensaries use `shop=cannabis`
+    // or general `amenity` plus a name match. Coverage is thin in OSM — the
+    // curated list is the primary source for this vertical.
+    'nwr["shop"="cannabis"]',
+    'nwr["amenity"="cannabis"]',
+  ],
 };
 
 /* ── HTTP ────────────────────────────────────────────────────────── */

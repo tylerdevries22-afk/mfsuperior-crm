@@ -13,7 +13,13 @@
 import type { Business } from "./osm";
 import { milesFromHq } from "./osm";
 
-export type Industry = "restaurants" | "bigbox" | "brokers" | "smallbiz";
+export type Industry =
+  | "restaurants"
+  | "bigbox"
+  | "brokers"
+  | "smallbiz"
+  | "construction"
+  | "cannabis";
 
 export type EmailConfidence =
   | "high" // domain has own MX, not webmail/role
@@ -73,6 +79,8 @@ export function isRefrigerated(b: Business, industry: Industry): boolean {
 
 const INDUSTRY_WEIGHT: Record<Industry, number> = {
   brokers: 30,
+  construction: 28, // contractor / supply yards run their own fleets, high freight value
+  cannabis: 26, // dispensary + cultivation supply chain, high cadence
   restaurants: 25,
   smallbiz: 22,
   bigbox: 20,
@@ -155,6 +163,8 @@ const VERTICAL_LABEL: Record<Industry, string> = {
   bigbox: "Big-box retail",
   brokers: "Freight broker / 3PL",
   smallbiz: "Small business",
+  construction: "Construction / contractor",
+  cannabis: "Cannabis (dispensary / cultivation)",
 };
 
 export function whyThisLead(args: {
