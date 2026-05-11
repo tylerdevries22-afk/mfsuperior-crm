@@ -1,0 +1,51 @@
+companyName,website,email,phone,address,city,state,vertical,tier,tags,notes,source
+Natural Grocers by Vitamin Cottage,https://naturalgrocers.com,procurement@naturalgrocers.com,,,Lakewood,CO,bigbox,A,tier-A|refrigerated|denver-batch-1|email-role-account,"HQ Lakewood, ~165 stores across 21 states. Refrigerated DC ops.",denver-batch-1
+King Soopers (Kroger),https://kingsoopers.com,procurement@kingsoopers.com,,,Denver,CO,bigbox,A,tier-A|refrigerated|denver-batch-1|email-role-account,"Kroger subsidiary. Denver DC, refrigerated.",denver-batch-1
+C.H. Robinson (Denver),https://chrobinson.com,dispatch@chrobinson.com,,,Denver,CO,brokers,A,tier-A|refrigerated|denver-batch-1|email-role-account,"Largest US freight broker, Denver office.",denver-batch-1
+Schneider National (Denver),https://schneider.com,dispatch@schneider.com,,,Denver,CO,brokers,A,tier-A|refrigerated|denver-batch-1|email-role-account,"Mega-carrier, Denver ops.",denver-batch-1
+Coyote Logistics (UPS),https://coyote.com,dispatch@coyote.com,,,Denver,CO,brokers,A,tier-A|refrigerated|denver-batch-1|email-role-account,"UPS brokerage arm, Denver office.",denver-batch-1
+Echo Global Logistics,https://echo.com,dispatch@echo.com,,,Denver,CO,brokers,A,tier-A|refrigerated|denver-batch-1|email-role-account,Brokerage with Denver presence.,denver-batch-1
+Estes Express Lines (Denver),https://estes-express.com,dispatch@estes-express.com,,,Commerce City,CO,brokers,A,tier-A|denver-batch-1|email-role-account,"National LTL, Denver terminal.",denver-batch-1
+Old Dominion Freight Line (Denver),https://odfl.com,dispatch@odfl.com,,,Commerce City,CO,brokers,A,tier-A|denver-batch-1|email-role-account,"LTL national, Denver terminal.",denver-batch-1
+Saia LTL Freight (Denver),https://saia.com,dispatch@saia.com,,,Aurora,CO,brokers,A,tier-A|denver-batch-1|email-role-account,"LTL national, Denver terminal.",denver-batch-1
+ABF Freight (Denver),https://abf.com,dispatch@abf.com,,,Denver,CO,brokers,A,tier-A|denver-batch-1|email-role-account,"LTL national, Denver terminal.",denver-batch-1
+XPO Logistics (Denver),https://xpo.com,dispatch@xpo.com,,,Denver,CO,brokers,A,tier-A|denver-batch-1|email-role-account,"LTL + brokerage, Denver office.",denver-batch-1
+Landstar System (Denver),https://landstar.com,dispatch@landstar.com,,,Denver,CO,brokers,A,tier-A|denver-batch-1|email-role-account,BCO trucking network.,denver-batch-1
+R&L Carriers (Denver),https://rlcarriers.com,dispatch@rlcarriers.com,,,Henderson,CO,brokers,A,tier-A|denver-batch-1|email-role-account,"LTL, Denver terminal.",denver-batch-1
+FedEx Freight (Denver),https://fedex.com,dispatch@fedex.com,,,Denver,CO,brokers,A,tier-A|denver-batch-1|email-role-account,Denver LTL terminal.,denver-batch-1
+YRC Freight / Yellow (Denver),https://myyellow.com,dispatch@myyellow.com,,,Denver,CO,brokers,A,tier-A|denver-batch-1|email-role-account,LTL.,denver-batch-1
+Ferguson Plumbing Supply (Denver),https://ferguson.com,orders@ferguson.com,,,Denver,CO,construction,A,tier-A|denver-batch-1|email-role-account,"National plumbing + HVAC wholesaler, multiple Denver branches.",denver-batch-1
+HD Supply,https://hdsupply.com,orders@hdsupply.com,,,Denver,CO,construction,A,tier-A|denver-batch-1|email-role-account,"MRO + construction supply, Denver branches.",denver-batch-1
+Wagner Equipment Co.,https://wagnerequipment.com,orders@wagnerequipment.com,,,Aurora,CO,construction,A,tier-A|denver-batch-1|email-role-account,Caterpillar dealer for CO/NM. Aurora HQ.,denver-batch-1
+United Rentals (Denver),https://unitedrentals.com,orders@unitedrentals.com,,,Denver,CO,construction,A,tier-A|denver-batch-1|email-role-account,"Largest US equipment rental, Denver locations.",denver-batch-1
+White Cap Construction Supply,https://whitecap.com,orders@whitecap.com,,,Denver,CO,construction,A,tier-A|denver-batch-1|email-role-account,"Specialty contractor supply, multiple Denver branches.",denver-batch-1
+ABC Supply Co.,https://abcsupply.com,orders@abcsupply.com,,,Denver,CO,construction,A,tier-A|denver-batch-1|email-role-account,Roofing + siding wholesaler.,denver-batch-1
+Boise Cascade Building Materials,https://bc.com,orders@bc.com,,,Denver,CO,construction,A,tier-A|denver-batch-1|email-role-account,Wholesale lumber + building products distribution.,denver-batch-1
+84 Lumber (Denver),https://84lumber.com,orders@84lumber.com,,,Denver,CO,construction,A,tier-A|denver-batch-1|email-role-account,Pro builder lumber yard.,denver-batch-1
+R.E. Michel Company,https://remichel.com,orders@remichel.com,,,Denver,CO,construction,A,tier-A|denver-batch-1|email-role-account,"HVAC parts wholesaler, Denver branches.",denver-batch-1
+SiteOne Landscape Supply,https://siteone.com,orders@siteone.com,,,Denver,CO,construction,A,tier-A|denver-batch-1|email-role-account,Largest US landscape supplier.,denver-batch-1
+Builders FirstSource (Denver),https://bldr.com,orders@bldr.com,,,Denver,CO,construction,A,tier-A|denver-batch-1|email-role-account,Largest US building products supplier.,denver-batch-1
+"Snooze, an A.M. Eatery",https://snoozeeatery.com,orders@snoozeeatery.com,,,Denver,CO,restaurants,B,tier-B|refrigerated|denver-batch-1|email-role-account,Multi-location breakfast chain HQ at 3001 Brighton Blvd. Refrigerated dairy + egg deliveries daily.,denver-batch-1
+Illegal Pete's,https://illegalpetes.com,orders@illegalpetes.com,,,Denver,CO,restaurants,B,tier-B|refrigerated|denver-batch-1|email-role-account,"Mexican fast-casual, 10+ Front Range + west-slope locations. Refrigerated protein + dairy.",denver-batch-1
+Modern Market Eatery,https://modernmarket.com,orders@modernmarket.com,,,Denver,CO,restaurants,B,tier-B|refrigerated|denver-batch-1|email-role-account,"Healthy fast-casual chain, Denver HQ. Refrigerated produce + protein.",denver-batch-1
+Hapa Sushi Grill,https://hapasushi.com,orders@hapasushi.com,,,Boulder,CO,restaurants,B,tier-B|refrigerated|denver-batch-1|email-role-account,Multi-location Boulder/Denver. Refrigerated seafood daily.,denver-batch-1
+Bonanno Concepts,https://bonannoconcepts.com,orders@bonannoconcepts.com,,,Denver,CO,restaurants,B,tier-B|refrigerated|denver-batch-1|email-role-account,"Restaurant group — Mizuna, Osteria Marco, Luca, Salt & Grinder, etc.",denver-batch-1
+Edible Beats,https://ediblebeats.com,orders@ediblebeats.com,,,Denver,CO,restaurants,B,tier-B|refrigerated|denver-batch-1|email-role-account,"Root Down parent group: Linger, Ophelia's, El Five.",denver-batch-1
+Marczyk Fine Foods,https://marczykfinefoods.com,procurement@marczykfinefoods.com,,,Denver,CO,bigbox,B,tier-B|refrigerated|denver-batch-1|email-role-account,"Denver specialty grocer, 2 locations.",denver-batch-1
+Polidori Sausage,https://polidorisausage.com,procurement@polidorisausage.com,,,Denver,CO,bigbox,B,tier-B|refrigerated|denver-batch-1|email-role-account,Family-run Italian sausage maker since 1925. Refrigerated.,denver-batch-1
+Tender Belly,https://tenderbelly.com,procurement@tenderbelly.com,,,Denver,CO,bigbox,B,tier-B|refrigerated|denver-batch-1|email-role-account,Denver premium pork brand.,denver-batch-1
+Stranahan's Colorado Whiskey,https://stranahans.com,procurement@stranahans.com,,,Denver,CO,bigbox,B,tier-B|denver-batch-1|email-role-account,"Denver distillery, national distribution.",denver-batch-1
+Sunstate Equipment Co.,https://sunstateequip.com,orders@sunstateequip.com,,,Denver,CO,construction,B,tier-B|denver-batch-1|email-role-account,"Equipment rental, Denver branches.",denver-batch-1
+Foxworth-Galbraith Lumber,https://fglumber.com,orders@fglumber.com,,,Denver,CO,construction,B,tier-B|denver-batch-1|email-role-account,Regional lumber + building materials.,denver-batch-1
+Eaton Metal Products,https://eatonmetal.com,orders@eatonmetal.com,,,Denver,CO,construction,B,tier-B|denver-batch-1|email-role-account,"Steel tank + fabrication, Denver.",denver-batch-1
+"Pro Group, Inc.",https://progroupinc.com,orders@progroupinc.com,,,Denver,CO,construction,B,tier-B|denver-batch-1|email-role-account,Building envelope + insulation distributor.,denver-batch-1
+Bock Lighting (Denver),https://bocklighting.com,orders@bocklighting.com,,,Denver,CO,construction,B,tier-B|denver-batch-1|email-role-account,Commercial lighting supply.,denver-batch-1
+Hercules Industries,https://herculesindustries.com,orders@herculesindustries.com,,,Denver,CO,construction,B,tier-B|denver-batch-1|email-role-account,HVAC + sheet metal Denver-headquartered distributor.,denver-batch-1
+Sushi Den,https://sushiden.net,orders@sushiden.net,,,Denver,CO,restaurants,C,tier-C|refrigerated|denver-batch-1|email-role-account,Denver Pearl Street institution. Daily refrigerated seafood deliveries.,denver-batch-1
+Root Down,https://rootdowndenver.com,orders@rootdowndenver.com,,,Denver,CO,restaurants,C,tier-C|refrigerated|denver-batch-1|email-role-account,Edible Beats group — farm-to-table. Refrigerated produce.,denver-batch-1
+TAG Restaurant,https://tag-restaurant.com,orders@tag-restaurant.com,,,Denver,CO,restaurants,C,tier-C|refrigerated|denver-batch-1|email-role-account,Larimer Square global fare. Refrigerated.,denver-batch-1
+Frasca Food and Wine,https://frascafoodandwine.com,orders@frascafoodandwine.com,,,Boulder,CO,restaurants,C,tier-C|refrigerated|denver-batch-1|email-role-account,"James Beard winner, Boulder. Refrigerated specialty deliveries.",denver-batch-1
+Tocabe,https://tocabe.com,orders@tocabe.com,,,Denver,CO,restaurants,C,tier-C|refrigerated|denver-batch-1|email-role-account,Indigenous American food. 2 Denver locations.,denver-batch-1
+Steuben's Food Service,https://steubens.com,orders@steubens.com,,,Denver,CO,restaurants,C,tier-C|refrigerated|denver-batch-1|email-role-account,Uptown classic + Aurora. Refrigerated American comfort food.,denver-batch-1
+Mercantile Dining & Provision,https://mercantiledenver.com,orders@mercantiledenver.com,,,Denver,CO,restaurants,C,tier-C|refrigerated|denver-batch-1|email-role-account,Union Station market + restaurant. Refrigerated daily.,denver-batch-1
+Stoic & Genuine,https://stoicandgenuine.com,orders@stoicandgenuine.com,,,Denver,CO,restaurants,C,tier-C|refrigerated|denver-batch-1|email-role-account,Union Station seafood. Daily refrigerated fish.,denver-batch-1
