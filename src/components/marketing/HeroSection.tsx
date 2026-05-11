@@ -34,77 +34,89 @@ export function HeroSection() {
     const video = videoRef.current;
     if (!section || !video) return;
 
-    // ── Hyper-responsive scroll-scrub ────────────────────────────
+    // ── Hyper-responsive scroll-scrub (v4) ───────────────────────
     //
-    // Two coupled fixes:
+    // Iteration history matters here — every prior attempt got
+    // closer but missed a real-world failure mode:
     //
-    // 1. The source MP4 (`benefit-01-vert-scrub.mp4`) is re-encoded
-    //    `-g 1 -bf 0` — every frame is a keyframe, so seeking to any
-    //    timestamp decodes a single frame instead of walking from
-    //    the previous keyframe forward. File grew 2.4 MB → 7.6 MB;
-    //    acceptable for the single hero asset. (The non-scrub MP4
-    //    is still served on the linear-playback benefit sections
-    //    where seek cost doesn't matter.)
-    //
-    // 2. The scrub loop, below. Iteration history matters here:
-    //
-    //    v1 (pre-#42): rAF every frame → `currentTime = …` every
-    //      tick. With the streaming-profile MP4 this fell hundreds
-    //      of ms behind on fast scrolls.
-    //
-    //    v2 (#42): replaced rAF with passive `scroll` listener +
-    //      single-rAF coalescer. Faster on plain pages, but the
-    //      marketing page wraps the body in `<LenisProvider>` which
-    //      smooth-scrolls via its own internal rAF and only emits
-    //      a handful of native `scroll` events per gesture (start,
-    //      mid, end). The eased frames in between never triggered a
-    //      recompute, so a full-runway flick stranded the video at
-    //      ~0.6 progress. That was the bug the operator hit.
-    //
-    //    v3 (here): back to a continuous rAF driver (matches Lenis's
-    //      own frame loop) — but every concern from v2 still
-    //      applies, so each tick reuses the same gates:
-    //         • frame-snap to 1/24s (dedup sub-frame targets)
-    //         • skip if video.seeking (don't queue seeks)
-    //         • skip if displayed frame index is unchanged
-    //      Plus, recompute also still fires on scroll + resize so we
-    //      catch instant jumps (anchor links, programmatic scrollTo)
-    //      that out-pace rAF.
+    //   v1: rAF every frame, currentTime= every tick. Streaming-
+    //       profile MP4 made seeks fall hundreds of ms behind.
+    //   v2: scroll-event driven. Lenis smooth-scroll emits only a
+    //       few native scroll events per gesture, so the video
+    //       stranded mid-runway.
+    //   v3: continuous rAF + scroll + Lenis listener. Correct
+    //       timing but seeks still stalled when the byte range
+    //       wasn't buffered yet (7.6 MB MP4 at 1080p).
+    //   v4 (here): all of the above PLUS
+    //       • the MP4 itself is now 2.2 MB at 540×960 (half-res,
+    //         CRF 26, all-keyframe). Fits in a single TCP slow-
+    //         start window and finishes buffering before the
+    //         user can scroll past the first 10% of the runway.
+    //       • on mount we call `video.load()` + a play/pause
+    //         prime so the browser eagerly downloads + decodes
+    //         the full byte range, NOT just the metadata.
+    //       • stuck-seek recovery: if `video.seeking` stays true
+    //         for > 200ms (seek-past-buffered case), we drop the
+    //         bail and re-issue, which supersedes the stuck one.
+    //       • `window.__heroScrubDebug` exposes live values so the
+    //         operator can verify the loop is firing from DevTools.
 
-    // Frame interval (s) for the 24fps source. Used as the seek
-    // deadband so we don't issue redundant seeks.
     const FRAME_DT = 1 / 24;
+    const SEEK_STUCK_MS = 200;
 
-    video.pause();
-    // Compositor hint — encourages browsers to keep the video element
-    // on its own GPU layer so frame swaps don't repaint the headline
-    // and overlays each tick.
+    // Force-decode prime. `preload="auto"` is a hint; some browsers
+    // (esp. Safari + Chrome on slow connections) downgrade it to
+    // metadata-only. Calling load() + a brief play() forces the
+    // browser to fetch + decode the entire byte range eagerly.
+    // play() on a muted video is allowed without a user gesture
+    // per autoplay policy; we wrap in try/catch in case a browser
+    // is stricter than spec.
+    video.muted = true;
+    video.load();
+    void video.play().then(() => video.pause()).catch(() => {
+      // play() rejected (rare on muted video). Not fatal — the
+      // rAF loop below still drives currentTime; the browser will
+      // buffer on demand. Diagnostic only.
+      // eslint-disable-next-line no-console
+      console.warn("[hero-scrub] play() prime rejected; proceeding with on-demand buffer.");
+    });
+
     video.style.willChange = "transform";
 
     let rafId = 0;
     let lastAppliedTime = -1;
+    let lastSeekAt = 0;
+    let tickCount = 0;
 
     const applySeek = (targetTime: number) => {
-      // Bail if the previous seek hasn't painted yet — queuing seeks
-      // is the #1 cause of scrub lag.
-      if (video.seeking) return;
-      if (!(video.readyState >= 2) || !(video.duration > 0)) return;
+      const now = performance.now();
+      // Stuck-seek recovery: if seeking has been pending too long
+      // it almost certainly means the byte range isn't buffered.
+      // Re-issuing lets the browser cancel + retry.
+      const stuck = video.seeking && now - lastSeekAt > SEEK_STUCK_MS;
+      if (video.seeking && !stuck) return;
+      // Duration must be known. readyState check intentionally
+      // relaxed (v3 bailed on < 2 → was the cause of "video not
+      // animating" on slow connections). Seeking to an unbuffered
+      // frame triggers buffering; the next rAF will retry.
+      if (!(video.duration > 0)) return;
 
-      // Frame-snap so two scrolls producing the same visible frame
-      // collapse to a single (skipped) seek.
       const snapped = Math.round(targetTime / FRAME_DT) * FRAME_DT;
-      // Clamp to the last decodable frame's timestamp. Setting
-      // currentTime === duration triggers the "ended" state on some
-      // browsers (which can flash the poster). One frame back is
-      // visually identical and safer.
       const last = Math.max(0, video.duration - FRAME_DT);
       const clamped = Math.min(snapped, last);
-      if (Math.abs(clamped - lastAppliedTime) < FRAME_DT / 2) return;
-      video.currentTime = clamped;
-      lastAppliedTime = clamped;
+      if (Math.abs(clamped - lastAppliedTime) < FRAME_DT / 2 && !stuck) return;
+      try {
+        video.currentTime = clamped;
+        lastAppliedTime = clamped;
+        lastSeekAt = now;
+      } catch {
+        // Setting currentTime on a not-yet-loaded video can throw
+        // on some browsers. Silent — next rAF will retry.
+      }
     };
 
     const recompute = () => {
+      tickCount += 1;
       const rect = section.getBoundingClientRect();
       const viewH = window.innerHeight;
       const scrolled = Math.max(0, -rect.top);
@@ -112,51 +124,45 @@ export function HeroSection() {
       const sectionProgress =
         maxScroll > 0 ? Math.min(1, scrolled / maxScroll) : 0;
 
-      // Map BOTH animations (video scrub + cascade text) into a
-      // sub-range of section scroll progress so they complete BEFORE
-      // the next section enters the viewport. Without this, the
-      // animations finish exactly when the sticky frame stops
-      // pinning — i.e., right as the next section appears below.
-      // The user's eye is already on the new content, so the final
-      // 10-15% of the scrub looks like it never happened.
-      //
-      // ANIM_END = 0.85 means both animations are fully complete at
-      // 85% of section scroll. The remaining 15% is a "settled
-      // hero" buffer — the video is on frame 149, the headline is
-      // in final white, and the user has another ~30vh of scroll
-      // before the runway releases and the next section starts to
-      // come in. Standard Apple / Stripe hero pattern.
+      // Map both animations into a sub-range of section progress
+      // so the scrub completes BEFORE the next section reveals.
       const ANIM_END = 0.85;
       const animProgress = Math.min(1, sectionProgress / ANIM_END);
 
-      // CascadeText reads this MotionValue every render — keep it
-      // current even before the video is seekable.
       heroProgress.set(animProgress);
 
       if (video.duration > 0) {
         applySeek(animProgress * video.duration);
       }
+
+      // Live debug surface — inspect in DevTools console:
+      //   __heroScrubDebug
+      // Lets the operator verify on real hardware that the loop
+      // is firing, the section dimensions are sane, and the
+      // video is actually buffering. Cheap (one object write).
+      (window as unknown as { __heroScrubDebug?: object }).__heroScrubDebug = {
+        ticks: tickCount,
+        sectionH: section.offsetHeight,
+        viewH,
+        maxScroll,
+        scrolled,
+        sectionProgress,
+        animProgress,
+        videoDuration: video.duration,
+        videoCurrent: video.currentTime,
+        videoReadyState: video.readyState,
+        videoSeeking: video.seeking,
+        lastAppliedTime,
+      };
     };
 
-    // Continuous rAF — matches Lenis's own frame budget and ensures
-    // the video tracks the smooth-scroll easing curve, not just the
-    // discrete native `scroll` events Lenis ends up emitting. The
-    // per-frame work is bounded: ≤1 cheap `getBoundingClientRect`
-    // call + at most one frame-snapped `currentTime=` assignment.
     const tick = () => {
       recompute();
       rafId = requestAnimationFrame(tick);
     };
 
-    // Belt + suspenders: also recompute on instant scroll jumps
-    // (anchor links, scrollTo from the nav, resize). These can land
-    // a new scroll position between rAF frames; firing recompute on
-    // the event itself catches that without waiting one frame.
     const onScroll = () => recompute();
     const onResize = () => recompute();
-
-    // Once the video metadata is ready, do an immediate recompute so
-    // a reload mid-scroll lands on the correct frame.
     const onLoadedMeta = () => recompute();
 
     window.addEventListener("scroll", onScroll, { passive: true });
@@ -164,15 +170,15 @@ export function HeroSection() {
     video.addEventListener("loadedmetadata", onLoadedMeta);
     video.addEventListener("loadeddata", onLoadedMeta);
 
-    // If Lenis is mounted, hook its smoothed scroll event too. Lenis
-    // emits this on every eased frame during animation — even when
-    // the native window `scroll` event would have already fired and
-    // the next rAF hasn't ticked yet — so this closes the smallest
-    // remaining sync window between user input and frame paint.
-    const lenis = (window as unknown as { __mfsLenis?: { on: (e: string, cb: () => void) => void; off: (e: string, cb: () => void) => void } }).__mfsLenis;
-    if (lenis?.on) {
-      lenis.on("scroll", recompute);
-    }
+    const lenis = (
+      window as unknown as {
+        __mfsLenis?: {
+          on: (e: string, cb: () => void) => void;
+          off: (e: string, cb: () => void) => void;
+        };
+      }
+    ).__mfsLenis;
+    if (lenis?.on) lenis.on("scroll", recompute);
 
     rafId = requestAnimationFrame(tick);
 
@@ -182,9 +188,7 @@ export function HeroSection() {
       window.removeEventListener("resize", onResize);
       video.removeEventListener("loadedmetadata", onLoadedMeta);
       video.removeEventListener("loadeddata", onLoadedMeta);
-      if (lenis?.off) {
-        lenis.off("scroll", recompute);
-      }
+      if (lenis?.off) lenis.off("scroll", recompute);
     };
   }, [heroProgress]);
 
