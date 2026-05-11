@@ -408,19 +408,28 @@ html.lenis body {
  * desktop a 420vh hero is ~4× a 1080p viewport — fine. On a 668px
  * mobile that same 420vh is 2806px of dead scroll. These classes
  * keep the scrub feel cohesive across breakpoints. */
-.mkt-hero-runway { min-height: 420vh; }
+/* Hero runway: the scroll *length* that drives the video scrub + the
+ * text cascade. Sticky child inside is 100vh, so available scroll =
+ * runway - 100vh. Both animations are mapped to [0, 1] of that
+ * scroll progress so they start and finish at exactly the same
+ * scroll positions.
+ *
+ * Sizing: 280vh desktop / 240vh tablet / 220vh mobile gives ~1.8
+ * viewport heights of actual scroll on each. Long enough to feel
+ * deliberate; short enough that a single wheel flick or thumb swipe
+ * carries you from frame 0 to frame 149 without the video stranding
+ * partway through. (Prior 420vh / 300vh / 260vh made the user
+ * scroll ~3.2 viewport heights, by which point the next section
+ * was already revealing.) */
+.mkt-hero-runway { min-height: 280vh; }
 .mkt-yos-runway { height: 160vh; }
 
 @media (max-width: 768px) {
-  /* Hero scrub: tighter runway so the video + cascade complete in
-   * ~3 swipes instead of 6 on small viewports. The cascade range
-   * [0.04, 0.96] is proportional to section height so it stays in
-   * sync with video.currentTime automatically. */
-  .mkt-hero-runway { min-height: 300vh; }
+  .mkt-hero-runway { min-height: 240vh; }
   .mkt-yos-runway { height: 200vh; }
 }
 @media (max-width: 480px) {
-  .mkt-hero-runway { min-height: 260vh; }
+  .mkt-hero-runway { min-height: 220vh; }
 }
 
 /* ── Marketing mobile responsive overrides ───────────────────── */
