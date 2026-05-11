@@ -1414,3 +1414,69 @@ export async function validateAllEmailsAction(): Promise<void> {
   if (errorMsg) params.set("validate_error", errorMsg);
   redirect(`/admin?${params.toString()}`);
 }
+
+/* ── One-shot business-name fix ─────────────────────────────────── */
+
+/**
+ * Updates every row in the `settings` table where business_name is the
+ * old typo "MF Superior Solutions" to the correct "MF Superior Products".
+ * Idempotent — re-clicking after the fix lands does nothing (0 rows
+ * updated). This exists because the schema default change in PR #31
+ * only applies to NEW rows; existing production rows kept the old value.
+ *
+ * Safe: bounded WHERE clause, no destructive ops, audit-logged.
+ */
+export async function fixBusinessNameAction(): Promise<void> {
+  let errorMsg: string | null = null;
+  let updated = 0;
+
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      errorMsg = "unauthorized";
+    } else {
+      env();
+      const { settings: settingsTable } = await import("@/lib/db/schema");
+      const result = await db
+        .update(settingsTable)
+        .set({
+          businessName: "MF Superior Products",
+          updatedAt: new Date(),
+        })
+        .where(eq(settingsTable.businessName, "MF Superior Solutions"))
+        .returning({ id: settingsTable.id });
+      updated = result.length;
+
+      try {
+        await db.insert(auditLog).values({
+          actorUserId: session.user.id,
+          entity: "settings",
+          entityId: null,
+          action: "fix_business_name",
+          beforeJson: { businessName: "MF Superior Solutions" },
+          afterJson: { businessName: "MF Superior Products", updated },
+          occurredAt: sql`now()`,
+        });
+      } catch (err) {
+        console.error(
+          "[fixBusinessName] audit failed:",
+          (err as Error).message,
+        );
+      }
+    }
+  } catch (err) {
+    errorMsg =
+      (err as Error).name + ": " + (err as Error).message.slice(0, 120);
+    console.error("[fixBusinessName] FATAL:", err);
+  }
+
+  revalidatePath("/admin");
+  revalidatePath("/settings");
+
+  const params = new URLSearchParams({
+    bizfix: "1",
+    bizfix_updated: String(updated),
+  });
+  if (errorMsg) params.set("bizfix_error", errorMsg);
+  redirect(`/admin?${params.toString()}`);
+}
