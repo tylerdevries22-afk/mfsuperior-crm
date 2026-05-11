@@ -25,7 +25,7 @@ const BASE_SETTINGS = {
   senderEmail: "info@mfsuperiorproducts.com",
   senderTitle: "Owner",
   senderPhone: "(256) 468-0751",
-  businessName: "MF Superior Solutions",
+  businessName: "MF Superior Products",
   businessAddress: "15321 E Louisiana Ave, Aurora, CO 80017",
   businessMc: "123456",
   businessUsdot: "7891011",

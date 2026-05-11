@@ -64,7 +64,7 @@ export default async function EditTemplatePage({
     {
       senderName: config?.senderName ?? "Tyler DeVries",
       senderEmail: config?.senderEmail ?? "tylerdevries22@gmail.com",
-      businessName: config?.businessName ?? "MF Superior Solutions",
+      businessName: config?.businessName ?? "MF Superior Products",
       senderTitle: "Owner",
       senderPhone: "(303) 555-0119",
       businessMc: config?.businessMc ?? null,

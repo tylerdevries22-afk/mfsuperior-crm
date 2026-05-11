@@ -183,7 +183,7 @@ export function Footer() {
         }}
       >
         <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '12px' }}>
-          &copy; 2026 MF Superior Solutions. All rights reserved.
+          &copy; 2026 MF Superior Products. All rights reserved.
         </span>
         {/* Address removed here — already lives in the brand column above. */}
         <a

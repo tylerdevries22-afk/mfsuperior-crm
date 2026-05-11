@@ -10,7 +10,7 @@ import { snippetForVertical } from "@/lib/email/personalization";
 const SETTINGS = {
   senderName: "Tyler DeVries",
   senderEmail: "tylerdevries22@gmail.com",
-  businessName: "MF Superior Solutions",
+  businessName: "MF Superior Products",
   senderTitle: "Owner",
   senderPhone: "(303) 555-0119",
   businessMc: "MC-123456",

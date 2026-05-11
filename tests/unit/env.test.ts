@@ -9,7 +9,7 @@ const VALID_ENV = {
   CRON_SECRET: "x".repeat(16),
   ENCRYPTION_KEY: "x".repeat(32),
   GMAIL_USER: "tylerdevries22@gmail.com",
-  BUSINESS_NAME: "MF Superior Solutions",
+  BUSINESS_NAME: "MF Superior Products",
   BUSINESS_ADDRESS: "15321 E Louisiana Ave, Aurora, CO 80017",
   NODE_ENV: "test",
 };
@@ -24,7 +24,7 @@ describe("env()", () => {
     Object.assign(process.env, VALID_ENV);
     const { env } = await import("@/lib/env");
     const e = env();
-    expect(e.BUSINESS_NAME).toBe("MF Superior Solutions");
+    expect(e.BUSINESS_NAME).toBe("MF Superior Products");
     expect(e.DAILY_SEND_CAP).toBe(20); // default
     expect(e.WARMUP_DAILY_CAP).toBe(5); // default
   });

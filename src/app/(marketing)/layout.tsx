@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://mfsuperiorproducts.com"),
-  title: "MF Superior Solutions | Freight Delivery — Colorado's Most Trusted Carrier",
+  title: "MF Superior Products | Freight Delivery — Colorado's Most Trusted Carrier",
   description:
     "Colorado's most trusted freight delivery company. Same-day and next-day dispatch across Denver and beyond — professional drivers, transparent rates, and white-glove service.",
   icons: {

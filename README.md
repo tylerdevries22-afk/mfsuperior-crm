@@ -52,7 +52,7 @@ deploy" bugs.
 | `APP_URL` | Public origin — used for redirects, tracking pixels, unsubscribe links | `http://localhost:3000` / `https://your-domain.com` |
 | `CRON_SECRET` | Bearer token for `/api/cron/*` | `openssl rand -hex 16` |
 | `ENCRYPTION_KEY` | AES key for OAuth refresh tokens at rest | `openssl rand -base64 32` |
-| `BUSINESS_NAME` | Compliance footer + email signature | `MF Superior Solutions` |
+| `BUSINESS_NAME` | Compliance footer + email signature | `MF Superior Products` |
 | `BUSINESS_ADDRESS` | Compliance footer (CAN-SPAM physical address) | `15321 E Louisiana Ave, …` |
 
 ### Optional

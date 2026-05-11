@@ -4,7 +4,7 @@ import { leads, notifications } from "@/lib/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { env } from "@/lib/env";
 
-const FROM_ADDRESS = "MF Superior Solutions <info@mfsuperiorproducts.com>";
+const FROM_ADDRESS = "MF Superior Products <info@mfsuperiorproducts.com>";
 const NOTIFY_ADDRESS = "info@mfsuperiorproducts.com";
 
 type ContactBody = {
@@ -157,7 +157,7 @@ export async function POST(req: NextRequest) {
         <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
           <tr>
             <td style="background:#111111;padding:28px 40px;">
-              <p style="margin:0;font-size:18px;font-weight:600;color:#D4E030;letter-spacing:0.02em;">MF Superior Solutions</p>
+              <p style="margin:0;font-size:18px;font-weight:600;color:#D4E030;letter-spacing:0.02em;">MF Superior Products</p>
             </td>
           </tr>
           <tr>
@@ -165,7 +165,7 @@ export async function POST(req: NextRequest) {
               <h1 style="margin:0 0 16px;font-size:22px;font-weight:600;color:#111111;">We received your quote request</h1>
               <p style="margin:0 0 20px;font-size:15px;color:#444444;line-height:1.6;">
                 Hi ${eName},<br/><br/>
-                Thanks for reaching out to MF Superior Solutions. Tyler will review your request and get back to you <strong>within 24 hours</strong> to discuss your freight needs and build a custom quote.
+                Thanks for reaching out to MF Superior Products. Tyler will review your request and get back to you <strong>within 24 hours</strong> to discuss your freight needs and build a custom quote.
               </p>
               ${eService ? `<p style="margin:0 0 20px;font-size:15px;color:#444444;line-height:1.6;"><strong>Service requested:</strong> ${eService}</p>` : ""}
               ${eMessage ? `<p style="margin:0 0 20px;font-size:15px;color:#444444;line-height:1.6;"><strong>Your message:</strong><br/><em>${eMessage}</em></p>` : ""}
@@ -178,7 +178,7 @@ export async function POST(req: NextRequest) {
           <tr>
             <td style="background:#f9f9f9;padding:20px 40px;border-top:1px solid #eeeeee;">
               <p style="margin:0;font-size:12px;color:#999999;line-height:1.5;">
-                MF Superior Solutions · 15321 E Louisiana Ave, Aurora, CO 80017, United States<br/>
+                MF Superior Products · 15321 E Louisiana Ave, Aurora, CO 80017, United States<br/>
                 This email was sent because you submitted a quote request at mfsuperiorproducts.com.
               </p>
             </td>
@@ -190,7 +190,7 @@ export async function POST(req: NextRequest) {
 </body>
 </html>`;
 
-  const confirmText = `Hi ${name.trim()},\n\nThanks for reaching out to MF Superior Solutions. Tyler will review your request and get back to you within 24 hours to discuss your freight needs and build a custom quote.\n\nIf you need to reach us sooner, call or text: (256) 468-0751\n\n--\nMF Superior Solutions\n15321 E Louisiana Ave, Aurora, CO 80017, United States`;
+  const confirmText = `Hi ${name.trim()},\n\nThanks for reaching out to MF Superior Products. Tyler will review your request and get back to you within 24 hours to discuss your freight needs and build a custom quote.\n\nIf you need to reach us sooner, call or text: (256) 468-0751\n\n--\nMF Superior Products\n15321 E Louisiana Ave, Aurora, CO 80017, United States`;
 
   // ── Notification email to team ────────────────────────────────────────────
   const crmLink = `${APP_URL}/leads/${leadId}`;
@@ -237,7 +237,7 @@ export async function POST(req: NextRequest) {
   await Promise.allSettled([
     sendEmail(
       emailLower,
-      "We received your quote request — MF Superior Solutions",
+      "We received your quote request — MF Superior Products",
       confirmHtml,
       confirmText,
     ),

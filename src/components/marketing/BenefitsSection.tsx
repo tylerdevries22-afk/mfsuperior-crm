@@ -16,7 +16,7 @@ const benefits: Benefit[] = [
     num: '01',
     label: 'Benefit 01',
     heading: 'One reliable partner for all your Colorado freight runs',
-    description: "From single pickups to recurring routes, MF Superior Solutions handles the freight loads Colorado businesses actually need moved. We run 16ft to 26ft capacity across the Denver metro and beyond — so your operation never waits on a carrier.",
+    description: "From single pickups to recurring routes, MF Superior Products handles the freight loads Colorado businesses actually need moved. We run 16ft to 26ft capacity across the Denver metro and beyond — so your operation never waits on a carrier.",
     wideVideo: '/videos/features-01.mp4',
   },
   {
