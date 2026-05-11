@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { LeadsTable } from "@/components/leads/leads-table";
-import { quickAddStarterPackAction } from "@/app/(app)/admin/actions";
+import { verifiedQuickAddAction } from "@/app/(app)/admin/actions";
 
 export const metadata = { title: "Leads" };
 // Quick-add curated pack server action runs from this page; give it
@@ -55,6 +55,20 @@ type Search = {
   // Bulk-archive redirect params (from bulkArchiveAction)
   archived_bulk?: string;
   archive_error?: string;
+  // Verified-quick-add redirect params (from verifiedQuickAddAction)
+  verified?: string;
+  v_inserted?: string;
+  v_attempted?: string;
+  v_already?: string;
+  v_no_email?: string;
+  v_no_html?: string;
+  v_mx_failed?: string;
+  v_timeout?: string;
+  v_other?: string;
+  verified_error?: string;
+  // Wipe-guessed redirect params (from wipeGuessedLeadsAction)
+  wiped_guessed?: string;
+  wipe_error?: string;
   // Bulk-send result banner params (from bulkSendAction redirect).
   sent?: string;
   requested?: string;
@@ -169,13 +183,13 @@ export default async function LeadsPage({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <form action={quickAddStarterPackAction}>
+          <form action={verifiedQuickAddAction}>
             <Button
               type="submit"
               variant="secondary"
-              title="Insert ~150 curated Denver Metro businesses with role-targeted emails (procurement@, orders@, dispatch@). Fills in emails for any legacy email-less rows that match by company name."
+              title="Scrapes each curated company's website (/, /contact, /about, /team, /leadership) for real mailto: emails, MX-validates each one, and inserts ONLY companies with verified deliverable addresses. NEVER guesses. Expect 20-60 inserts from ~150 attempts since many chains don't publish a public email."
             >
-              <Zap /> Quick-add curated pack
+              <Zap /> Quick-add (verified)
             </Button>
           </form>
           <Link href="/leads/import">
@@ -312,6 +326,95 @@ export default async function LeadsPage({
               <span className="font-mono text-[11px]">
                 UPDATE leads SET archived_at = NULL WHERE id IN (...);
               </span>
+            </p>
+          </div>
+        </div>
+      ) : null}
+
+      {sp.verified === "1" && sp.verified_error ? (
+        <div className="mb-5 flex items-start gap-3 rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" />
+          <div>
+            <p className="font-medium text-foreground">
+              Verified quick-add failed.
+            </p>
+            <p className="mt-1 font-mono text-xs text-muted-foreground">
+              {decodeURIComponent(sp.verified_error)}
+            </p>
+          </div>
+        </div>
+      ) : sp.verified === "1" ? (
+        <div className="mb-5 flex items-start gap-3 rounded-md border border-success/40 bg-success/10 px-4 py-3 text-sm">
+          <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-success" />
+          <div>
+            <p className="font-medium text-foreground">
+              Verified quick-add —{" "}
+              <span className="font-mono tabular-nums">
+                {Number(sp.v_inserted ?? 0)}
+              </span>{" "}
+              new leads with website-extracted, MX-validated emails (from{" "}
+              <span className="font-mono tabular-nums">
+                {Number(sp.v_attempted ?? 0)}
+              </span>{" "}
+              attempted).
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Skips:{" "}
+              <span className="font-mono tabular-nums">
+                {Number(sp.v_already ?? 0)}
+              </span>{" "}
+              already in CRM,{" "}
+              <span className="font-mono tabular-nums">
+                {Number(sp.v_no_email ?? 0)}
+              </span>{" "}
+              no email on website,{" "}
+              <span className="font-mono tabular-nums">
+                {Number(sp.v_no_html ?? 0)}
+              </span>{" "}
+              website unreachable,{" "}
+              <span className="font-mono tabular-nums">
+                {Number(sp.v_mx_failed ?? 0)}
+              </span>{" "}
+              MX failed,{" "}
+              <span className="font-mono tabular-nums">
+                {Number(sp.v_timeout ?? 0)}
+              </span>{" "}
+              timed out,{" "}
+              <span className="font-mono tabular-nums">
+                {Number(sp.v_other ?? 0)}
+              </span>{" "}
+              other. Filter Source to{" "}
+              <span className="font-mono">website-scrape</span> to see only
+              these.
+            </p>
+          </div>
+        </div>
+      ) : null}
+
+      {sp.wiped_guessed === "1" && sp.wipe_error ? (
+        <div className="mb-5 flex items-start gap-3 rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" />
+          <div>
+            <p className="font-medium text-foreground">Wipe-guessed failed.</p>
+            <p className="mt-1 font-mono text-xs text-muted-foreground">
+              {decodeURIComponent(sp.wipe_error)}
+            </p>
+          </div>
+        </div>
+      ) : sp.wiped_guessed === "1" ? (
+        <div className="mb-5 flex items-start gap-3 rounded-md border border-success/40 bg-success/10 px-4 py-3 text-sm">
+          <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-success" />
+          <div>
+            <p className="font-medium text-foreground">
+              Archived{" "}
+              <span className="font-mono tabular-nums">
+                {Number(sp.archived ?? 0)}
+              </span>{" "}
+              email-guessed leads.
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Now click <span className="font-mono">Quick-add (verified)</span>{" "}
+              to repopulate with website-extracted, MX-validated emails.
             </p>
           </div>
         </div>

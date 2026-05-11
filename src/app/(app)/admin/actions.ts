@@ -21,6 +21,7 @@ import { syncDrive } from "@/lib/sequences/sync-drive";
 import { runResearch, type RunMode } from "@/lib/research/run";
 import { COUNTIES, type County } from "@/lib/research/osm";
 import type { Industry } from "@/lib/research/score";
+import { verifyWebsiteEmail } from "@/lib/research/verify-website-email";
 
 /**
  * Manually trigger the sequence tick. Authed UI users only — this is a
@@ -595,4 +596,301 @@ export async function manualSyncAction(): Promise<void> {
       : "",
   });
   redirect(`/admin?${params.toString()}`);
+}
+
+/* ── Verified Quick-add (website-extracted emails, never guessed) ── */
+
+/**
+ * Replacement for quickAddStarterPackAction that NEVER guesses emails.
+ *
+ * For each curated entry:
+ *   1. Skip if a non-archived lead with this domain or company name already exists.
+ *   2. Scrape the company website (cheerio, multiple paths, in parallel).
+ *   3. Pick the highest-seniority extractable email.
+ *   4. MX-validate (DNS resolveMx). Reject freemail / disposable / no_mx.
+ *   5. Insert the lead with tag `email-verified` + a `source: "website-scrape"`.
+ *   6. If any step fails, skip — never insert with a guessed address.
+ *
+ * Runs all 150 curated entries in parallel with a 4s per-company hard cap.
+ * Expected wall time: 5-8s on a warm Vercel lambda. Many curated companies
+ * (big-box chains, freight brokers) won't publish a contact email, so the
+ * insert count will typically be far lower than the curated total — but
+ * every inserted row is a real, deliverable address.
+ */
+export async function verifiedQuickAddAction(): Promise<void> {
+  let errorMsg: string | null = null;
+  let attempted = 0;
+  let inserted = 0;
+  let skippedAlreadyExists = 0;
+  let skippedNoEmail = 0;
+  let skippedNoHtml = 0;
+  let skippedMxFailed = 0;
+  let skippedTimeout = 0;
+  let skippedOther = 0;
+  const start = Date.now();
+
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      errorMsg = "unauthorized";
+    } else {
+      env();
+
+      const sample = CURATED_DENVER;
+      attempted = sample.length;
+
+      // 1. Pre-fetch every existing non-archived lead matching one of our
+      //    candidate domains or company names — single SELECT.
+      const allDomains = sample.map((c) => c.domain);
+      const allNames = sample.map((c) => c.name);
+      const existing = await db
+        .select({
+          email: leadsTable.email,
+          companyName: leadsTable.companyName,
+          website: leadsTable.website,
+        })
+        .from(leadsTable)
+        .where(
+          and(
+            isNull(leadsTable.archivedAt),
+            or(
+              inArray(leadsTable.companyName, allNames),
+              // email LIKE '%@domain' for any domain
+              sql`split_part(${leadsTable.email}, '@', 2) = ANY(${allDomains})`,
+            ),
+          ),
+        );
+      const existingDomains = new Set<string>();
+      const existingNames = new Set<string>();
+      for (const r of existing) {
+        if (r.companyName) existingNames.add(r.companyName);
+        if (r.email) {
+          const d = r.email.split("@")[1];
+          if (d) existingDomains.add(d);
+        }
+      }
+
+      const verticalLabel: Record<string, string> = {
+        restaurants: "Restaurant",
+        bigbox: "Big-box retail",
+        brokers: "Freight broker / 3PL",
+        smallbiz: "Small business",
+      };
+
+      // 2. Verify-or-skip each remaining entry, in parallel with a hard
+      //    per-company timeout so one stuck site can't blow our budget.
+      const work = sample.filter((c) => {
+        if (existingDomains.has(c.domain) || existingNames.has(c.name)) {
+          skippedAlreadyExists++;
+          return false;
+        }
+        return true;
+      });
+
+      type Verified = {
+        c: (typeof sample)[number];
+        email: string;
+        sourcePath: string;
+      };
+      const verified: Verified[] = [];
+      const results = await Promise.allSettled(
+        work.map(async (c) => {
+          const r = await verifyWebsiteEmail(c.domain);
+          return { c, r };
+        }),
+      );
+      for (const s of results) {
+        if (s.status === "rejected") {
+          skippedOther++;
+          continue;
+        }
+        const { c, r } = s.value;
+        if (r.kind === "verified") {
+          verified.push({ c, email: r.email, sourcePath: r.sourcePath });
+          continue;
+        }
+        switch (r.reason) {
+          case "no_html":
+            skippedNoHtml++;
+            break;
+          case "no_emails_on_website":
+          case "no_usable_email":
+          case "no_domain":
+            skippedNoEmail++;
+            break;
+          case "mx_failed":
+            skippedMxFailed++;
+            break;
+          case "timeout":
+            skippedTimeout++;
+            break;
+          default:
+            skippedOther++;
+        }
+      }
+
+      // 3. Bulk insert all verified leads in one INSERT.
+      if (verified.length > 0) {
+        const values = verified.map(({ c, email, sourcePath }) => {
+          const vertical = verticalLabel[c.industry];
+          const tags: string[] = ["tier-A", vertical, "email-verified"];
+          if (c.refrigerated || c.industry === "restaurants")
+            tags.push("refrigerated");
+          if (c.chain) tags.push("chain-store");
+          return {
+            email,
+            phone: null,
+            companyName: c.name,
+            website: `https://${c.domain}`,
+            vertical,
+            address: null,
+            city: "Denver Metro",
+            state: "CO",
+            source: "website-scrape" as const,
+            tier: "A" as const,
+            score: 80,
+            tags,
+            notes: `Email extracted from https://${c.domain}${sourcePath}; MX-validated.`,
+          };
+        });
+        try {
+          await db.insert(leadsTable).values(values);
+          inserted = verified.length;
+        } catch (err) {
+          // If the bulk insert fails (likely a uniqueness conflict for an
+          // email we didn't dedupe against), fall back to one-by-one with
+          // try/catch so partial success is captured.
+          console.error(
+            "[verifiedQuickAdd] bulk insert failed; falling back:",
+            (err as Error).message,
+          );
+          for (const v of values) {
+            try {
+              await db.insert(leadsTable).values(v);
+              inserted++;
+            } catch {
+              skippedOther++;
+            }
+          }
+        }
+      }
+
+      try {
+        await db.insert(auditLog).values({
+          actorUserId: session.user.id,
+          entity: "leads",
+          entityId: null,
+          action: "verified_quick_add",
+          beforeJson: null,
+          afterJson: {
+            attempted,
+            inserted,
+            skippedAlreadyExists,
+            skippedNoEmail,
+            skippedNoHtml,
+            skippedMxFailed,
+            skippedTimeout,
+            skippedOther,
+            durationMs: Date.now() - start,
+          },
+          occurredAt: sql`now()`,
+        });
+      } catch (err) {
+        console.error(
+          "[verifiedQuickAdd] audit failed:",
+          (err as Error).message,
+        );
+      }
+    }
+  } catch (err) {
+    errorMsg =
+      (err as Error).name + ": " + (err as Error).message.slice(0, 120);
+    console.error("[verifiedQuickAdd] FATAL:", err);
+  }
+
+  revalidatePath("/leads");
+  revalidatePath("/admin");
+
+  const params = new URLSearchParams({
+    verified: "1",
+    v_inserted: String(inserted),
+    v_attempted: String(attempted),
+    v_already: String(skippedAlreadyExists),
+    v_no_email: String(skippedNoEmail),
+    v_no_html: String(skippedNoHtml),
+    v_mx_failed: String(skippedMxFailed),
+    v_timeout: String(skippedTimeout),
+    v_other: String(skippedOther),
+    stage: "all",
+  });
+  if (errorMsg) params.set("verified_error", errorMsg);
+  redirect(`/leads?${params.toString()}`);
+}
+
+/* ── Wipe email-guessed leads (one-click cleanup) ───────────────── */
+
+/**
+ * Archives every non-archived lead whose `tags` array contains
+ * "email-guessed". Used to clean up the 162 leads that the old
+ * quickAddStarterPackAction inserted with role-prefixed guesses
+ * (procurement@, dispatch@, orders@, info@) so the operator can
+ * repopulate via the new verified-only pipeline.
+ *
+ * Reversible:
+ *   UPDATE leads SET archived_at = NULL
+ *   WHERE 'email-guessed' = ANY(tags) AND archived_at IS NOT NULL;
+ */
+export async function wipeGuessedLeadsAction(): Promise<void> {
+  let errorMsg: string | null = null;
+  let archived = 0;
+
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      errorMsg = "unauthorized";
+    } else {
+      env();
+
+      const result = await db
+        .update(leadsTable)
+        .set({ archivedAt: new Date(), updatedAt: new Date() })
+        .where(
+          and(
+            sql`'email-guessed' = ANY(${leadsTable.tags})`,
+            isNull(leadsTable.archivedAt),
+          ),
+        )
+        .returning({ id: leadsTable.id });
+      archived = result.length;
+
+      try {
+        await db.insert(auditLog).values({
+          actorUserId: session.user.id,
+          entity: "leads",
+          entityId: null,
+          action: "wipe_guessed",
+          beforeJson: null,
+          afterJson: { archived },
+          occurredAt: sql`now()`,
+        });
+      } catch (err) {
+        console.error("[wipeGuessed] audit failed:", (err as Error).message);
+      }
+    }
+  } catch (err) {
+    errorMsg =
+      (err as Error).name + ": " + (err as Error).message.slice(0, 120);
+    console.error("[wipeGuessed] FATAL:", err);
+  }
+
+  revalidatePath("/leads");
+  revalidatePath("/admin");
+
+  const params = new URLSearchParams({
+    wiped_guessed: "1",
+    archived: String(archived),
+    stage: "all",
+  });
+  if (errorMsg) params.set("wipe_error", errorMsg);
+  redirect(`/leads?${params.toString()}`);
 }

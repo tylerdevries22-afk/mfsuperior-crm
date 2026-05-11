@@ -17,6 +17,8 @@ import {
   removeSuppressionAction,
   runFreeResearchAction,
   runPaidResearchAction,
+  verifiedQuickAddAction,
+  wipeGuessedLeadsAction,
 } from "./actions";
 import { userHasGoogleConnection } from "@/lib/gmail/oauth";
 
@@ -460,34 +462,88 @@ export default async function AdminPage({
             </Button>
           </form>
 
-          {/* Quick-add: insert all curated entries with role-specific emails */}
+          {/* Wipe email-guessed: archive every lead with the email-guessed tag */}
           <form
-            action={quickAddStarterPackAction}
+            action={wipeGuessedLeadsAction}
+            className="flex flex-wrap items-start gap-3 rounded-md border border-warning/50 bg-warning/10 p-4"
+          >
+            <div className="flex-1 min-w-[260px]">
+              <p className="font-medium text-foreground">
+                Wipe email-guessed leads
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Archives every lead tagged <span className="font-mono">email-guessed</span>{" "}
+                — the role-targeted addresses (<span className="font-mono">procurement@</span>,{" "}
+                <span className="font-mono">dispatch@</span>,{" "}
+                <span className="font-mono">orders@</span>) that the old Quick-add
+                inserted without scraping the actual website. Use this once before
+                re-running the new verified Quick-add so the CRM only ever holds
+                real, deliverable addresses. Reversible via SQL.
+              </p>
+            </div>
+            <Button type="submit" size="sm" variant="destructive">
+              <X /> Archive all email-guessed
+            </Button>
+          </form>
+
+          {/* Verified Quick-add: scrape + MX-validate, never guess */}
+          <form
+            action={verifiedQuickAddAction}
             className="flex flex-wrap items-start gap-3 rounded-md border border-primary/40 bg-primary/5 p-4"
           >
             <div className="flex-1 min-w-[260px]">
               <p className="font-medium text-foreground">
-                Quick-add: full Denver Metro curated pack
+                Quick-add (verified) — website-extracted emails only
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
-                Bypasses the discovery pipeline entirely. Inserts{" "}
-                <strong className="text-foreground">~150 confirmed Denver Metro businesses</strong>{" "}
-                — Home Depot, Cracker Barrel, King Soopers, Sysco, C.H. Robinson,
-                Marriott, plus regional restaurants, brokers, supply houses, and
-                more — directly into <span className="font-mono">leads</span> with
-                role-targeted emails (<span className="font-mono">procurement@</span>
-                for big-box, <span className="font-mono">dispatch@</span> for
-                brokers, <span className="font-mono">orders@</span> for restaurants,
-                <span className="font-mono"> info@</span> elsewhere), tier A,
-                refrigeration tags, and chain flags pre-baked. Redirects to{" "}
-                <span className="font-mono">/leads</span> after. Safe to re-click —
-                upsert on email handles duplicates.
+                For each curated Denver Metro business: fetches the company
+                website (<span className="font-mono">/, /contact, /about, /team, /leadership</span>),
+                extracts <span className="font-mono">mailto:</span> + visible
+                emails matching the company domain, picks the highest-seniority
+                address (owner / president / CEO / GM / operations / purchasing /
+                logistics / dispatch / info), and MX-validates the domain.{" "}
+                <strong className="text-foreground">
+                  Inserts ONLY companies whose website yields a verified,
+                  deliverable address.
+                </strong>{" "}
+                Companies whose sites don&apos;t publish a public email are
+                skipped — never guessed. Expect ~20-60 new leads from ~150
+                attempts (many chains route procurement through portals, not
+                public email). Safe to re-click; already-in-CRM domains are
+                skipped automatically.
               </p>
             </div>
             <Button type="submit" size="sm">
-              <Plus /> Add full curated pack
+              <Plus /> Run verified Quick-add
             </Button>
           </form>
+
+          {/* Legacy Quick-add (kept for fallback; uses role-prefixed guesses) */}
+          <details className="rounded-md border border-border bg-secondary/20 p-4">
+            <summary className="cursor-pointer text-sm text-muted-foreground hover:text-foreground">
+              Legacy Quick-add (guesses emails — use only as fallback)
+            </summary>
+            <form
+              action={quickAddStarterPackAction}
+              className="mt-3 flex flex-wrap items-start gap-3"
+            >
+              <div className="flex-1 min-w-[260px]">
+                <p className="text-xs text-muted-foreground">
+                  Inserts the curated pack with role-prefixed guesses
+                  (<span className="font-mono">procurement@</span>,{" "}
+                  <span className="font-mono">dispatch@</span>,{" "}
+                  <span className="font-mono">orders@</span>,{" "}
+                  <span className="font-mono">info@</span>) — fast but emails
+                  are NOT verified. Each lead is tagged{" "}
+                  <span className="font-mono">email-guessed</span> and can be
+                  cleaned up via Wipe-guessed above.
+                </p>
+              </div>
+              <Button type="submit" size="sm" variant="outline">
+                <Plus /> Add curated pack (guesses)
+              </Button>
+            </form>
+          </details>
 
           {/* Result banner */}
           {sp.research === "1" && <ResearchResultBanner sp={sp} />}
