@@ -52,6 +52,9 @@ type Search = {
   purged?: string;
   archived?: string;
   purge_error?: string;
+  // Bulk-archive redirect params (from bulkArchiveAction)
+  archived_bulk?: string;
+  archive_error?: string;
   // Bulk-send result banner params (from bulkSendAction redirect).
   sent?: string;
   requested?: string;
@@ -276,6 +279,39 @@ export default async function LeadsPage({
               They&apos;re hidden from the worklist but not deleted. Click
               Quick-add on <Link href="/admin" className="underline hover:text-foreground">/admin</Link>{" "}
               to populate with high-quality emailed leads.
+            </p>
+          </div>
+        </div>
+      ) : null}
+
+      {sp.archived_bulk === "1" && sp.archive_error ? (
+        <div className="mb-5 flex items-start gap-3 rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" />
+          <div>
+            <p className="font-medium text-foreground">
+              Bulk archive failed.
+            </p>
+            <p className="mt-1 font-mono text-xs text-muted-foreground">
+              {decodeURIComponent(sp.archive_error)}
+            </p>
+          </div>
+        </div>
+      ) : sp.archived_bulk === "1" ? (
+        <div className="mb-5 flex items-start gap-3 rounded-md border border-success/40 bg-success/10 px-4 py-3 text-sm">
+          <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-success" />
+          <div>
+            <p className="font-medium text-foreground">
+              Archived{" "}
+              <span className="font-mono tabular-nums">{Number(sp.archived ?? 0)}</span>{" "}
+              of{" "}
+              <span className="font-mono tabular-nums">{Number(sp.requested ?? 0)}</span>{" "}
+              selected leads.
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Reversible via{" "}
+              <span className="font-mono text-[11px]">
+                UPDATE leads SET archived_at = NULL WHERE id IN (...);
+              </span>
             </p>
           </div>
         </div>

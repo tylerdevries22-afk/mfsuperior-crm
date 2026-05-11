@@ -3,8 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { and, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "@/lib/db/client";
-import { auditLog } from "@/lib/db/schema";
+import { auditLog, leads as leadsTable } from "@/lib/db/schema";
 import { auth } from "@/lib/auth";
 import { env } from "@/lib/env";
 import { enrollLeadInSequence } from "@/lib/sequences/enroll";
@@ -116,5 +117,74 @@ export async function bulkSendAction(formData: FormData): Promise<void> {
       ? encodeURIComponent(tick.notes.join("|"))
       : "",
   });
+  redirect(`/leads?${params.toString()}`);
+}
+
+/* ── Bulk archive (soft-delete) ─────────────────────────────────── */
+
+/**
+ * Soft-deletes the selected leads by setting archivedAt = now(). Rows
+ * become invisible on /leads (which already filters archivedAt IS NULL)
+ * but are recoverable via:
+ *   UPDATE leads SET archived_at = NULL WHERE id IN (...);
+ *
+ * Idempotent — already-archived rows are no-ops. Returns counts via the
+ * redirect URL so the operator sees what happened in the banner.
+ */
+const bulkArchiveSchema = z.object({
+  leadIds: z.array(z.string().uuid()).min(1).max(1000),
+});
+
+export async function bulkArchiveAction(formData: FormData): Promise<void> {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("Unauthorized");
+  env();
+
+  const rawIds = formData.getAll("leadIds").map(String).filter(Boolean);
+  const parsed = bulkArchiveSchema.parse({ leadIds: rawIds });
+
+  let archived = 0;
+  let errorMsg: string | null = null;
+
+  try {
+    const result = await db
+      .update(leadsTable)
+      .set({ archivedAt: new Date(), updatedAt: new Date() })
+      .where(
+        and(
+          inArray(leadsTable.id, parsed.leadIds),
+          isNull(leadsTable.archivedAt),
+        ),
+      )
+      .returning({ id: leadsTable.id });
+    archived = result.length;
+
+    await db.insert(auditLog).values({
+      actorUserId: session.user.id,
+      entity: "leads",
+      entityId: null,
+      action: "bulk_archive",
+      beforeJson: null,
+      afterJson: {
+        requested: parsed.leadIds.length,
+        archived,
+      },
+      occurredAt: sql`now()`,
+    });
+  } catch (err) {
+    errorMsg =
+      (err as Error).name + ": " + (err as Error).message.slice(0, 120);
+    console.error("[bulkArchive] FATAL:", err);
+  }
+
+  revalidatePath("/leads");
+
+  const params = new URLSearchParams({
+    archived_bulk: "1",
+    archived: String(archived),
+    requested: String(parsed.leadIds.length),
+    stage: "all",
+  });
+  if (errorMsg) params.set("archive_error", errorMsg);
   redirect(`/leads?${params.toString()}`);
 }
