@@ -1,5 +1,6 @@
 import { desc, eq, sql } from "drizzle-orm";
-import { Play, AlertTriangle, Inbox, FolderSync, X, Plus, Search as SearchIcon } from "lucide-react";
+import Link from "next/link";
+import { Play, AlertTriangle, Inbox, FolderSync, X, Plus, Search as SearchIcon, Zap, ArrowDownToLine } from "lucide-react";
 import { db } from "@/lib/db/client";
 import { auditLog, leads, suppressionList, users } from "@/lib/db/schema";
 import { Button } from "@/components/ui/button";
@@ -11,6 +12,7 @@ import {
   addSuppressionAction,
   fixBusinessNameAction,
   generateLeadsAction,
+  importDenverBatch1Action,
   manualPollAction,
   manualSyncAction,
   manualTickAction,
@@ -89,6 +91,17 @@ type Search = {
   bizfix?: string;
   bizfix_updated?: string;
   bizfix_error?: string;
+  // importDenverBatch1Action redirect params
+  batch1?: string;
+  b1_validated?: string;
+  b1_inserted?: string;
+  b1_dup?: string;
+  b1_invalid?: string;
+  b1_enrolled?: string;
+  b1_already?: string;
+  b1_dur?: string;
+  b1_sequence?: string;
+  b1_error?: string;
 };
 
 export default async function AdminPage({
@@ -621,6 +634,95 @@ export default async function AdminPage({
             <Button type="submit" size="sm" variant="destructive">
               <X /> Archive all email-guessed
             </Button>
+          </form>
+
+          {/* Denver Batch 1 — pre-curated 76-candidate Front Range pool */}
+          <form
+            action={importDenverBatch1Action}
+            className="flex flex-col gap-3 rounded-md border border-success/40 bg-success/5 p-4"
+          >
+            <div>
+              <p className="font-medium text-foreground">
+                Denver Batch 1 — import + auto-enroll 50 Front Range leads
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Pre-curated pool of ~76 Front Range businesses across
+                restaurants, big-box / grocery, freight brokers + 3PLs,
+                and construction supply. MX-validates each domain at
+                click time, generates vertical-aware role-account
+                emails (<span className="font-mono">orders@</span>,{" "}
+                <span className="font-mono">procurement@</span>,{" "}
+                <span className="font-mono">dispatch@</span>), and
+                inserts up to 50 verified leads into <code>/leads</code>{" "}
+                tagged <span className="font-mono">denver-batch-1</span>.
+                Each lead is auto-enrolled into the default active
+                sequence with a 0-30min send jitter so all 50 don&apos;t
+                fire in the same tick.
+              </p>
+              <p className="mt-2 text-xs text-muted-foreground">
+                Idempotent: dupes by email are detected and skipped.
+                Audit-logged. CSV download below.
+              </p>
+
+              {sp.batch1 === "1" && sp.b1_error ? (
+                <p className="mt-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 font-mono text-[11px] text-destructive">
+                  {decodeURIComponent(sp.b1_error)}
+                </p>
+              ) : sp.batch1 === "1" ? (
+                <div className="mt-3 space-y-1 rounded-md border border-success/40 bg-success/10 px-3 py-2 text-xs text-foreground">
+                  <p>
+                    Validated{" "}
+                    <span className="font-mono tabular-nums">
+                      {Number(sp.b1_validated ?? 0)}
+                    </span>{" "}
+                    · inserted{" "}
+                    <span className="font-mono tabular-nums">
+                      {Number(sp.b1_inserted ?? 0)}
+                    </span>{" "}
+                    · dupes{" "}
+                    <span className="font-mono tabular-nums">
+                      {Number(sp.b1_dup ?? 0)}
+                    </span>{" "}
+                    · invalid{" "}
+                    <span className="font-mono tabular-nums">
+                      {Number(sp.b1_invalid ?? 0)}
+                    </span>
+                  </p>
+                  <p>
+                    Enrolled{" "}
+                    <span className="font-mono tabular-nums">
+                      {Number(sp.b1_enrolled ?? 0)}
+                    </span>{" "}
+                    · already enrolled{" "}
+                    <span className="font-mono tabular-nums">
+                      {Number(sp.b1_already ?? 0)}
+                    </span>
+                    {sp.b1_sequence
+                      ? ` into "${decodeURIComponent(sp.b1_sequence)}"`
+                      : ""}{" "}
+                    · {Number(sp.b1_dur ?? 0)}ms
+                  </p>
+                </div>
+              ) : null}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button type="submit" size="sm">
+                <Zap /> Import + auto-enroll batch 1
+              </Button>
+              <a
+                href="/api/export/denver-batch-1"
+                className="inline-flex items-center gap-1 rounded-md border border-input bg-background px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-secondary/40"
+                download
+              >
+                <ArrowDownToLine className="size-3" /> Download CSV
+              </a>
+              <Link
+                href="/leads?tags=denver-batch-1"
+                className="text-xs text-muted-foreground hover:text-foreground"
+              >
+                View batch in /leads →
+              </Link>
+            </div>
           </form>
 
           {/* Unified lead generator (replaces Free/Paid/Quick-add buttons below) */}

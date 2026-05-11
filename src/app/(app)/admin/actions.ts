@@ -1480,3 +1480,202 @@ export async function fixBusinessNameAction(): Promise<void> {
   if (errorMsg) params.set("bizfix_error", errorMsg);
   redirect(`/admin?${params.toString()}`);
 }
+
+/* ── Denver batch-1: bulk import + auto-enroll ──────────────────── */
+
+/**
+ * One-click: validates every domain in DENVER_BATCH_1 via MX, generates
+ * vertical-aware role-account emails (orders@/procurement@/dispatch@/
+ * info@), inserts up to 50 verified leads into /leads with tag
+ * `denver-batch-1`, and auto-enrolls each into the default active
+ * sequence (the one with the lowest createdAt). All inside a single
+ * server action.
+ *
+ * Operator confirmed:
+ *   - All 4 verticals (restaurants, bigbox, brokers, construction)
+ *   - Full Front Range corridor
+ *   - All tiers
+ *   - 50/50 refrigerated/dry
+ *   - Role accounts on MX-validated domains OK
+ *   - Insert into /leads + auto-enroll
+ *   - CSV format
+ *
+ * Each lead is inserted with:
+ *   - source: "denver-batch-1"
+ *   - tier: hinted from the candidate ("A"|"B"|"C")
+ *   - tags: ["tier-X","refrigerated"?,"denver-batch-1","email-role-account"]
+ *   - notes: operator-facing description of the angle
+ *
+ * Idempotent: lookups skip rows already present by (email).
+ */
+export async function importDenverBatch1Action(): Promise<void> {
+  let errorMsg: string | null = null;
+  let validated = 0;
+  let inserted = 0;
+  let skippedDuplicate = 0;
+  let skippedInvalid = 0;
+  let enrolled = 0;
+  let alreadyEnrolled = 0;
+  let durationMs = 0;
+  let sequenceName: string | null = null;
+
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      errorMsg = "unauthorized";
+    } else {
+      env();
+      const start = Date.now();
+
+      const { DENVER_BATCH_1 } = await import(
+        "@/lib/research/denver-batch-1"
+      );
+      const { validateEmail } = await import("@/lib/research/mx-validate");
+      const { emailSequences, leadSequenceEnrollments } = await import(
+        "@/lib/db/schema"
+      );
+
+      const [defaultSequence] = await db
+        .select({ id: emailSequences.id, name: emailSequences.name })
+        .from(emailSequences)
+        .where(eq(emailSequences.status, "active"))
+        .orderBy(emailSequences.createdAt)
+        .limit(1);
+
+      if (!defaultSequence) {
+        errorMsg = "no_active_sequence";
+      } else {
+        sequenceName = defaultSequence.name;
+
+        const ROLE_BY_VERTICAL: Record<string, string> = {
+          restaurants: "orders",
+          bigbox: "procurement",
+          brokers: "dispatch",
+          construction: "orders",
+          smallbiz: "info",
+        };
+
+        type Candidate = (typeof DENVER_BATCH_1)[number];
+        const validations = await Promise.all(
+          DENVER_BATCH_1.map(async (c: Candidate) => {
+            const email = `${ROLE_BY_VERTICAL[c.industry] ?? "info"}@${c.domain}`;
+            const v = await validateEmail(email);
+            return { c, email, v };
+          }),
+        );
+
+        const verified = validations.filter(
+          (r) => r.v.confidence !== "rejected",
+        );
+        skippedInvalid = validations.length - verified.length;
+        validated = verified.length;
+
+        const sorted = verified.slice().sort((a, b) => {
+          const t = a.c.tierHint.localeCompare(b.c.tierHint);
+          if (t !== 0) return t;
+          return Number(b.c.refrigerated) - Number(a.c.refrigerated);
+        });
+        const top = sorted.slice(0, 50);
+
+        for (const { c, email } of top) {
+          const [existing] = await db
+            .select({ id: leadsTable.id })
+            .from(leadsTable)
+            .where(eq(leadsTable.email, email))
+            .limit(1);
+
+          let leadId: string;
+          if (existing) {
+            leadId = existing.id;
+            skippedDuplicate++;
+          } else {
+            const tags = [
+              `tier-${c.tierHint}`,
+              c.refrigerated ? "refrigerated" : null,
+              "denver-batch-1",
+              "email-role-account",
+            ].filter(Boolean) as string[];
+
+            const [created] = await db
+              .insert(leadsTable)
+              .values({
+                companyName: c.companyName,
+                website: `https://${c.domain}`,
+                email,
+                vertical: c.industry,
+                city: c.city,
+                state: c.state,
+                source: "denver-batch-1",
+                tier: c.tierHint,
+                tags,
+                notes: c.notes,
+                stage: "new",
+              })
+              .returning({ id: leadsTable.id });
+            leadId = created.id;
+            inserted++;
+          }
+
+          const enrollResult = await db
+            .insert(leadSequenceEnrollments)
+            .values({
+              leadId,
+              sequenceId: defaultSequence.id,
+              status: "active",
+              currentStep: 0,
+              nextSendAt: new Date(
+                Date.now() + Math.random() * 30 * 60 * 1000,
+              ),
+            })
+            .onConflictDoNothing()
+            .returning({ id: leadSequenceEnrollments.id });
+
+          if (enrollResult.length > 0) enrolled++;
+          else alreadyEnrolled++;
+        }
+
+        await db.insert(auditLog).values({
+          actorUserId: session.user.id,
+          entity: "leads",
+          entityId: null,
+          action: "import_denver_batch_1",
+          beforeJson: null,
+          afterJson: {
+            validated,
+            inserted,
+            skippedDuplicate,
+            skippedInvalid,
+            enrolled,
+            alreadyEnrolled,
+            sequenceId: defaultSequence.id,
+            sequenceName: defaultSequence.name,
+          },
+          occurredAt: sql`now()`,
+        });
+
+        durationMs = Date.now() - start;
+      }
+    }
+  } catch (err) {
+    errorMsg =
+      (err as Error).name + ": " + (err as Error).message.slice(0, 200);
+    console.error("[importDenverBatch1] FATAL:", err);
+  }
+
+  revalidatePath("/leads");
+  revalidatePath("/admin");
+
+  const params = new URLSearchParams({
+    batch1: "1",
+    b1_validated: String(validated),
+    b1_inserted: String(inserted),
+    b1_dup: String(skippedDuplicate),
+    b1_invalid: String(skippedInvalid),
+    b1_enrolled: String(enrolled),
+    b1_already: String(alreadyEnrolled),
+    b1_dur: String(durationMs),
+  });
+  if (sequenceName) params.set("b1_sequence", sequenceName);
+  if (errorMsg) params.set("b1_error", errorMsg);
+  redirect(`/admin?${params.toString()}`);
+}
