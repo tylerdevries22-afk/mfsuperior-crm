@@ -1,13 +1,14 @@
 import Link from "next/link";
-import { and, asc, desc, eq, ilike, isNotNull, isNull, or, sql, type SQL } from "drizzle-orm";
-import { Plus, Upload, Search, CheckCircle2, AlertTriangle, Zap } from "lucide-react";
+import { and, asc, desc, eq, ilike, inArray, isNotNull, isNull, or, sql, type SQL } from "drizzle-orm";
+import { Plus, Upload, Search, CheckCircle2, AlertTriangle, Zap, X as XIcon } from "lucide-react";
 import { db } from "@/lib/db/client";
-import { emailSequences, leads } from "@/lib/db/schema";
+import { emailSequences, leadSequenceEnrollments, leads } from "@/lib/db/schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { LeadsTable } from "@/components/leads/leads-table";
+import { FilterBar } from "@/components/leads/filter-bar";
 import { verifiedQuickAddAction } from "@/app/(app)/admin/actions";
 
 export const metadata = { title: "Leads" };
@@ -34,11 +35,19 @@ const SOURCES = [
   { value: "manual", label: "Manually added" },
 ] as const;
 
+// Filter URL params. Multi-value filters are comma-separated strings on
+// the wire (`?stage=new,contacted&tier=A,B`); they're parsed into string
+// arrays inside this page and pushed into the WHERE clause via
+// drizzle's `inArray` / Postgres array overlap.
 type Search = {
   q?: string;
   stage?: string;
   tier?: string;
   source?: string;
+  tags?: string;
+  lastContacted?: string; // "7d" | "30d" | "90d" | "never" | "any"
+  enrollment?: string; // "any" | "none" | "active" | "paused" | "completed"
+  hasEmail?: string; // "yes" | "no" | "any"
   perPage?: string;
   page?: string;
   // Quick-add starter pack redirect params
@@ -111,20 +120,54 @@ export default async function LeadsPage({
 }) {
   const sp = await searchParams;
   const q = (sp.q ?? "").trim();
-  // Default is now "all stages" — operator wants every lead visible.
-  // Pass ?stage=new to filter to just the unworked worklist.
-  const stageParam = sp.stage ?? "all";
-  const showAllStages = stageParam === "all";
-  const stage =
-    !showAllStages && STAGES.includes(stageParam as (typeof STAGES)[number])
-      ? (stageParam as (typeof STAGES)[number])
-      : undefined;
-  const tier = TIERS.includes((sp.tier ?? "") as (typeof TIERS)[number])
-    ? (sp.tier as (typeof TIERS)[number])
-    : undefined;
-  const sourceParam = sp.source ?? "";
-  const source =
-    SOURCES.some((s) => s.value === sourceParam) ? sourceParam : undefined;
+
+  // ── Parse multi-value filters from comma-separated URL params ─────
+  // Empty / missing / "all" all degrade to an empty array (no filter).
+  function parseCsv<T extends string>(raw: string | undefined, valid: readonly T[]): T[] {
+    if (!raw || raw === "all") return [];
+    return raw
+      .split(",")
+      .map((s) => s.trim())
+      .filter((s): s is T => valid.includes(s as T));
+  }
+
+  const stages = parseCsv(sp.stage, STAGES);
+  const tiers = parseCsv(sp.tier, TIERS);
+  const sources = parseCsv(
+    sp.source,
+    SOURCES.map((s) => s.value) as readonly string[],
+  );
+  // Tags can be ANY string (operator-defined). No allowlist — but cap
+  // count + length to avoid runaway URLs.
+  const tags = (sp.tags ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0 && s.length < 60)
+    .slice(0, 20);
+
+  const lastContacted = (["7d", "30d", "90d", "never", "any"] as const).includes(
+    (sp.lastContacted ?? "any") as "7d" | "30d" | "90d" | "never" | "any",
+  )
+    ? (sp.lastContacted ?? "any")
+    : "any";
+  const enrollment = (
+    ["any", "none", "active", "paused", "completed"] as const
+  ).includes(
+    (sp.enrollment ?? "any") as
+      | "any"
+      | "none"
+      | "active"
+      | "paused"
+      | "completed",
+  )
+    ? (sp.enrollment ?? "any")
+    : "any";
+  const hasEmail = (["any", "yes", "no"] as const).includes(
+    (sp.hasEmail ?? "any") as "any" | "yes" | "no",
+  )
+    ? (sp.hasEmail ?? "any")
+    : "any";
+
   const perPage = PAGE_SIZE_OPTIONS.includes(
     Number(sp.perPage) as (typeof PAGE_SIZE_OPTIONS)[number],
   )
@@ -132,6 +175,7 @@ export default async function LeadsPage({
     : DEFAULT_PAGE_SIZE;
   const page = Math.max(1, Number(sp.page ?? 1));
 
+  // ── Build WHERE clause ────────────────────────────────────────────
   const filters: SQL[] = [isNull(leads.archivedAt)];
   if (q) {
     const qEsc = q.replace(/[%_\\]/g, "\\$&");
@@ -144,9 +188,54 @@ export default async function LeadsPage({
       ) as SQL,
     );
   }
-  if (stage) filters.push(eq(leads.stage, stage));
-  if (tier) filters.push(eq(leads.tier, tier));
-  if (source) filters.push(eq(leads.source, source));
+  if (stages.length > 0)
+    filters.push(inArray(leads.stage, stages as (typeof STAGES)[number][]));
+  if (tiers.length > 0)
+    filters.push(inArray(leads.tier, tiers as (typeof TIERS)[number][]));
+  if (sources.length > 0) filters.push(inArray(leads.source, sources));
+
+  // Tag filter: array-overlap (Postgres `&&` operator). Matches if the
+  // lead's tags array contains at least one of the requested tags.
+  if (tags.length > 0) {
+    filters.push(
+      sql`${leads.tags} && ARRAY[${sql.join(
+        tags.map((t) => sql`${t}`),
+        sql`, `,
+      )}]::text[]`,
+    );
+  }
+
+  if (lastContacted === "never") {
+    filters.push(isNull(leads.lastContactedAt));
+  } else if (lastContacted === "7d") {
+    filters.push(sql`${leads.lastContactedAt} >= now() - interval '7 days'`);
+  } else if (lastContacted === "30d") {
+    filters.push(sql`${leads.lastContactedAt} >= now() - interval '30 days'`);
+  } else if (lastContacted === "90d") {
+    filters.push(sql`${leads.lastContactedAt} >= now() - interval '90 days'`);
+  }
+
+  // Enrollment filter — semi-join against leadSequenceEnrollments.
+  if (enrollment === "none") {
+    filters.push(
+      sql`NOT EXISTS (SELECT 1 FROM ${leadSequenceEnrollments} e WHERE e.lead_id = ${leads.id})`,
+    );
+  } else if (enrollment === "active") {
+    filters.push(
+      sql`EXISTS (SELECT 1 FROM ${leadSequenceEnrollments} e WHERE e.lead_id = ${leads.id} AND e.status = 'active')`,
+    );
+  } else if (enrollment === "paused") {
+    filters.push(
+      sql`EXISTS (SELECT 1 FROM ${leadSequenceEnrollments} e WHERE e.lead_id = ${leads.id} AND e.status = 'paused')`,
+    );
+  } else if (enrollment === "completed") {
+    filters.push(
+      sql`EXISTS (SELECT 1 FROM ${leadSequenceEnrollments} e WHERE e.lead_id = ${leads.id} AND e.status = 'completed')`,
+    );
+  }
+
+  if (hasEmail === "yes") filters.push(isNotNull(leads.email));
+  else if (hasEmail === "no") filters.push(isNull(leads.email));
 
   const where = filters.length === 1 ? filters[0] : and(...filters);
 
@@ -179,7 +268,13 @@ export default async function LeadsPage({
   // If filters are hiding leads but the operator has leads in other
   // stages/sources, surface that so they don't think the page is broken.
   let hiddenInOtherStagesCount = 0;
-  if (rows.length === 0 && !q && !tier && !source) {
+  if (
+    rows.length === 0 &&
+    !q &&
+    tiers.length === 0 &&
+    sources.length === 0 &&
+    tags.length === 0
+  ) {
     const [{ otherCount }] = await db
       .select({ otherCount: sql<number>`count(*)::int` })
       .from(leads)
@@ -196,8 +291,8 @@ export default async function LeadsPage({
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             <span className="font-mono tabular-nums">{count}</span>
-            {stage ? ` · stage ${stage}` : " total"}
-            {source ? ` · source ${source}` : ""}
+            {stages.length > 0 ? ` · stage ${stages.join(", ")}` : " total"}
+            {sources.length > 0 ? ` · source ${sources.join(", ")}` : ""}
             {" · "}ranked by score
           </p>
         </div>
@@ -224,70 +319,17 @@ export default async function LeadsPage({
         </div>
       </header>
 
-      <form
-        action="/leads"
-        method="get"
-        className="mb-5 flex flex-wrap items-center gap-2"
-      >
-        <div className="relative flex-1 min-w-[220px]">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            name="q"
-            placeholder="Search company, email, city, vertical…"
-            defaultValue={q}
-            className="pl-9"
-          />
-        </div>
-        <Select
-          name="stage"
-          defaultValue={showAllStages ? "all" : stage ?? "all"}
-          className="w-40"
-        >
-          <option value="all">All stages (default)</option>
-          {STAGES.map((s) => (
-            <option key={s} value={s}>
-              {s[0].toUpperCase() + s.slice(1)}
-            </option>
-          ))}
-        </Select>
-        <Select name="tier" defaultValue={tier ?? ""} className="w-32">
-          <option value="">All tiers</option>
-          {TIERS.map((t) => (
-            <option key={t} value={t}>
-              Tier {t}
-            </option>
-          ))}
-        </Select>
-        <Select name="source" defaultValue={source ?? ""} className="w-52">
-          <option value="">All sources</option>
-          {SOURCES.map((s) => (
-            <option key={s.value} value={s.value}>
-              {s.label}
-            </option>
-          ))}
-        </Select>
-        <Select
-          name="perPage"
-          defaultValue={String(perPage)}
-          className="w-28"
-          aria-label="Leads per page"
-        >
-          {PAGE_SIZE_OPTIONS.map((n) => (
-            <option key={n} value={n}>
-              {n} / page
-            </option>
-          ))}
-        </Select>
-        <Button type="submit" variant="outline">Filter</Button>
-        {(q || stage || tier || source) && (
-          <Link
-            href="/leads"
-            className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-          >
-            Reset
-          </Link>
-        )}
-      </form>
+      <FilterBar
+        q={q}
+        stages={stages}
+        tiers={tiers}
+        sources={sources}
+        tags={tags}
+        lastContacted={lastContacted}
+        enrollment={enrollment}
+        hasEmail={hasEmail}
+        perPage={perPage}
+      />
 
       {sp.purged === "1" && sp.purge_error ? (
         <div className="mb-5 flex items-start gap-3 rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm">
@@ -601,7 +643,18 @@ export default async function LeadsPage({
 
       {rows.length === 0 ? (
         <EmptyState
-          hasFilters={!!(q || stage || tier || source)}
+          hasFilters={
+            !!(
+              q ||
+              stages.length ||
+              tiers.length ||
+              sources.length ||
+              tags.length ||
+              lastContacted !== "any" ||
+              enrollment !== "any" ||
+              hasEmail !== "any"
+            )
+          }
           hiddenInOtherStagesCount={hiddenInOtherStagesCount}
         />
       ) : (
@@ -622,10 +675,15 @@ export default async function LeadsPage({
             totalPages={totalPages}
             params={{
               q,
-              stage: showAllStages ? "all" : stage,
-              tier,
-              source,
-              perPage: perPage === DEFAULT_PAGE_SIZE ? undefined : String(perPage),
+              stage: stages.join(",") || undefined,
+              tier: tiers.join(",") || undefined,
+              source: sources.join(",") || undefined,
+              tags: tags.join(",") || undefined,
+              lastContacted: lastContacted !== "any" ? lastContacted : undefined,
+              enrollment: enrollment !== "any" ? enrollment : undefined,
+              hasEmail: hasEmail !== "any" ? hasEmail : undefined,
+              perPage:
+                perPage === DEFAULT_PAGE_SIZE ? undefined : String(perPage),
             }}
           />
         </>
@@ -799,16 +857,24 @@ function Pagination({
 }: {
   page: number;
   totalPages: number;
-  params: { q?: string; stage?: string; tier?: string; source?: string; perPage?: string };
+  params: {
+    q?: string;
+    stage?: string;
+    tier?: string;
+    source?: string;
+    tags?: string;
+    lastContacted?: string;
+    enrollment?: string;
+    hasEmail?: string;
+    perPage?: string;
+  };
 }) {
   if (totalPages <= 1) return null;
   const linkFor = (n: number) => {
     const sp = new URLSearchParams();
-    if (params.q) sp.set("q", params.q);
-    if (params.stage) sp.set("stage", params.stage);
-    if (params.tier) sp.set("tier", params.tier);
-    if (params.source) sp.set("source", params.source);
-    if (params.perPage) sp.set("perPage", params.perPage);
+    for (const [k, v] of Object.entries(params)) {
+      if (v) sp.set(k, v);
+    }
     if (n > 1) sp.set("page", String(n));
     const qs = sp.toString();
     return `/leads${qs ? `?${qs}` : ""}`;
