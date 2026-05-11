@@ -14,12 +14,8 @@ import {
   manualSyncAction,
   manualTickAction,
   purgeNoEmailLeadsAction,
-  quickAddStarterPackAction,
   removeSuppressionAction,
-  runFreeResearchAction,
-  runPaidResearchAction,
   unarchiveAllLeadsAction,
-  verifiedQuickAddAction,
   wipeGuessedLeadsAction,
 } from "./actions";
 import { userHasGoogleConnection } from "@/lib/gmail/oauth";
@@ -556,12 +552,13 @@ export default async function AdminPage({
                 </span>
                 <input
                   name="industries"
-                  defaultValue="restaurants,bigbox,brokers,smallbiz"
+                  defaultValue="restaurants,bigbox,brokers,smallbiz,construction,cannabis"
                   className="h-9 rounded-md border border-input bg-background px-2 font-mono text-xs text-foreground"
-                  placeholder="restaurants,bigbox,brokers,smallbiz"
+                  placeholder="restaurants,bigbox,brokers,smallbiz,construction,cannabis"
                 />
                 <span className="text-[11px] text-muted-foreground">
-                  Allowed: restaurants, bigbox, brokers, smallbiz
+                  Allowed: restaurants, bigbox, brokers, smallbiz,
+                  construction, cannabis
                 </span>
               </label>
 
@@ -624,134 +621,6 @@ export default async function AdminPage({
             </Button>
           </form>
 
-          {/* Legacy lead-gen buttons — kept as fallbacks; will be removed in a follow-up PR. */}
-          <details className="rounded-md border border-border bg-secondary/20 p-4">
-            <summary className="cursor-pointer text-sm text-muted-foreground hover:text-foreground">
-              Legacy lead-gen buttons (deprecated — use Generate leads above)
-            </summary>
-            <div className="mt-3 space-y-3">
-
-          {/* Verified Quick-add: scrape + MX-validate, never guess */}
-          <form
-            action={verifiedQuickAddAction}
-            className="flex flex-wrap items-start gap-3 rounded-md border border-primary/40 bg-primary/5 p-4"
-          >
-            <div className="flex-1 min-w-[260px]">
-              <p className="font-medium text-foreground">
-                Quick-add (verified) — website-extracted emails only
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                For each curated Denver Metro business: fetches the company
-                website (<span className="font-mono">/, /contact, /about, /team, /leadership</span>),
-                extracts <span className="font-mono">mailto:</span> + visible
-                emails matching the company domain, picks the highest-seniority
-                address (owner / president / CEO / GM / operations / purchasing /
-                logistics / dispatch / info), and MX-validates the domain.{" "}
-                <strong className="text-foreground">
-                  Inserts ONLY companies whose website yields a verified,
-                  deliverable address.
-                </strong>{" "}
-                Companies whose sites don&apos;t publish a public email are
-                skipped — never guessed. Expect ~20-60 new leads from ~150
-                attempts (many chains route procurement through portals, not
-                public email). Safe to re-click; already-in-CRM domains are
-                skipped automatically.
-              </p>
-            </div>
-            <Button type="submit" size="sm">
-              <Plus /> Run verified Quick-add
-            </Button>
-          </form>
-
-          {/* Legacy Quick-add (kept for fallback; uses role-prefixed guesses) */}
-          <details className="rounded-md border border-border bg-secondary/20 p-4">
-            <summary className="cursor-pointer text-sm text-muted-foreground hover:text-foreground">
-              Legacy Quick-add (guesses emails — use only as fallback)
-            </summary>
-            <form
-              action={quickAddStarterPackAction}
-              className="mt-3 flex flex-wrap items-start gap-3"
-            >
-              <div className="flex-1 min-w-[260px]">
-                <p className="text-xs text-muted-foreground">
-                  Inserts the curated pack with role-prefixed guesses
-                  (<span className="font-mono">procurement@</span>,{" "}
-                  <span className="font-mono">dispatch@</span>,{" "}
-                  <span className="font-mono">orders@</span>,{" "}
-                  <span className="font-mono">info@</span>) — fast but emails
-                  are NOT verified. Each lead is tagged{" "}
-                  <span className="font-mono">email-guessed</span> and can be
-                  cleaned up via Wipe-guessed above.
-                </p>
-              </div>
-              <Button type="submit" size="sm" variant="outline">
-                <Plus /> Add curated pack (guesses)
-              </Button>
-            </form>
-          </details>
-
-          {/* Result banner */}
-          {sp.research === "1" && <ResearchResultBanner sp={sp} />}
-
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-            {/* Free mode */}
-            <form action={runFreeResearchAction} className="space-y-3 rounded-md border border-border bg-secondary/20 p-4">
-              <div className="flex items-center gap-2">
-                <SearchIcon className="size-4 text-foreground" />
-                <span className="font-medium text-foreground">Free mode</span>
-                <span className="text-xs text-muted-foreground">OSM + scrape + MX</span>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                No API keys. Best for restaurants, retail, and small biz.
-              </p>
-              <div className="grid gap-1.5">
-                <Label htmlFor="free-limit" className="text-xs">Leads per run</Label>
-                <Input
-                  id="free-limit"
-                  name="limit"
-                  type="number"
-                  min={1}
-                  max={20}
-                  defaultValue={5}
-                  className="w-24"
-                />
-              </div>
-              <Button type="submit" size="sm">
-                <SearchIcon /> Run free research
-              </Button>
-            </form>
-
-            {/* Paid mode */}
-            <form action={runPaidResearchAction} className="space-y-3 rounded-md border border-border bg-secondary/20 p-4">
-              <div className="flex items-center gap-2">
-                <SearchIcon className="size-4 text-foreground" />
-                <span className="font-medium text-foreground">Paid mode</span>
-                <span className="text-xs text-muted-foreground">Places + Hunter</span>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Higher signal-to-noise. Requires{" "}
-                <span className="font-mono">GOOGLE_MAPS_API_KEY</span> and{" "}
-                <span className="font-mono">HUNTER_API_KEY</span> env vars.
-              </p>
-              <div className="grid gap-1.5">
-                <Label htmlFor="paid-limit" className="text-xs">Leads per run</Label>
-                <Input
-                  id="paid-limit"
-                  name="limit"
-                  type="number"
-                  min={1}
-                  max={20}
-                  defaultValue={5}
-                  className="w-24"
-                />
-              </div>
-              <Button type="submit" size="sm" variant="secondary">
-                <SearchIcon /> Run paid research
-              </Button>
-            </form>
-          </div>
-          </div>
-          </details>
         </CardContent>
       </Card>
 
@@ -873,83 +742,6 @@ export default async function AdminPage({
     </div>
   );
 }
-
-function ResearchResultBanner({ sp }: { sp: Search }) {
-  if (sp.research_error === "missing_api_keys") {
-    return (
-      <div className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs">
-        <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" />
-        <p className="text-foreground">
-          Paid mode requires both{" "}
-          <span className="font-mono">GOOGLE_MAPS_API_KEY</span> and{" "}
-          <span className="font-mono">HUNTER_API_KEY</span>. Add them in
-          Vercel → Settings → Environment Variables, redeploy, then try
-          again. (Or use Free mode, which needs no keys.)
-        </p>
-      </div>
-    );
-  }
-  const discovered = Number(sp.r_discovered ?? 0);
-  const enriched = Number(sp.r_enriched ?? 0);
-  const a = Number(sp.r_a ?? 0);
-  const b = Number(sp.r_b ?? 0);
-  const c = Number(sp.r_c ?? 0);
-  const inserted = Number(sp.r_inserted ?? 0);
-  const updated = Number(sp.r_updated ?? 0);
-  const noEmail = Number(sp.r_no_email ?? 0);
-  const dur = Number(sp.r_dur ?? 0);
-
-  // Loud failure mode when discovery returns 0. Most likely cause is
-  // outbound Overpass blocked from Vercel's IPs, or the function timed
-  // out before a single county query completed.
-  if (discovered === 0) {
-    return (
-      <div className="space-y-2">
-        <div className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs">
-          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" />
-          <div className="space-y-1 text-foreground">
-            <p className="font-medium">Discovery returned 0 candidates ({sp.research_mode}).</p>
-            {sp.research_mode === "free" ? (
-              <p className="text-muted-foreground">
-                The OSM Overpass servers may be blocking Vercel&apos;s outbound IPs, or the
-                function hit its 10s/60s timeout before a single county query finished.
-                Try paid mode (set{" "}
-                <span className="font-mono">GOOGLE_MAPS_API_KEY</span>) or run from your
-                machine: <span className="font-mono">npm run leads:research</span>.
-              </p>
-            ) : (
-              <p className="text-muted-foreground">
-                Google Places returned no results. Double-check{" "}
-                <span className="font-mono">GOOGLE_MAPS_API_KEY</span> is valid in Vercel
-                env, and that the Places API (New) is enabled on the GCP project.
-              </p>
-            )}
-            <p className="font-mono text-[11px] text-muted-foreground">
-              {dur}ms · mode={sp.research_mode ?? "—"}
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-  return (
-    <div className="grid grid-cols-2 gap-2 rounded-md border border-border bg-secondary/30 px-4 py-3 sm:grid-cols-3">
-      <Stat label={`${sp.research_mode ?? ""} discovered`} value={discovered} />
-      <Stat label="Enriched" value={enriched} accent />
-      <Stat label="Tier A" value={a} accent />
-      <Stat label="Tier B" value={b} muted />
-      <Stat label="Tier C" value={c} muted />
-      <Stat label="Refrigerated" value={Number(sp.r_refrig ?? 0)} muted />
-      <Stat label="Inserted" value={inserted} accent />
-      <Stat label="Updated" value={updated} muted />
-      <Stat label="No-email" value={noEmail} muted />
-      <p className="col-span-full mt-1 font-mono text-xs tabular-nums text-muted-foreground">
-        {dur}ms · mode={sp.research_mode ?? "—"}
-      </p>
-    </div>
-  );
-}
-
 function Stat({
   label,
   value,

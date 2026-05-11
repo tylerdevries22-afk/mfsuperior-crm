@@ -121,6 +121,8 @@ const ALL_INDUSTRIES: readonly Industry[] = [
   "bigbox",
   "brokers",
   "smallbiz",
+  "construction",
+  "cannabis",
 ] as const;
 
 const researchSchema = z.object({
@@ -270,6 +272,8 @@ export async function quickAddStarterPackAction(): Promise<void> {
         bigbox: "Big-box retail",
         brokers: "Freight broker / 3PL",
         smallbiz: "Small business",
+        construction: "Construction / contractor",
+        cannabis: "Cannabis (dispensary / cultivation)",
       };
 
       // Build a normalized work item per curated entry.
@@ -681,6 +685,8 @@ export async function verifiedQuickAddAction(): Promise<void> {
         bigbox: "Big-box retail",
         brokers: "Freight broker / 3PL",
         smallbiz: "Small business",
+        construction: "Construction / contractor",
+        cannabis: "Cannabis (dispensary / cultivation)",
       };
 
       // 2. Verify-or-skip each remaining entry, in parallel with a hard
@@ -1013,6 +1019,8 @@ const ALL_INDUSTRIES_LIST: readonly Industry[] = [
   "bigbox",
   "brokers",
   "smallbiz",
+  "construction",
+  "cannabis",
 ] as const;
 
 const generateLeadsSchema = z.object({
@@ -1224,6 +1232,8 @@ export async function generateLeadsAction(formData: FormData): Promise<void> {
         bigbox: "Big-box retail",
         brokers: "Freight broker / 3PL",
         smallbiz: "Small business",
+        construction: "Construction / contractor",
+        cannabis: "Cannabis (dispensary / cultivation)",
       };
 
       if (verified.length > 0) {

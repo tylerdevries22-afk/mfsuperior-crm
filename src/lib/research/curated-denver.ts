@@ -230,8 +230,35 @@ export const CURATED_DENVER: CuratedEntry[] = [
   { name: "Performance Food Group", industry: "smallbiz", domain: "pfgc.com", refrigerated: true, chain: true, emailLocal: "procurement" },
   { name: "Shamrock Foods", industry: "smallbiz", domain: "shamrockfoodservice.com", refrigerated: true, chain: true, emailLocal: "procurement" },
 
-  // ── Cannabis (Colorado-specific, retail dispensaries) ───────────────
-  { name: "Native Roots Cannabis", industry: "smallbiz", domain: "nativeroots.com", emailLocal: "procurement" },
-  { name: "The Green Solution", industry: "smallbiz", domain: "tgscolorado.com", emailLocal: "procurement" },
-  { name: "Sweet Leaf Marijuana", industry: "smallbiz", domain: "sweetleafmarijuana.com", emailLocal: "procurement" },
+  // ── Construction / contractors (Denver Metro) ──────────────────────
+  // High freight value: lumberyards, electrical/plumbing supply, GCs.
+  { name: "84 Lumber", industry: "construction", domain: "84lumber.com", chain: true, emailLocal: "procurement" },
+  { name: "Builders FirstSource", industry: "construction", domain: "bldr.com", chain: true, emailLocal: "procurement" },
+  { name: "Alpine Lumber", industry: "construction", domain: "alpinelumber.com", emailLocal: "procurement" },
+  { name: "ProBuild Holdings", industry: "construction", domain: "probuild.com", emailLocal: "procurement" },
+  { name: "Ferguson Plumbing Supply", industry: "construction", domain: "ferguson.com", chain: true, emailLocal: "procurement" },
+  { name: "HD Supply", industry: "construction", domain: "hdsupply.com", chain: true, emailLocal: "procurement" },
+  { name: "Wagner Equipment", industry: "construction", domain: "wagnerequipment.com", emailLocal: "procurement" },
+  { name: "Grainger Industrial Supply", industry: "construction", domain: "grainger.com", chain: true, emailLocal: "procurement" },
+  { name: "Fastenal", industry: "construction", domain: "fastenal.com", chain: true, emailLocal: "procurement" },
+  { name: "MSC Industrial Supply", industry: "construction", domain: "mscdirect.com", chain: true, emailLocal: "procurement" },
+  { name: "Mountain States Specialty Co", industry: "construction", domain: "mountainstatesspecialty.com", emailLocal: "info" },
+  { name: "Front Range Lumber", industry: "construction", domain: "frontrangelumber.com", emailLocal: "info" },
+  { name: "Western States Cabinet Wholesalers", industry: "construction", domain: "wscw.com", emailLocal: "info" },
+  { name: "Mountain View Electric Supply", industry: "construction", domain: "mvescolorado.com", emailLocal: "info" },
+  { name: "Denver Wholesale Florist", industry: "construction", domain: "dwfwholesale.com", emailLocal: "orders" },
+
+  // ── Cannabis (Colorado-specific, retail dispensaries + supply) ──────
+  // CO cannabis has its own freight cadence: cultivation supply,
+  // packaging, retail restocking, B2B distribution.
+  { name: "Native Roots Cannabis", industry: "cannabis", domain: "nativeroots.com", emailLocal: "procurement" },
+  { name: "The Green Solution", industry: "cannabis", domain: "tgscolorado.com", emailLocal: "procurement" },
+  { name: "Sweet Leaf Marijuana", industry: "cannabis", domain: "sweetleafmarijuana.com", emailLocal: "procurement" },
+  { name: "LivWell Enlightened Health", industry: "cannabis", domain: "livwell.com", emailLocal: "procurement" },
+  { name: "Lightshade Labs", industry: "cannabis", domain: "lightshade.com", emailLocal: "procurement" },
+  { name: "Medicine Man Denver", industry: "cannabis", domain: "medicinemandenver.com", emailLocal: "procurement" },
+  { name: "Terrapin Care Station", industry: "cannabis", domain: "terrapincarestation.com", emailLocal: "procurement" },
+  { name: "Strawberry Fields Cannabis", industry: "cannabis", domain: "strawberryfieldscolorado.com", emailLocal: "info" },
+  { name: "Silver Stem Fine Cannabis", industry: "cannabis", domain: "silverstemcannabis.com", emailLocal: "info" },
+  { name: "Cannabis Supply", industry: "cannabis", domain: "cannabissupply.com", emailLocal: "orders" },
 ];

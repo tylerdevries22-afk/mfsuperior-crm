@@ -228,7 +228,11 @@ function curatedToBusiness(c: CuratedEntry): Business {
         ? "department_store"
         : c.refrigerated && c.industry === "smallbiz"
           ? "supermarket"
-          : undefined,
+          : c.industry === "construction"
+            ? "hardware"
+            : c.industry === "cannabis"
+              ? "cannabis"
+              : undefined,
     industrial: c.industry === "brokers" ? "warehouse" : undefined,
     office: c.industry === "brokers" ? "logistics" : undefined,
     craft: undefined,
