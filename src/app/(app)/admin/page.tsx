@@ -16,6 +16,7 @@ import {
   purgeNoEmailLeadsAction,
   removeSuppressionAction,
   unarchiveAllLeadsAction,
+  validateAllEmailsAction,
   wipeGuessedLeadsAction,
 } from "./actions";
 import { userHasGoogleConnection } from "@/lib/gmail/oauth";
@@ -75,6 +76,14 @@ type Search = {
   r_freemail?: string;
   r_role?: string;
   r_dur?: string;
+  // validateAllEmailsAction redirect params
+  validated?: string;
+  v_checked?: string;
+  v_valid?: string;
+  v_invalid?: string;
+  v_deleted?: string;
+  v_dur?: string;
+  validate_error?: string;
 };
 
 export default async function AdminPage({
@@ -495,6 +504,52 @@ export default async function AdminPage({
             </div>
             <Button type="submit" size="sm" variant="destructive">
               <X /> Archive all email-less leads
+            </Button>
+          </form>
+
+          {/* Validate all emails: MX-check every lead, hard-delete failures */}
+          <form
+            action={validateAllEmailsAction}
+            className="flex flex-wrap items-start gap-3 rounded-md border border-destructive/50 bg-destructive/10 p-4"
+          >
+            <div className="flex-1 min-w-[260px]">
+              <p className="font-medium text-foreground">
+                Validate all lead emails
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                MX-checks every non-archived lead with an email. Rejects
+                no-MX, freemail (gmail/yahoo/etc.), disposable mailbox
+                services, and role-only addresses on no-MX domains.{" "}
+                <strong className="text-foreground">
+                  Hard-deletes the failures.
+                </strong>{" "}
+                Forensic recovery: every deleted row&apos;s full payload is
+                captured in the audit log&apos;s <span className="font-mono">beforeJson</span>{" "}
+                so a false positive can be SQL-restored. Also runs Mondays
+                at 09:00 UTC via cron + as a per-send safety net inside
+                the tick engine.
+              </p>
+              {sp.validated === "1" && sp.validate_error ? (
+                <p className="mt-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 font-mono text-[11px] text-destructive">
+                  {decodeURIComponent(sp.validate_error)}
+                </p>
+              ) : sp.validated === "1" ? (
+                <p className="mt-2 rounded-md border border-success/40 bg-success/10 px-3 py-2 text-xs text-foreground">
+                  Last run: checked{" "}
+                  <span className="font-mono tabular-nums">{Number(sp.v_checked ?? 0)}</span>,
+                  valid{" "}
+                  <span className="font-mono tabular-nums">{Number(sp.v_valid ?? 0)}</span>,
+                  invalid{" "}
+                  <span className="font-mono tabular-nums">{Number(sp.v_invalid ?? 0)}</span>,
+                  deleted{" "}
+                  <span className="font-mono tabular-nums">{Number(sp.v_deleted ?? 0)}</span>
+                  {" "}in{" "}
+                  <span className="font-mono tabular-nums">{Number(sp.v_dur ?? 0)}</span>ms.
+                </p>
+              ) : null}
+            </div>
+            <Button type="submit" size="sm" variant="destructive">
+              <X /> Validate &amp; delete invalid
             </Button>
           </form>
 

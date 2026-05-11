@@ -13,13 +13,42 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+// Shared brand mark across favicon, apple-touch, social-card previews,
+// and the top header. The sidebar (src/components/nav/sidebar.tsx) and
+// login screen (src/app/login/page.tsx) load the same file, so the
+// browser-tab icon, the iOS home-screen icon, the link-preview card,
+// and the in-app top-header logo are visually identical.
+const LOGO_URL = "/logo.png";
+
 export const metadata: Metadata = {
+  metadataBase: new URL("https://mfsuperiorproducts.com"),
   title: {
     default: "MF Superior · CRM",
     template: "%s · MF Superior",
   },
-  description: "CRM and email automation for MF Superior Products freight box trucks.",
-  icons: { icon: "/logo.png" },
+  description:
+    "CRM and email automation for MF Superior Products freight box trucks.",
+  icons: {
+    icon: LOGO_URL,
+    shortcut: LOGO_URL,
+    apple: LOGO_URL,
+  },
+  openGraph: {
+    type: "website",
+    url: "https://mfsuperiorproducts.com",
+    siteName: "MF Superior Products",
+    title: "MF Superior · CRM",
+    description:
+      "CRM and email automation for MF Superior Products freight box trucks.",
+    images: [{ url: LOGO_URL, alt: "MF Superior Products logo" }],
+  },
+  twitter: {
+    card: "summary",
+    title: "MF Superior · CRM",
+    description:
+      "CRM and email automation for MF Superior Products freight box trucks.",
+    images: [LOGO_URL],
+  },
 };
 
 export default function RootLayout({
