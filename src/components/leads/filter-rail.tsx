@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Check, X as XIcon } from "lucide-react";
+import { Check, Minus, X as XIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
@@ -68,17 +68,85 @@ const EMAIL_TRUST = [
  * pass `availableTags` (which currently always passes a fresh distinct
  * query result from the DB). */
 const FALLBACK_TAGS = [
-  "tier-A",
-  "tier-B",
-  "tier-C",
+  "refrigerated",
+  "role-account",
+  "chain-store",
   "email-verified",
   "email-guessed",
-  "refrigerated",
   "denver-batch-1",
-  "chain-store",
   "discovered-via-osm",
   "discovered-via-curated",
 ] as const;
+
+/* ─── Tag taxonomy ────────────────────────────────────────────────
+ *
+ * Distinct tags returned from `unnest(tags)` mix three very different
+ * concerns: operationally-meaningful flags an outreach operator
+ * actually filters on (`refrigerated`, `role-account`), email-trust
+ * pipeline state (`email-verified`, `email-website-confirmed`,
+ * `email-risky`, …), and provenance markers (`denver-batch-1`,
+ * `discovered-via-osm`). Rendering them all in one flat list — as the
+ * old rail did — made the most-useful tags hard to find.
+ *
+ * `tagGroup` buckets a tag into one of four groups. The `tier-*` tags
+ * are filtered out entirely (covered by the Tier facet — duplicating
+ * them in a tag list is just noise).
+ *
+ * `formatTagLabel` pretty-prints the raw kebab-case stored in the DB
+ * into something a human can scan at a glance. */
+
+type TagGroup = "ops" | "source" | "email" | "other";
+
+function tagGroup(tag: string): TagGroup | null {
+  if (tag.startsWith("tier-")) return null; // hidden — covered by Tier facet
+  if (tag === "refrigerated" || tag === "role-account" || tag === "chain-store") {
+    return "ops";
+  }
+  if (tag.startsWith("email-")) return "email";
+  if (
+    tag.startsWith("denver-batch-") ||
+    tag.startsWith("discovered-via-") ||
+    tag === "spreadsheet-import"
+  ) {
+    return "source";
+  }
+  return "other";
+}
+
+const TAG_LABEL_OVERRIDES: Record<string, string> = {
+  refrigerated: "Refrigerated",
+  "role-account": "Role account (info@/sales@)",
+  "chain-store": "Chain store",
+  "email-verified": "Email: verified",
+  "email-guessed": "Email: guessed",
+  "email-unverified": "Email: unverified",
+  "email-invalid": "Email: invalid",
+  "email-website-confirmed": "Email: confirmed on website",
+  "email-api-verified": "Email: Hunter verified",
+  "email-api-invalid": "Email: Hunter invalid",
+  "email-risky": "Email: risky",
+  "email-role-account": "Email: role account",
+  "denver-batch-1": "Denver batch 1",
+  "discovered-via-osm": "Discovered via OSM",
+  "discovered-via-curated": "Discovered via curated pack",
+  "spreadsheet-import": "Spreadsheet import",
+};
+
+function formatTagLabel(tag: string): string {
+  if (TAG_LABEL_OVERRIDES[tag]) return TAG_LABEL_OVERRIDES[tag];
+  // Generic kebab → Title Case prettifier.
+  return tag
+    .split(/[-_]/)
+    .map((s) => (s.length === 0 ? s : s[0].toUpperCase() + s.slice(1)))
+    .join(" ");
+}
+
+const TAG_GROUP_TITLES: Record<TagGroup, string> = {
+  ops: "Operations",
+  source: "Source markers",
+  email: "Email pipeline",
+  other: "Other tags",
+};
 
 export type FilterRailProps = {
   q: string;
@@ -86,6 +154,10 @@ export type FilterRailProps = {
   tiers: string[];
   sources: string[];
   tags: string[];
+  /** Tags to EXCLUDE — leads carrying any of these are hidden.
+   * Independent from `tags` (which is inclusive). Lets operators
+   * say "non-refrigerated only" via the per-tag exclude button. */
+  excludeTags: string[];
   availableTags?: string[];
   lastContacted: string;
   enrollment: string;
@@ -120,6 +192,7 @@ export function FilterRail(props: FilterRailProps) {
   const tiersCsv = props.tiers.join(",");
   const sourcesCsv = props.sources.join(",");
   const tagsCsv = props.tags.join(",");
+  const excludeTagsCsv = props.excludeTags.join(",");
   const emailTrustCsv = props.emailTrust.join(",");
 
   const baseParams = {
@@ -128,6 +201,7 @@ export function FilterRail(props: FilterRailProps) {
     tier: tiersCsv,
     source: sourcesCsv,
     tags: tagsCsv,
+    excludeTags: excludeTagsCsv,
     lastContacted: props.lastContacted,
     enrollment: props.enrollment,
     hasEmail: props.hasEmail,
@@ -140,15 +214,42 @@ export function FilterRail(props: FilterRailProps) {
     props.tiers.length +
     props.sources.length +
     props.tags.length +
+    props.excludeTags.length +
     props.emailTrust.length +
     (props.lastContacted !== "any" ? 1 : 0) +
     (props.enrollment !== "any" ? 1 : 0) +
     (props.hasEmail !== "any" ? 1 : 0);
 
-  const tagOptions =
+  const tagOptionsRaw =
     props.availableTags && props.availableTags.length > 0
       ? props.availableTags
       : (FALLBACK_TAGS as readonly string[]);
+
+  // Bucket tags into the four taxonomy groups; drop the hidden
+  // `tier-*` tags (already surfaced via the Tier facet).
+  const groupedTags: Record<TagGroup, string[]> = {
+    ops: [],
+    source: [],
+    email: [],
+    other: [],
+  };
+  for (const t of tagOptionsRaw) {
+    const g = tagGroup(t);
+    if (g) groupedTags[g].push(t);
+  }
+  // Stable display order within a group: alphabetical, but with the
+  // "Refrigerated" + "Role account" pair pinned to the top of Ops
+  // because they're the most-used outreach filters.
+  const opsPriority = new Set(["refrigerated", "role-account"]);
+  groupedTags.ops.sort((a, b) => {
+    const ap = opsPriority.has(a) ? 0 : 1;
+    const bp = opsPriority.has(b) ? 0 : 1;
+    if (ap !== bp) return ap - bp;
+    return a.localeCompare(b);
+  });
+  groupedTags.source.sort();
+  groupedTags.email.sort();
+  groupedTags.other.sort();
 
   return (
     <aside
@@ -238,14 +339,26 @@ export function FilterRail(props: FilterRailProps) {
           selected={props.sources}
           baseParams={baseParams}
         />
-        <MultiSection
-          title={`Tags${tagOptions.length > 12 ? ` (${tagOptions.length})` : ""}`}
-          paramName="tags"
-          options={tagOptions.map((t) => ({ value: t, label: t }))}
-          selected={props.tags}
-          baseParams={baseParams}
-          scrollable
-        />
+        {/* Grouped tag facets. Each tag row carries TWO affordances:
+            include (left checkbox) and exclude (right minus). They're
+            mutually exclusive — clicking include while excluded swaps
+            states, and vice versa. The exclude path was added so
+            operators can say "non-refrigerated leads only" without
+            having to know which tags to omit. */}
+        {(["ops", "source", "email", "other"] as TagGroup[]).map((g) =>
+          groupedTags[g].length === 0 ? null : (
+            <TagSection
+              key={g}
+              title={TAG_GROUP_TITLES[g]}
+              tags={groupedTags[g]}
+              selectedInclude={props.tags}
+              selectedExclude={props.excludeTags}
+              baseParams={baseParams}
+              defaultOpen={g === "ops"}
+              scrollable={groupedTags[g].length > 10}
+            />
+          ),
+        )}
       </div>
     </aside>
   );
@@ -328,6 +441,177 @@ function MultiSection({
                 </span>
                 <span className="truncate">{opt.label}</span>
               </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </details>
+  );
+}
+
+/* ─── Tag section with dual include/exclude affordances ──────────── */
+
+function TagSection({
+  title,
+  tags,
+  selectedInclude,
+  selectedExclude,
+  baseParams,
+  defaultOpen = false,
+  scrollable = false,
+}: {
+  title: string;
+  tags: string[];
+  selectedInclude: string[];
+  selectedExclude: string[];
+  baseParams: Record<string, string>;
+  defaultOpen?: boolean;
+  scrollable?: boolean;
+}) {
+  const includeSet = new Set(selectedInclude);
+  const excludeSet = new Set(selectedExclude);
+  // Count is per-group: how many of THIS group's tags are active in
+  // either direction. Used for the chip next to the header.
+  let activeInclude = 0;
+  let activeExclude = 0;
+  for (const t of tags) {
+    if (includeSet.has(t)) activeInclude += 1;
+    if (excludeSet.has(t)) activeExclude += 1;
+  }
+  const total = activeInclude + activeExclude;
+
+  return (
+    <details
+      className="group border-b border-border/60 px-2 py-1 last:border-b-0 [&[open]>summary>.chev]:rotate-90"
+      open={defaultOpen || total > 0}
+    >
+      <summary className="flex cursor-pointer list-none items-center justify-between rounded-sm px-1 py-1.5 text-[12px] font-semibold uppercase tracking-wider text-foreground hover:text-foreground">
+        <span className="flex items-center gap-1.5">
+          <span aria-hidden className="chev transition-transform text-muted-foreground">
+            ›
+          </span>
+          {title}
+          {activeInclude > 0 && (
+            <span
+              title={`${activeInclude} included`}
+              className="rounded-full bg-primary/15 px-1.5 py-px text-[10px] font-medium normal-case tracking-normal text-primary tabular-nums"
+            >
+              {activeInclude}
+            </span>
+          )}
+          {activeExclude > 0 && (
+            <span
+              title={`${activeExclude} excluded`}
+              className="rounded-full bg-destructive/15 px-1.5 py-px text-[10px] font-medium normal-case tracking-normal text-destructive tabular-nums"
+            >
+              −{activeExclude}
+            </span>
+          )}
+        </span>
+      </summary>
+      <ul
+        className={cn(
+          "mt-1 space-y-px pl-3",
+          scrollable && "max-h-64 overflow-y-auto",
+        )}
+      >
+        {tags.map((t) => {
+          const isIncluded = includeSet.has(t);
+          const isExcluded = excludeSet.has(t);
+
+          // Toggle math: clicking include adds-or-removes from the
+          // include set AND clears any exclude on the same tag (you
+          // can't both include and exclude the same value). Exclude
+          // is the mirror.
+          const nextInclude = new Set(includeSet);
+          const nextExcludeOnInclude = new Set(excludeSet);
+          if (isIncluded) {
+            nextInclude.delete(t);
+          } else {
+            nextInclude.add(t);
+            nextExcludeOnInclude.delete(t);
+          }
+          const includeHref = build({
+            ...baseParams,
+            tags: [...nextInclude].join(","),
+            excludeTags: [...nextExcludeOnInclude].join(","),
+          });
+
+          const nextExclude = new Set(excludeSet);
+          const nextIncludeOnExclude = new Set(includeSet);
+          if (isExcluded) {
+            nextExclude.delete(t);
+          } else {
+            nextExclude.add(t);
+            nextIncludeOnExclude.delete(t);
+          }
+          const excludeHref = build({
+            ...baseParams,
+            tags: [...nextIncludeOnExclude].join(","),
+            excludeTags: [...nextExclude].join(","),
+          });
+
+          return (
+            <li key={t}>
+              <div
+                className={cn(
+                  "group/row flex items-center gap-2 rounded-sm pr-1 text-[12.5px] transition-colors",
+                  isIncluded
+                    ? "bg-primary/5 text-foreground"
+                    : isExcluded
+                      ? "bg-destructive/5 text-foreground"
+                      : "text-muted-foreground hover:bg-secondary/40 hover:text-foreground",
+                )}
+              >
+                {/* Include affordance: left checkbox. Whole label
+                    region is the click target for the include
+                    toggle — matches the prior MultiSection UX. */}
+                <Link
+                  href={includeHref}
+                  className="flex flex-1 items-center gap-2 rounded-sm py-1 pl-2 pr-1"
+                  aria-pressed={isIncluded}
+                  aria-label={
+                    isIncluded
+                      ? `Remove include filter ${formatTagLabel(t)}`
+                      : `Include leads with ${formatTagLabel(t)}`
+                  }
+                >
+                  <span
+                    className={cn(
+                      "flex size-3.5 shrink-0 items-center justify-center rounded-[3px] border",
+                      isIncluded
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-input bg-background",
+                    )}
+                    aria-hidden
+                  >
+                    {isIncluded && <Check className="size-2.5 stroke-[3]" />}
+                  </span>
+                  <span className="truncate">{formatTagLabel(t)}</span>
+                </Link>
+
+                {/* Exclude affordance: right "minus" button.
+                    Compact icon-only target — only visible on row
+                    hover when neutral, always visible when active. */}
+                <Link
+                  href={excludeHref}
+                  className={cn(
+                    "flex size-5 shrink-0 items-center justify-center rounded-[3px] border transition-opacity",
+                    isExcluded
+                      ? "border-destructive bg-destructive text-destructive-foreground opacity-100"
+                      : "border-input bg-background text-muted-foreground opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100 hover:border-destructive hover:text-destructive",
+                  )}
+                  title={isExcluded ? "Remove exclude filter" : "Exclude leads with this tag"}
+                  aria-pressed={isExcluded}
+                  aria-label={
+                    isExcluded
+                      ? `Remove exclude filter ${formatTagLabel(t)}`
+                      : `Exclude leads with ${formatTagLabel(t)}`
+                  }
+                >
+                  <Minus className="size-2.5 stroke-[3]" aria-hidden />
+                </Link>
+              </div>
             </li>
           );
         })}

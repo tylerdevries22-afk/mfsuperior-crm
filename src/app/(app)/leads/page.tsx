@@ -47,6 +47,7 @@ type Search = {
   tier?: string;
   source?: string;
   tags?: string;
+  excludeTags?: string;
   lastContacted?: string; // "7d" | "30d" | "90d" | "never" | "any"
   enrollment?: string; // "any" | "none" | "active" | "paused" | "completed"
   hasEmail?: string; // "yes" | "no" | "any"
@@ -148,6 +149,16 @@ export default async function LeadsPage({
     .filter((s) => s.length > 0 && s.length < 60)
     .slice(0, 20);
 
+  // Tag-exclude facet — companion to `tags`. Renders the SQL clause
+  // `NOT (leads.tags && ARRAY[...])` so a lead carrying ANY excluded
+  // tag is hidden. Lets operators say "give me non-refrigerated
+  // leads" or "everything except the email-guessed batch".
+  const excludeTags = (sp.excludeTags ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0 && s.length < 60)
+    .slice(0, 20);
+
   // Email-trust facet (from the rail). Allowlist enforced so the SQL
   // IN-clause can't be coerced into accepting arbitrary values.
   const EMAIL_TRUST_VALUES = ["verified", "guessed", "unverified", "invalid"] as const;
@@ -215,6 +226,19 @@ export default async function LeadsPage({
         tags.map((t) => sql`${t}`),
         sql`, `,
       )}]::text[]`,
+    );
+  }
+
+  // Tag-exclude filter: NOT array-overlap. Hides leads whose tags
+  // array contains ANY of the excluded tags (matches the user
+  // expectation that "exclude refrigerated" means "no refrigerated
+  // leads", not "leads that aren't ONLY refrigerated").
+  if (excludeTags.length > 0) {
+    filters.push(
+      sql`NOT (${leads.tags} && ARRAY[${sql.join(
+        excludeTags.map((t) => sql`${t}`),
+        sql`, `,
+      )}]::text[])`,
     );
   }
 
@@ -317,6 +341,7 @@ export default async function LeadsPage({
     tiers.length +
     sources.length +
     tags.length +
+    excludeTags.length +
     emailTrust.length +
     (lastContacted !== "any" ? 1 : 0) +
     (enrollment !== "any" ? 1 : 0) +
@@ -335,6 +360,7 @@ export default async function LeadsPage({
         tiers={tiers}
         sources={sources}
         tags={tags}
+        excludeTags={excludeTags}
         availableTags={availableTags}
         lastContacted={lastContacted}
         enrollment={enrollment}
@@ -409,6 +435,7 @@ export default async function LeadsPage({
               tiers.length ||
               sources.length ||
               tags.length ||
+              excludeTags.length ||
               lastContacted !== "any" ||
               enrollment !== "any" ||
               hasEmail !== "any"
