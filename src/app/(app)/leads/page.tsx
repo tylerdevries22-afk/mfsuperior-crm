@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { and, asc, desc, eq, ilike, inArray, isNotNull, isNull, or, sql, type SQL } from "drizzle-orm";
-import { Plus, Upload, Search, CheckCircle2, AlertTriangle, Zap, X as XIcon } from "lucide-react";
+import { Plus, Upload, Search, CheckCircle2, AlertTriangle, X as XIcon } from "lucide-react";
 import { db } from "@/lib/db/client";
 import { emailSequences, leadSequenceEnrollments, leads } from "@/lib/db/schema";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import { LeadsTable } from "@/components/leads/leads-table";
 import { FilterRail } from "@/components/leads/filter-rail";
 import { LeadsToolbar } from "@/components/leads/leads-toolbar";
 import { ResultToastBridge } from "@/components/leads/result-toast-bridge";
+import { QuickAddSubmit } from "@/components/leads/quick-add-button";
 import { verifiedQuickAddAction } from "@/app/(app)/admin/actions";
 
 export const metadata = { title: "Leads" };
@@ -422,14 +423,7 @@ export default async function LeadsPage({
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <form action={verifiedQuickAddAction}>
-              <Button
-                type="submit"
-                variant="secondary"
-                size="sm"
-                title="Scrapes each curated company's website (/, /contact, /about, /team, /leadership) for real mailto: emails, MX-validates each one, and inserts ONLY companies with verified deliverable addresses. NEVER guesses. Expect 20-60 inserts from ~150 attempts since many chains don't publish a public email."
-              >
-                <Zap /> Quick-add
-              </Button>
+              <QuickAddSubmit title="Drains a pre-verified backlog into your leads — instant. The slow website-scrape + Hunter verification runs in the background to refill the backlog for the next click." />
             </form>
             <Link href="/leads/import">
               <Button variant="secondary" size="sm">

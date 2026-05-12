@@ -78,7 +78,7 @@ export function ResultToastBridge({ sp }: Props) {
       }
     }
 
-    // ── Starter pack / verified quick-add ────────────────────────
+    // ── Starter pack / verified quick-add (legacy) ───────────────
     if (sp.starter === "1") {
       if (sp.starter_error) {
         toast.error(
@@ -88,6 +88,49 @@ export function ResultToastBridge({ sp }: Props) {
         toast.success(
           `Quick-add: ${sp.just_added ?? 0} added · ${sp.just_updated ?? 0} updated · ${sp.just_enriched ?? 0} enriched · ${sp.just_skipped ?? 0} skipped.`,
         );
+      }
+    }
+
+    // ── Verified Quick-add (backlog drain) ───────────────────────
+    // New path: redirects with `verified=1` + counts of inserts,
+    // verify-path breakdown, and a `v_backlog_warming` flag set
+    // when the backlog was empty (so the click inserted 0 leads
+    // and the refill is now running in the background).
+    if (sp.verified === "1") {
+      if (sp.verified_error) {
+        toast.error(
+          `Quick-add failed: ${decodeURIComponent(sp.verified_error)}`,
+        );
+      } else {
+        const inserted = Number(sp.v_inserted ?? 0);
+        const viaWebsite = Number(sp.v_website ?? 0);
+        const viaHunter = Number(sp.v_hunter ?? 0);
+        const warming = sp.v_backlog_warming === "1";
+
+        if (inserted === 0 && warming) {
+          // Cold start: empty backlog. The refill is running via
+          // `after()` and will populate the queue in ~30s.
+          toast.info("Warming up the lead backlog…", {
+            description:
+              "First click after deploy is empty. The verify pipeline is filling the backlog in the background — try Quick-add again in ~30 seconds for an instant batch.",
+            duration: 10_000,
+          });
+        } else if (inserted === 0) {
+          toast.warning("No new leads added.", {
+            description:
+              "The backlog drained empty and no fresh candidates passed verification. Wait for the next refill or check /admin → Health.",
+          });
+        } else {
+          const parts = [
+            `${inserted} added instantly`,
+            viaWebsite > 0 ? `${viaWebsite} via website-scrape` : null,
+            viaHunter > 0 ? `${viaHunter} via Hunter` : null,
+          ].filter(Boolean) as string[];
+          toast.success(parts.join(" · "), {
+            description:
+              "Backlog refilling in the background for the next click.",
+          });
+        }
       }
     }
 

@@ -393,6 +393,48 @@ export const driveSyncState = pgTable("drive_sync_state", {
   conflictsPending: integer("conflicts_pending").notNull().default(0),
 });
 
+/* ───── Quick-add backlog ─────────────────────────────────────
+ *
+ * Pre-verified lead candidates the Quick-add button can drain
+ * INSTANTLY. Without this table the action ran the website-scrape
+ * + Hunter pipeline INLINE for every click — ~30-60s per click —
+ * so operators perceived the button as broken ("nothing happens").
+ *
+ * Flow:
+ *   1. Operator clicks Quick-add. Server action SELECTs ≤N rows
+ *      from this table, bulk-inserts them as leads (skip on
+ *      conflict), DELETEs the consumed rows. Sub-second response.
+ *   2. Next.js `after()` defers a refill that runs the slow
+ *      verify pipeline AFTER the redirect is sent — operator
+ *      sees the leads immediately while the next batch warms.
+ *
+ * Rows are deleted on consumption. The table never grows large
+ * (~50-100 rows steady-state).
+ */
+export const quickAddBacklog = pgTable("quick_add_backlog", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  email: text("email").notNull(),
+  companyName: text("company_name").notNull(),
+  website: text("website"),
+  industry: varchar("industry", { length: 60 }),
+  /** Human-readable vertical label (e.g. "Restaurant", "Big-box retail"). */
+  vertical: text("vertical"),
+  refrigerated: boolean("refrigerated").notNull().default(false),
+  chain: boolean("chain").notNull().default(false),
+  /** Which verification path resolved this email — "website-scrape" or "hunter-search". */
+  source: varchar("source", { length: 32 }).notNull(),
+  /** Notes that get copied onto the inserted lead. */
+  sourceNote: text("source_note"),
+  verifiedAt: timestamp("verified_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+}, (t) => [
+  // Idempotency: re-verifying the same email shouldn't add a
+  // second backlog entry. The refill helper uses onConflictDoNothing
+  // against this.
+  uniqueIndex("quick_add_backlog_email_unique").on(t.email),
+]);
+
 /* ───── Notifications ─────────────────────────────────────────── */
 
 export const notificationTypeEnum = pgEnum("notification_type", [
