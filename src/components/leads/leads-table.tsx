@@ -334,13 +334,15 @@ function BulkActionForm({
 
   return (
     <>
-      {/* Hidden Send form — referenced by SubmitButton via form="bulk-send-form" */}
-      <form action={bulkSendAction} id="bulk-send-form" className="hidden">
-        <input type="hidden" name="sequenceId" value={sequenceId} />
-        {selectedIds.map((id) => (
-          <input key={id} type="hidden" name="leadIds" value={id} />
-        ))}
-      </form>
+      {/* NOTE: the bulk-send <form> used to live up here as a hidden
+       *  sibling and the modal's SubmitButton referenced it via the
+       *  HTML `form="bulk-send-form"` attribute. Browser-level submit
+       *  worked, but React's `useFormStatus()` only walks the React
+       *  tree — the modal-rendered button had no <form> ancestor in
+       *  that tree, so `pending` was permanently `false` and the
+       *  "Sending…" spinner never appeared on a long bulk-send.
+       *  The form now wraps the modal's CTA (see ConfirmSendModal
+       *  below) so useFormStatus picks it up. */}
 
       {/* Bottom sticky bar */}
       <div
@@ -508,10 +510,20 @@ function BulkActionForm({
                 </p>
               )}
             </div>
-            <div className="mt-5 flex items-center justify-end gap-2">
+            {/* CTA row. The <form> wraps just these two buttons so
+             *  the SubmitButton (inside, uses useFormStatus) has the
+             *  form as a React ancestor and `pending` toggles true
+             *  while the server action runs. Hidden inputs hold the
+             *  selected lead IDs + sequence — they live inside the
+             *  form for the same reason. */}
+            <form action={bulkSendAction} className="mt-5 flex items-center justify-end gap-2">
+              <input type="hidden" name="sequenceId" value={sequenceId} />
+              {selectedIds.map((id) => (
+                <input key={id} type="hidden" name="leadIds" value={id} />
+              ))}
               <CancelButton onCancel={() => setConfirmOpen(false)} />
               <SubmitButton disabled={!sequenceId} />
-            </div>
+            </form>
           </div>
         </div>
       )}
@@ -524,12 +536,7 @@ function BulkActionForm({
 function SubmitButton({ disabled }: { disabled?: boolean }) {
   const { pending } = useFormStatus();
   return (
-    <Button
-      size="sm"
-      type="submit"
-      form="bulk-send-form"
-      disabled={disabled || pending}
-    >
+    <Button size="sm" type="submit" disabled={disabled || pending}>
       {pending ? (
         <>
           <Loader2 className="size-4 animate-spin" /> Sending…

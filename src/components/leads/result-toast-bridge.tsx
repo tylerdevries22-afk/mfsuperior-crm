@@ -112,8 +112,34 @@ export function ResultToastBridge({ sp }: Props) {
       ].filter(Boolean) as string[];
 
       const summary = parts.length > 0 ? parts.join(" · ") : "Send fired.";
-      if (failed > 0) toast.warning(summary);
-      else toast.success(summary);
+
+      // Surface the most common silent-failure mode VERY loudly:
+      // operator enrolled N leads, the tick ran, but every template
+      // is in `draft` mode so nothing actually shipped — they see
+      // "N drafted" but no actual sends. The pre-PR-#59 schema
+      // default was "draft", so legacy templates still exhibit
+      // this. Use `toast.error` with a long duration + linked
+      // description so they can't miss it.
+      if (tickSent === 0 && tickDrafted > 0) {
+        toast.error("Drafts created, but no emails sent.", {
+          description:
+            `${tickDrafted} email${tickDrafted === 1 ? " was" : "s were"} saved as a draft because the template's send mode is "draft". Flip the template(s) to "auto_send" in /templates to actually deliver them.`,
+          duration: 12_000,
+        });
+      } else if (failed > 0) {
+        toast.warning(summary, {
+          description:
+            "Check /admin?tab=tick for the most recent tick report and any provider errors.",
+          duration: 10_000,
+        });
+      } else if (tickSent === 0 && enrolled === 0 && already === 0) {
+        toast.warning(summary, {
+          description:
+            "Nothing was sent or enrolled — every selected lead was suppressed, has no email, or hit a daily cap.",
+        });
+      } else {
+        toast.success(summary);
+      }
     }
 
     // ── Imported leads from CSV (sp.imported is used by import page,
