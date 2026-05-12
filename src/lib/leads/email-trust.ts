@@ -82,6 +82,12 @@ import { isNotNull, isNull, and, sql } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import { auditLog, leads as leadsTable } from "@/lib/db/schema";
 import { validateEmail } from "@/lib/research/mx-validate";
+import { findEmailsOnWebsite } from "@/lib/research/verify-website-email";
+import {
+  HunterClient,
+  type Budget as HunterBudget,
+} from "@/lib/research/hunter";
+import { loadCache, saveCache, currentMonth } from "@/lib/research/cache";
 
 /**
  * Composite trust level surfaced to the UI + filter rail.
@@ -111,8 +117,74 @@ export type TrustResult = {
     | "freemail"
     | "role"
     | "website-confirm"
+    | "api-verified"
+    | "api-invalid"
+    | "strong-signal"
     | "default";
+  /** Tags to merge onto the lead row (deep classifier only). */
+  tagsToAdd?: string[];
 };
+
+/* ── Helpers shared by the deep classifier ─────────────────────── */
+
+/**
+ * "Usable" B2B role-pattern local-parts. These are NOT rejected — at
+ * many small Colorado businesses they're the only address the owner
+ * actually monitors. We tag them `role-account` so outreach can
+ * prioritise personal addresses but still verify them normally.
+ */
+const B2B_ROLE_LOCAL_PARTS = new Set([
+  "info",
+  "sales",
+  "contact",
+  "hello",
+  "office",
+  "dispatch",
+  "orders",
+  "logistics",
+  "operations",
+  "ops",
+  "purchasing",
+  "procurement",
+  "facilities",
+  "shipping",
+  "receiving",
+]);
+
+function isB2BRoleEmail(email: string): boolean {
+  const local = email.split("@")[0] ?? "";
+  if (B2B_ROLE_LOCAL_PARTS.has(local)) return true;
+  // Match prefixes like `sales-team@`, `info.us@`.
+  for (const p of B2B_ROLE_LOCAL_PARTS) {
+    if (local.startsWith(`${p}.`) || local.startsWith(`${p}-`)) return true;
+  }
+  return false;
+}
+
+/**
+ * Resolve the company's web domain. Prefer the lead's `website`
+ * column (since `john@gmail.com` working at `acme.com` should
+ * scrape `acme.com`, not `gmail.com`). Fall back to the email's
+ * own domain if `website` is empty or unparseable.
+ */
+function resolveCompanyDomain(
+  website: string | null,
+  email: string,
+): string | null {
+  if (website) {
+    try {
+      const trimmed = website.trim();
+      const url = /^https?:\/\//i.test(trimmed)
+        ? new URL(trimmed)
+        : new URL(`https://${trimmed}`);
+      return url.hostname.replace(/^www\./i, "").toLowerCase();
+    } catch {
+      // fall through
+    }
+  }
+  const at = email.indexOf("@");
+  return at >= 0 ? email.slice(at + 1).toLowerCase() : null;
+}
 
 /**
  * Pure classifier — does NOT mutate the DB. Returns the trust
@@ -273,6 +345,208 @@ export async function classifyEmailTrustAsync(input: {
 }
 
 /**
+ * Deep classifier — extends `classifyEmailTrustAsync` with two
+ * heavy verification layers that produce the bulk of "verified"
+ * promotions today:
+ *
+ *   • Website re-scrape (layer 10) — fetches the company's site and
+ *     checks whether `email` appears verbatim. A match upgrades to
+ *     `verified` (+ tag `email-website-confirmed`). Reachable-but-
+ *     no-match is recorded so the strong-signal step downstream can
+ *     still promote MX-validated addresses on live B2B sites.
+ *
+ *   • Hunter.io email-verifier (layer 5, paid-API path) — only
+ *     invoked if `opts.hunter` is non-null AND there's quota
+ *     remaining. Deliverable → `verified` + `email-api-verified`.
+ *     Undeliverable → `invalid` + `email-api-invalid` (archived).
+ *     Risky → tag `email-risky`, keep current trust.
+ *
+ * Strong-signal fallback: when neither website nor Hunter
+ * verifies the email but the MX is good AND the company's website
+ * was reachable, we promote to `verified`. This is the
+ * "deliverable OR strong signal" bar operators picked in the
+ * pipeline audit — it correctly classifies the `info@company.com`
+ * patterns that dominate small-business B2B but don't get hit by
+ * any free API.
+ */
+export async function classifyEmailTrustDeep(
+  input: {
+    email: string | null;
+    tags: string[];
+    website: string | null;
+  },
+  opts: {
+    /** When supplied, the verifier is called once per lead within
+     *  the client's remaining monthly quota. Pass null to skip. */
+    hunter: HunterClient | null;
+    /** Whether to re-fetch the company's website. Setting false
+     *  bypasses layer 10 (used by the lighter sync cron path). */
+    scrapeWebsite: boolean;
+    /** Per-domain hard timeout for the website scrape. Default 4s. */
+    scrapeTimeoutMs?: number;
+  },
+): Promise<TrustResult> {
+  const email = (input.email ?? "").trim().toLowerCase();
+  const tags = new Set(input.tags ?? []);
+  const tagsToAdd = new Set<string>();
+
+  if (!email) {
+    return { trust: "invalid", reason: "no email on file", source: "syntax" };
+  }
+
+  // Fast-path: any earlier pipeline already proved this address is
+  // deliverable. Skip the slow website fetch + Hunter call.
+  if (
+    tags.has("email-verified") ||
+    tags.has("email-api-verified") ||
+    tags.has("email-website-confirmed")
+  ) {
+    return {
+      trust: "verified",
+      reason: "verified by an earlier pipeline (upstream / website / API tag)",
+      source: "tag-prior",
+    };
+  }
+  if (tags.has("email-invalid") || tags.has("email-api-invalid")) {
+    return {
+      trust: "invalid",
+      reason: "previously archived as invalid",
+      source: "tag-prior",
+    };
+  }
+
+  // Layer 1-4: cheap structural checks (RFC 5322 + MX + disposable).
+  const mx = await validateEmail(email);
+  if (mx.status === "bad_format") {
+    return {
+      trust: "invalid",
+      reason: "syntax: address does not match RFC 5322 pattern",
+      source: "syntax",
+    };
+  }
+  if (mx.status === "disposable") {
+    return {
+      trust: "invalid",
+      reason: `disposable mailbox provider (${mx.domain})`,
+      source: "disposable",
+    };
+  }
+  if (mx.status === "no_mx") {
+    return {
+      trust: "invalid",
+      reason: `domain ${mx.domain} has no MX records — mailbox cannot exist`,
+      source: "mx",
+    };
+  }
+
+  // Tag role-pattern emails regardless of how they end up classified
+  // (operator can filter outreach on this tag without affecting trust).
+  if (isB2BRoleEmail(email)) tagsToAdd.add("role-account");
+
+  // Layer 10: website re-scrape. Verbatim match is the strongest
+  // free signal we have — a human at the company published this
+  // address on their own site.
+  let websiteReachable = false;
+  let companyDomain: string | null = null;
+  if (opts.scrapeWebsite) {
+    companyDomain = resolveCompanyDomain(input.website, email);
+    if (companyDomain) {
+      const scan = await findEmailsOnWebsite(
+        companyDomain,
+        opts.scrapeTimeoutMs ?? 4_000,
+      );
+      websiteReachable = scan.reachable;
+      if (scan.reachable && scan.emails.has(email)) {
+        tagsToAdd.add("email-website-confirmed");
+        return {
+          trust: "verified",
+          reason: `found verbatim on ${companyDomain}${
+            scan.emailToPath.get(email) ?? "/"
+          }`,
+          source: "website-confirm",
+          tagsToAdd: [...tagsToAdd],
+        };
+      }
+    }
+  }
+
+  // Layer 5: Hunter.io email-verifier (paid-API path, capped by
+  // monthly free-tier budget).
+  if (opts.hunter && opts.hunter.budgetLeft().verifications > 0) {
+    const v = await opts.hunter.verify(email);
+    if (v) {
+      if (v.result === "deliverable") {
+        tagsToAdd.add("email-api-verified");
+        return {
+          trust: "verified",
+          reason: `Hunter API: deliverable${
+            v.score != null ? ` (score ${v.score})` : ""
+          }`,
+          source: "api-verified",
+          tagsToAdd: [...tagsToAdd],
+        };
+      }
+      if (v.result === "undeliverable") {
+        tagsToAdd.add("email-api-invalid");
+        return {
+          trust: "invalid",
+          reason: `Hunter API: undeliverable (${v.status ?? "?"})`,
+          source: "api-invalid",
+          tagsToAdd: [...tagsToAdd],
+        };
+      }
+      if (v.result === "risky") {
+        // Don't reject — Hunter flags accept-all domains as risky
+        // too, which is unhelpfully strict for small B2B. Note it
+        // and let strong-signal take over.
+        tagsToAdd.add("email-risky");
+      }
+      // "unknown" — fall through.
+    }
+  }
+
+  // Strong-signal promotion: MX passes AND the company's website
+  // was reachable just now. This is the bar operators picked —
+  // covers `info@`/`sales@` on active small-biz sites that no free
+  // API can confirm.
+  if (
+    websiteReachable &&
+    (mx.status === "valid" || mx.status === "role_account")
+  ) {
+    return {
+      trust: "verified",
+      reason: `MX + reachable company website (${companyDomain ?? "?"})`,
+      source: "strong-signal",
+      tagsToAdd: [...tagsToAdd],
+    };
+  }
+
+  // Catch-alls — neither website nor API verified, no strong signal.
+  if (mx.status === "freemail") {
+    return {
+      trust: "unverified",
+      reason: `personal mailbox at ${mx.domain} — low B2B signal`,
+      source: "freemail",
+      tagsToAdd: [...tagsToAdd],
+    };
+  }
+  if (mx.status === "role_account") {
+    return {
+      trust: "guessed",
+      reason: "role-pattern address, no website match or API verdict",
+      source: "role",
+      tagsToAdd: [...tagsToAdd],
+    };
+  }
+  return {
+    trust: "unverified",
+    reason: "passed MX but no website / API confirmation",
+    source: "mx",
+    tagsToAdd: [...tagsToAdd],
+  };
+}
+
+/**
  * Bulk re-classification pass — used by:
  *   • the /admin Operations tab "Re-validate emails" button
  *   • the weekly cron `/api/cron/validate-emails`
@@ -290,13 +564,36 @@ export async function classifyEmailTrustAsync(input: {
 export type RevalidateReport = {
   checked: number;
   byTrust: Record<EmailTrust, number>;
+  /** Counts indexed by the source layer that produced each verdict —
+   *  useful for diagnosing which pipeline stage is doing the work. */
+  bySource: Record<string, number>;
   archivedAsInvalid: number;
   archivedSample: string[];
+  /** Number of Hunter verifier calls actually made this run. */
+  hunterCalls: number;
+  /** Whether we stopped early because the per-action deadline was hit. */
+  partial: boolean;
   durationMs: number;
   errors: string[];
 };
 
-const BATCH = 50;
+// Concurrency cap. The deep classifier fires up to ~5 parallel HTTP
+// fetches per lead (one per common contact page), so 25 leads in
+// flight = ~125 in-flight HTTPS requests at peak. Comfortable for
+// Vercel's serverless runtime; higher and we start seeing UND_ERR
+// socket exhaustions on cold starts.
+const BATCH = 25;
+
+// Per-action soft deadline. The /admin route is `maxDuration = 60` so
+// we leave headroom for the audit-log insert + redirect + revalidate-
+// Path round-trip. Leads we didn't reach this run stay at their old
+// trust level and get picked up next click / next cron.
+const DEADLINE_MS = 50_000;
+
+// Free-tier Hunter cap. Loaded from the local cache file so multiple
+// runs within the same month share the same monthly counter. The
+// cache resets on month rollover (see currentMonth() in cache.ts).
+const HUNTER_FREE_TIER_CAP = 25;
 
 export async function revalidateAllLeadEmails(opts: {
   actorUserId: string | null;
@@ -308,40 +605,107 @@ export async function revalidateAllLeadEmails(opts: {
     unverified: 0,
     invalid: 0,
   };
+  const bySource: Record<string, number> = {};
   const errors: string[] = [];
   const archivedSample: string[] = [];
+
+  // Boot a Hunter client if the key is present. The client's budget
+  // is seeded from the on-disk cache so we don't blow the monthly
+  // quota across multiple runs.
+  let hunter: HunterClient | null = null;
+  let cachedSearchesUsed = 0;
+  let cachedVerificationsUsed = 0;
+  if (process.env.HUNTER_API_KEY) {
+    try {
+      const cache = loadCache();
+      cachedSearchesUsed = cache.hunterUsage.searches;
+      cachedVerificationsUsed = cache.hunterUsage.verifications;
+      const budget: HunterBudget = {
+        searches: {
+          used: cachedSearchesUsed,
+          cap: HUNTER_FREE_TIER_CAP,
+        },
+        verifications: {
+          used: cachedVerificationsUsed,
+          cap: HUNTER_FREE_TIER_CAP,
+        },
+      };
+      hunter = new HunterClient(process.env.HUNTER_API_KEY, budget);
+    } catch (err) {
+      errors.push(
+        `hunter init: ${(err as Error).message?.slice(0, 80) ?? "?"}`,
+      );
+    }
+  }
 
   const candidates = await db
     .select({
       id: leadsTable.id,
       email: leadsTable.email,
       tags: leadsTable.tags,
+      website: leadsTable.website,
     })
     .from(leadsTable)
-    .where(
-      and(isNotNull(leadsTable.email), isNull(leadsTable.archivedAt)),
-    );
+    .where(and(isNotNull(leadsTable.email), isNull(leadsTable.archivedAt)));
+
+  // Process already-API-verified leads FIRST (cheap fast-path) so the
+  // remaining time budget is spent on leads that actually need slow
+  // verification. Sort: leads without strong-prior tags go to the
+  // back, so a partial run still touches the maximum number of "hard"
+  // candidates.
+  const ordered = [...candidates].sort((a, b) => {
+    const aFast = a.tags?.some(
+      (t) =>
+        t === "email-verified" ||
+        t === "email-api-verified" ||
+        t === "email-website-confirmed" ||
+        t === "email-invalid" ||
+        t === "email-api-invalid",
+    )
+      ? 0
+      : 1;
+    const bFast = b.tags?.some(
+      (t) =>
+        t === "email-verified" ||
+        t === "email-api-verified" ||
+        t === "email-website-confirmed" ||
+        t === "email-invalid" ||
+        t === "email-api-invalid",
+    )
+      ? 0
+      : 1;
+    return aFast - bFast;
+  });
 
   let archivedAsInvalid = 0;
+  let partial = false;
+  let processed = 0;
 
-  for (let i = 0; i < candidates.length; i += BATCH) {
-    const slice = candidates.slice(i, i + BATCH);
+  for (let i = 0; i < ordered.length; i += BATCH) {
+    if (Date.now() - start > DEADLINE_MS) {
+      partial = true;
+      errors.push(
+        `deadline: stopped after ${processed}/${ordered.length} leads`,
+      );
+      break;
+    }
+    const slice = ordered.slice(i, i + BATCH);
     const results = await Promise.allSettled(
       slice.map(async (lead) => {
-        const r = await classifyEmailTrustAsync({
-          email: lead.email,
-          tags: lead.tags ?? [],
-        });
+        const r = await classifyEmailTrustDeep(
+          {
+            email: lead.email,
+            tags: lead.tags ?? [],
+            website: lead.website ?? null,
+          },
+          { hunter, scrapeWebsite: true },
+        );
         return { lead, r };
       }),
     );
 
-    // Two writes per row max: an update for the trust + timestamp,
-    // and a conditional archive update for the invalid ones. We
-    // do them inline (one round-trip per row inside the batch) to
-    // keep the surface small; a single bulk UPDATE…CASE would be
-    // faster but harder to reason about for the audit-log call.
     for (const r of results) {
+      processed += 1;
       if (r.status === "rejected") {
         errors.push(
           `classify threw: ${(r.reason as Error)?.message?.slice(0, 80) ?? "unknown"}`,
@@ -350,22 +714,23 @@ export async function revalidateAllLeadEmails(opts: {
       }
       const { lead, r: verdict } = r.value;
       byTrust[verdict.trust] += 1;
+      bySource[verdict.source] = (bySource[verdict.source] ?? 0) + 1;
 
       try {
+        // Merge existing tags + any new tags the verdict asked us to
+        // add (role-account, email-website-confirmed, email-api-verified, etc.).
+        const next = new Set(lead.tags ?? []);
+        for (const t of verdict.tagsToAdd ?? []) next.add(t);
+
         if (verdict.trust === "invalid") {
-          // Archive + add email-invalid tag (skip if already
-          // tagged to keep the array tidy under repeat runs).
-          const existing = lead.tags ?? [];
-          const nextTags = existing.includes("email-invalid")
-            ? existing
-            : [...existing, "email-invalid"];
+          next.add("email-invalid");
           await db
             .update(leadsTable)
             .set({
               emailTrust: verdict.trust,
               emailValidatedAt: sql`now()`,
               archivedAt: sql`now()`,
-              tags: nextTags,
+              tags: [...next],
               updatedAt: sql`now()`,
             })
             .where(sql`${leadsTable.id} = ${lead.id}`);
@@ -377,6 +742,7 @@ export async function revalidateAllLeadEmails(opts: {
             .set({
               emailTrust: verdict.trust,
               emailValidatedAt: sql`now()`,
+              tags: [...next],
               updatedAt: sql`now()`,
             })
             .where(sql`${leadsTable.id} = ${lead.id}`);
@@ -386,6 +752,29 @@ export async function revalidateAllLeadEmails(opts: {
           `update ${lead.id} failed: ${(err as Error).message?.slice(0, 80) ?? "unknown"}`,
         );
       }
+    }
+  }
+
+  // Persist Hunter usage so the next run respects the same monthly
+  // cap. saveCache() is a no-op on Vercel (read-only FS at runtime)
+  // — that's fine: the Hunter API itself returns 402 once monthly
+  // quota is exhausted, and the client swallows that as `null`.
+  let hunterCalls = 0;
+  if (hunter) {
+    const left = hunter.budgetLeft();
+    hunterCalls = HUNTER_FREE_TIER_CAP - left.verifications - cachedVerificationsUsed;
+    try {
+      const cache = loadCache();
+      cache.hunterUsage = {
+        month: currentMonth(),
+        searches: HUNTER_FREE_TIER_CAP - left.searches,
+        verifications: HUNTER_FREE_TIER_CAP - left.verifications,
+      };
+      saveCache(cache);
+    } catch (err) {
+      errors.push(
+        `hunter cache save: ${(err as Error).message?.slice(0, 60) ?? "?"}`,
+      );
     }
   }
 
@@ -399,9 +788,13 @@ export async function revalidateAllLeadEmails(opts: {
       action: "revalidate_all_email_trust",
       beforeJson: null,
       afterJson: {
-        checked: candidates.length,
+        checked: processed,
+        total: candidates.length,
         byTrust,
+        bySource,
         archivedAsInvalid,
+        hunterCalls,
+        partial,
         durationMs: Date.now() - start,
         errors: errors.slice(0, 10),
       },
@@ -414,10 +807,13 @@ export async function revalidateAllLeadEmails(opts: {
   }
 
   return {
-    checked: candidates.length,
+    checked: processed,
     byTrust,
+    bySource,
     archivedAsInvalid,
     archivedSample,
+    hunterCalls,
+    partial,
     durationMs: Date.now() - start,
     errors,
   };

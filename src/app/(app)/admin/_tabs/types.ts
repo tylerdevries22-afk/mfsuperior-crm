@@ -61,6 +61,8 @@ export type AdminSearch = {
   t_unverified?: string;
   t_invalid?: string;
   t_archived?: string;
+  t_hunter?: string;
+  t_partial?: string;
   t_dur?: string;
   trust_error?: string;
   // ── Pending migrations applier ───────────────────────────────

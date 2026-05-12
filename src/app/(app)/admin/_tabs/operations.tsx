@@ -233,19 +233,20 @@ export function OperationsTab({ sp }: { sp: AdminSearch }) {
               Re-validate email trust (all leads)
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Runs the full email-trust pipeline (syntax → MX →
-              disposable/freemail blocklist → role-account heuristic →
-              tag-prior + website-confirm) on every non-archived lead
-              and writes the result into{" "}
-              <span className="font-mono">email_trust</span>. Each row
-              becomes one of:{" "}
-              <span className="font-mono">verified</span>,{" "}
-              <span className="font-mono">guessed</span>,{" "}
-              <span className="font-mono">unverified</span>,{" "}
-              <span className="font-mono">invalid</span>. Invalids are
-              archived + tagged{" "}
-              <span className="font-mono">email-invalid</span> (NOT
-              hard-deleted — reversible).
+              Runs the deep email-trust pipeline on every non-archived
+              lead: syntax → MX → disposable/freemail blocklist →
+              tag-prior fast-path → website re-scrape (verbatim match →{" "}
+              <span className="font-mono">verified</span>) → Hunter
+              email-verifier (within free-tier budget) → strong-signal
+              promotion (MX + reachable website →{" "}
+              <span className="font-mono">verified</span>). Writes the
+              verdict into <span className="font-mono">email_trust</span>{" "}
+              and merges tags ({" "}
+              <span className="font-mono">role-account</span>,{" "}
+              <span className="font-mono">email-website-confirmed</span>,{" "}
+              <span className="font-mono">email-api-verified</span>,{" "}
+              <span className="font-mono">email-risky</span>). Invalids
+              are archived (reversible).
             </p>
             {sp.trust_revalidated === "1" && sp.trust_error ? (
               <p className="mt-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 font-mono text-[11px] text-destructive">
@@ -277,11 +278,29 @@ export function OperationsTab({ sp }: { sp: AdminSearch }) {
                 <span className="font-mono tabular-nums">
                   {Number(sp.t_archived ?? 0)}
                 </span>{" "}
+                {Number(sp.t_hunter ?? 0) > 0 ? (
+                  <>
+                    · Hunter calls{" "}
+                    <span className="font-mono tabular-nums">
+                      {Number(sp.t_hunter ?? 0)}
+                    </span>{" "}
+                  </>
+                ) : null}
                 in{" "}
                 <span className="font-mono tabular-nums">
                   {Number(sp.t_dur ?? 0)}
                 </span>
-                ms.
+                ms
+                {sp.t_partial === "1" ? (
+                  <>
+                    {" "}
+                    <span className="text-warning">
+                      (partial — deadline reached; re-click to continue)
+                    </span>
+                  </>
+                ) : (
+                  "."
+                )}
               </p>
             ) : null}
           </div>

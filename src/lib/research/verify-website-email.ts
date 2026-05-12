@@ -193,6 +193,65 @@ export type WebsiteVerifyResult =
     };
 
 /**
+ * Lower-level helper used by both the lead-research insert path
+ * (`verifyWebsiteEmail` below — picks the best email) and the
+ * email-trust revalidation path (which needs to know whether a
+ * SPECIFIC lead email appears on the site, not pick a new one).
+ *
+ * Returns `{ reachable, emails }` where `reachable` is true iff at
+ * least one page fetched OK; `emails` is the de-duplicated set of
+ * lowercase addresses found on the site (filtered to the company's
+ * own domain to avoid pulling third-party support emails).
+ */
+export type WebsiteEmailScan = {
+  reachable: boolean;
+  emails: Set<string>;
+  /** First path each email was found on, for diagnostics ("notes" field
+   *  on inserted leads cites this). */
+  emailToPath: Map<string, string>;
+};
+
+export async function findEmailsOnWebsite(
+  domain: string,
+  overallTimeoutMs = 4_000,
+): Promise<WebsiteEmailScan> {
+  if (!domain) {
+    return { reachable: false, emails: new Set(), emailToPath: new Map() };
+  }
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), overallTimeoutMs);
+  try {
+    const fetches = PATHS.map(async (p) => {
+      const url = `https://${domain}${p}`;
+      const html = await fetchHtml(url, controller.signal);
+      return html ? { path: p, html } : null;
+    });
+    const settled = await Promise.allSettled(fetches);
+    const pages = settled
+      .map((s) => (s.status === "fulfilled" ? s.value : null))
+      .filter((p): p is { path: string; html: string } => p !== null);
+    if (pages.length === 0) {
+      return { reachable: false, emails: new Set(), emailToPath: new Map() };
+    }
+
+    const all = new Set<string>();
+    const emailToPath = new Map<string, string>();
+    for (const { path, html } of pages) {
+      const found = extractEmailsFromHtml(html, domain);
+      for (const e of found) {
+        if (!all.has(e)) emailToPath.set(e, path || "/");
+        all.add(e);
+      }
+    }
+    return { reachable: true, emails: all, emailToPath };
+  } catch {
+    return { reachable: false, emails: new Set(), emailToPath: new Map() };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+/**
  * @param domain Bare hostname (no scheme), e.g. `homedepot.com`.
  * @param overallTimeoutMs Hard cap for the whole verification. Default 4s
  *   so 150 companies fit inside Vercel Hobby's 10s function limit when run
@@ -204,61 +263,28 @@ export async function verifyWebsiteEmail(
 ): Promise<WebsiteVerifyResult> {
   if (!domain) return { kind: "skip", reason: "no_domain" };
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), overallTimeoutMs);
-
-  try {
-    // Race each path fetch in parallel — the moment we have a usable email
-    // on any of them, we can short-circuit. This keeps best-case time low.
-    const fetches = PATHS.map(async (p) => {
-      const url = `https://${domain}${p}`;
-      const html = await fetchHtml(url, controller.signal);
-      return html ? { path: p, html } : null;
-    });
-
-    const settled = await Promise.allSettled(fetches);
-    const pages = settled
-      .map((s) => (s.status === "fulfilled" ? s.value : null))
-      .filter((p): p is { path: string; html: string } => p !== null);
-
-    if (pages.length === 0) {
-      return { kind: "skip", reason: "no_html" };
-    }
-
-    // Collect every email across every page, then pick best.
-    const all = new Set<string>();
-    const emailToPath = new Map<string, string>();
-    for (const { path, html } of pages) {
-      const found = extractEmailsFromHtml(html, domain);
-      for (const e of found) {
-        if (!all.has(e)) emailToPath.set(e, path || "/");
-        all.add(e);
-      }
-    }
-
-    if (all.size === 0) {
-      return { kind: "skip", reason: "no_emails_on_website" };
-    }
-
-    const best = pickBest(all);
-    if (!best) {
-      return { kind: "skip", reason: "no_usable_email" };
-    }
-
-    const mx = await validateEmail(best);
-    if (mx.confidence === "rejected") {
-      return { kind: "skip", reason: "mx_failed" };
-    }
-
-    return {
-      kind: "verified",
-      email: best,
-      mx,
-      sourcePath: emailToPath.get(best) ?? "/",
-    };
-  } catch {
-    return { kind: "skip", reason: "timeout" };
-  } finally {
-    clearTimeout(timeout);
+  const scan = await findEmailsOnWebsite(domain, overallTimeoutMs);
+  if (!scan.reachable) {
+    return { kind: "skip", reason: "no_html" };
   }
+  if (scan.emails.size === 0) {
+    return { kind: "skip", reason: "no_emails_on_website" };
+  }
+
+  const best = pickBest(scan.emails);
+  if (!best) {
+    return { kind: "skip", reason: "no_usable_email" };
+  }
+
+  const mx = await validateEmail(best);
+  if (mx.confidence === "rejected") {
+    return { kind: "skip", reason: "mx_failed" };
+  }
+
+  return {
+    kind: "verified",
+    email: best,
+    mx,
+    sourcePath: scan.emailToPath.get(best) ?? "/",
+  };
 }
