@@ -177,7 +177,14 @@ export function InteractiveGridCanvas({
         // so the spotlight tracks cursor coords cleanly and the
         // grid reads as a single document-wide texture.
         backgroundAttachment: 'fixed',
-        overflow: 'hidden',
+        // `clip` (not `hidden`) so descendants' `position: sticky`
+        // still pins to the viewport. `hidden` would make this
+        // element the sticky containing block — and since the
+        // canvas itself never scrolls internally, every sticky
+        // descendant (e.g. the BenefitsSection scrollytelling
+        // panel) would behave like `static`. Same pattern is used
+        // on `html`/`body` for the same reason (see globals.css).
+        overflow: 'clip',
       }}
     >
       {/* Yellow spotlight. `position: fixed` so it tracks
