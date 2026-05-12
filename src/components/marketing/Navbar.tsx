@@ -108,11 +108,14 @@ export default function Navbar() {
           justifyContent: 'space-between',
           padding: '10px 20px',
           borderRadius: '16px',
-          border: '1px solid rgba(255,255,255,0.1)',
-          background: scrolled ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.3)',
-          backdropFilter: scrolled ? 'blur(20px)' : 'none',
-          WebkitBackdropFilter: scrolled ? 'blur(20px)' : 'none',
-          transition: 'background 0.4s ease, backdrop-filter 0.4s ease',
+          border: '1px solid rgba(17,17,17,0.08)',
+          background: scrolled ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.78)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+          boxShadow: scrolled
+            ? '0 8px 24px rgba(17,17,17,0.08)'
+            : '0 4px 16px rgba(17,17,17,0.04)',
+          transition: 'background 0.4s ease, box-shadow 0.4s ease',
         }}
       >
         {/* Logo — clickable home link with a responsive width-cap so the
@@ -152,12 +155,12 @@ export default function Navbar() {
                   background: 'none',
                   border: 'none',
                   cursor: 'pointer',
-                  color: active ? 'var(--c-lime)' : 'white',
+                  color: 'var(--c-dark-green)',
                   fontSize: '14px',
                   fontWeight: active ? 600 : 500,
                   fontFamily: 'inherit',
                   padding: '4px 0',
-                  opacity: active ? 1 : 0.85,
+                  opacity: active ? 1 : 0.7,
                   transition: 'opacity 0.2s ease, color 0.25s ease',
                   minHeight: '44px',
                 }}
@@ -195,8 +198,8 @@ export default function Navbar() {
               padding: '10px 14px',
               borderRadius: '8px',
               background: 'transparent',
-              border: '1px solid rgba(255,255,255,0.3)',
-              color: 'white',
+              border: '1px solid rgba(17,17,17,0.2)',
+              color: 'var(--c-dark-green)',
               fontSize: '13px',
               fontWeight: 500,
               letterSpacing: '0.06em',
@@ -208,13 +211,13 @@ export default function Navbar() {
             }}
             onMouseEnter={(e) => {
               const el = e.currentTarget as HTMLAnchorElement;
-              el.style.background = 'rgba(255,255,255,0.1)';
-              el.style.borderColor = 'rgba(255,255,255,0.5)';
+              el.style.background = 'rgba(17,17,17,0.05)';
+              el.style.borderColor = 'rgba(17,17,17,0.4)';
             }}
             onMouseLeave={(e) => {
               const el = e.currentTarget as HTMLAnchorElement;
               el.style.background = 'transparent';
-              el.style.borderColor = 'rgba(255,255,255,0.3)';
+              el.style.borderColor = 'rgba(17,17,17,0.2)';
             }}
           >
             <LockIcon width={13} height={13} />
@@ -225,10 +228,10 @@ export default function Navbar() {
             style={{
               padding: '10px 16px',
               borderRadius: '8px',
-              background: 'white',
+              background: 'var(--c-dark-green)',
               border: 'none',
               cursor: 'pointer',
-              color: '#111111',
+              color: 'white',
               fontSize: '13px',
               fontWeight: 500,
               letterSpacing: '0.08em',
@@ -292,7 +295,7 @@ export default function Navbar() {
             aria-label={menuOpen ? 'Close menu' : 'Open menu'}
             style={{
               background: 'none',
-              border: '1px solid rgba(255,255,255,0.3)',
+              border: '1px solid rgba(17,17,17,0.2)',
               borderRadius: '8px',
               cursor: 'pointer',
               padding: '10px 12px',
@@ -304,9 +307,9 @@ export default function Navbar() {
               minWidth: '44px',
             }}
           >
-            <span style={{ width: '18px', height: '1.5px', background: '#fff', display: 'block', transition: 'transform 0.25s ease', transformOrigin: 'center', transform: menuOpen ? 'rotate(45deg) translate(4.5px, 4.5px)' : 'none' }} />
-            <span style={{ width: '18px', height: '1.5px', background: '#fff', display: 'block', transition: 'opacity 0.25s ease', opacity: menuOpen ? 0 : 1 }} />
-            <span style={{ width: '18px', height: '1.5px', background: '#fff', display: 'block', transition: 'transform 0.25s ease', transformOrigin: 'center', transform: menuOpen ? 'rotate(-45deg) translate(4.5px, -4.5px)' : 'none' }} />
+            <span style={{ width: '18px', height: '1.5px', background: '#111', display: 'block', transition: 'transform 0.25s ease', transformOrigin: 'center', transform: menuOpen ? 'rotate(45deg) translate(4.5px, 4.5px)' : 'none' }} />
+            <span style={{ width: '18px', height: '1.5px', background: '#111', display: 'block', transition: 'opacity 0.25s ease', opacity: menuOpen ? 0 : 1 }} />
+            <span style={{ width: '18px', height: '1.5px', background: '#111', display: 'block', transition: 'transform 0.25s ease', transformOrigin: 'center', transform: menuOpen ? 'rotate(-45deg) translate(4.5px, -4.5px)' : 'none' }} />
           </button>
         </div>
       </nav>
