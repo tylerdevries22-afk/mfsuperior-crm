@@ -7,6 +7,11 @@ import { CascadeText } from './CascadeText';
 export function HeroSection() {
   const sectionRef = useRef<HTMLElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  // Wraps the headline + scroll-cue. The rAF loop writes
+  // `style.opacity` directly so we don't pay React-re-render
+  // cost per scroll frame. Synced with TypewriterSection's
+  // fade-in so they swap together as the white panel arrives.
+  const headlineRef = useRef<HTMLDivElement>(null);
 
   // Hero progress as a MotionValue driven directly off the rAF loop
   // below. We DELIBERATELY DO NOT use framer-motion's `useScroll` here:
@@ -135,6 +140,24 @@ export function HeroSection() {
         applySeek(animProgress * video.duration);
       }
 
+      // Headline opacity fade-out, synced with the white panel's
+      // arrival. The TypewriterSection has marginTop: -100vh, so
+      // its top edge arrives at viewport top at sectionProgress
+      // = 1.0 (scrolled = maxScroll). Fading the headline out
+      // between 0.7 and 1.0 means it's gone by the time the
+      // panel fully covers — and the typewriter cascade
+      // (controlled by its own scroll progress) is fading in
+      // over the same scroll window, so the two text states
+      // visually trade off.
+      if (headlineRef.current) {
+        const FADE_START = 0.7;
+        const FADE_END = 1.0;
+        const t =
+          (sectionProgress - FADE_START) / (FADE_END - FADE_START);
+        const opacity = Math.max(0, Math.min(1, 1 - t));
+        headlineRef.current.style.opacity = String(opacity);
+      }
+
       // Live debug surface — inspect in DevTools console:
       //   __heroScrubDebug
       // Lets the operator verify on real hardware that the loop
@@ -193,60 +216,50 @@ export function HeroSection() {
   }, [heroProgress]);
 
   return (
-    <section
-      ref={sectionRef}
-      className="mkt-hero-runway"
-      style={{
-        // Scroll runway height lives in CSS (.mkt-hero-runway in
-        // globals.css) so we can tune per breakpoint: 280vh desktop,
-        // 240vh tablet, 220vh phone. Both the video scrub and the
-        // cascade text use range [0, 1] of section progress, so they
-        // stay in lockstep across every breakpoint with no per-device
-        // range math needed.
-        position: 'relative',
-        // CRITICAL: do NOT set overflow: hidden here. When a sticky
-        // descendant's nearest scrollable ancestor is the same element
-        // it tries to pin against, sticky silently fails to engage.
-        // overflow-x: clip hides horizontal bleed from the 100vw video
-        // without creating a scroll/clip context that breaks the sticky
-        // pin on the Y axis.
-        overflowX: 'clip',
-        backgroundColor: '#000',
-      }}
-    >
-      {/*
-        Single sticky frame holds EVERY visible hero element — the video,
-        the gradient overlays, the headline, and the scroll cue. Pinning
-        at 100vh max means the video element itself is never sized larger
-        than the viewport on any device, so object-fit: cover never has
-        to crop+upscale a 200vh-tall canvas (the previous bug that read
-        as stretched/grainy).
-
-        The section above is still 200vh — that height is the *scroll
-        runway* that drives video.currentTime via the rAF loop. The two
-        roles are now properly separated: section = scroll length;
-        sticky frame = visual layout.
-      */}
+    // Stacked-stage architecture:
+    //   • <section> is the SCROLL RUNWAY — invisible, just gives
+    //     the page enough scrollable height to drive the video
+    //     scrub. References itself via `sectionRef` so the rAF
+    //     loop above can read its bounding rect.
+    //   • The visible hero is a SIBLING `<div>` with
+    //     `position: fixed` so it stays bolted to the viewport
+    //     while the user scrolls. The TypewriterSection that
+    //     follows in the page has `marginTop: -100vh` + a
+    //     higher z-index, so it scrolls UP over this fixed
+    //     stage — which is the operator's requested effect:
+    //     the white panel "slides in on top of the hero
+    //     scrub video."
+    //
+    // Why the stage isn't simply `position: sticky` like the
+    // prior iteration: sticky releases when its parent's
+    // bottom passes viewport top, which would let the hero
+    // scroll off-screen before the typewriter has fully
+    // covered it. `fixed` stays put indefinitely; the
+    // overlapping typewriter section visually "hides" it
+    // once the user has scrolled past the runway.
+    <>
       <div
+        // The visible hero stage. `position: fixed` keeps it
+        // pinned to the viewport for the entire scroll life
+        // of the page. The TypewriterSection sits at z-index
+        // 10+ in the page tree so it scrolls UP over this
+        // stage — synchronized fade-out below makes the
+        // hero text dissolve as that white panel arrives.
         style={{
-          position: 'sticky',
-          top: 0,
-          width: '100%',
-          height: '100vh',
-          // 100dvh on supporting browsers handles iOS Safari's URL bar
-          // showing/hiding without making the hero re-resize and clip.
+          position: 'fixed',
+          inset: 0,
+          // 100dvh on supporting browsers handles iOS Safari's URL
+          // bar showing/hiding without making the hero re-resize.
           maxHeight: '100dvh',
           overflow: 'hidden',
+          zIndex: 0,
+          backgroundColor: '#000',
         }}
       >
-        {/* Video backdrop — visible from page load (no crossfade). The
-            sticky frame above keeps it pinned at 100vh while the user
-            scrolls; the rAF loop scrubs video.currentTime against
-            scroll progress so the truck wireframe animates as you go.
-
-            The dark bottom-up gradient on top of the video gives the
-            headline the contrast it needs to stay readable against a
-            potentially bright/busy frame. No animated opacity. */}
+        {/* Video backdrop. rAF loop above scrubs currentTime
+            against scroll progress so the truck wireframe
+            animates as the user goes. Dark bottom-up gradient
+            preserves headline contrast. */}
         <div
           style={{
             position: 'absolute',
@@ -257,11 +270,7 @@ export function HeroSection() {
           <video
             ref={videoRef}
             // `-scrub.mp4` is re-encoded with `-g 1 -bf 0` so every
-            // frame is a keyframe — seeks are decode-one-frame fast
-            // (vs. decode-from-prior-keyframe for the streaming
-            // variant). The non-scrub MP4 is still served on the
-            // benefit sections where playback is linear and seek
-            // cost doesn't matter.
+            // frame is a keyframe — seeks are decode-one-frame fast.
             src="/videos/benefit-01-vert-scrub.mp4"
             poster="/videos/benefit-01-vert.jpg"
             muted
@@ -272,9 +281,6 @@ export function HeroSection() {
               height: '100%',
               objectFit: 'cover',
               display: 'block',
-              // GPU compositor hint: keeps the video on its own
-              // layer so frame-by-frame seeking doesn't repaint the
-              // headline / overlays each tick.
               transform: 'translateZ(0)',
             }}
           />
@@ -288,13 +294,14 @@ export function HeroSection() {
           />
         </div>
 
-        {/* Headline + scroll cue — pointer-events disabled on the
-            wrapper so the user's scroll wheel/touch passes through to
-            the section. Vertically centered (was bottom-aligned with
-            80px footer pad) so the headline sits in the visible middle
-            of the hero, not jammed to the floor where it competes with
-            the scroll-cue and section-end gradient. */}
+        {/* Headline + scroll cue. `ref={headlineRef}` is used by
+            the rAF loop to write `style.opacity` directly,
+            synced with the TypewriterSection's fade-in so the
+            two transitions visually swap as the white panel
+            scrolls in. pointer-events: none so the user's wheel
+            passes through. */}
         <div
+          ref={headlineRef}
           style={{
             position: 'absolute',
             inset: 0,
@@ -302,72 +309,37 @@ export function HeroSection() {
             flexDirection: 'column',
             justifyContent: 'center',
             pointerEvents: 'none',
+            willChange: 'opacity',
           }}
         >
-        <div
-          style={{
-            padding: '0 5.128vw',
-          }}
-        >
-          {/*
-            Headline cascade is now SYNCED with the video scrub:
-            both span the full scroll runway from start to end. As
-            the video plays through (currentTime = progress × duration),
-            the headline letters reveal letter-by-letter at the same
-            pace. They finish together at the bottom of the section.
-
-            Both animations share the same mapped progress curve:
-            section scroll progress 0 → 0.85 drives both video AND
-            cascade from 0 → 1 in lockstep. Section progress 0.85
-            → 1.0 is the "settled hero" buffer — video sits on
-            frame 149 and the headline holds in final white while
-            the user finishes scrolling past the runway. This
-            ensures the entire scrub is visible BEFORE the next
-            section enters the viewport from below.
-          */}
-          <h1
+          <div
             style={{
-              // Tighter responsive clamp: floor 32px so the headline
-              // wraps cleanly to 2 lines max on 375px phones; 7vw
-              // gives a gentler grow-rate than the old 6vw so cascade
-              // per-letter timing stays proportional to the line
-              // widths the reader actually sees.
-              fontSize: 'clamp(32px, 7vw, 96px)',
-              fontWeight: 400,
-              lineHeight: 1.05,
-              letterSpacing: '-0.02em',
-              fontFamily: 'var(--font-primary)',
-              margin: 0,
-              color: '#fff',
+              padding: '0 5.128vw',
             }}
           >
-            {/*
-              Single-line hero: "We haul what others won't touch."
-              "We" stays visible at scroll=0 (always-on first word); the
-              rest cascades in letter-by-letter, paced to span the same
-              scroll range as the video scrub so both animations finish
-              together at the bottom of the runway.
-            */}
-            <span style={{ color: '#fff' }}>We</span>{' '}
-            <CascadeText
-              text="haul what others won't touch."
-              progress={heroProgress}
-              // Sync the cascade 1:1 with the video scrub: both
-              // animations span the FULL [0, 1] of scroll progress,
-              // so the last letter snaps into place on the exact
-              // same frame the video reaches frame 149. The prior
-              // [0.04, 0.96] window meant the cascade was 4% ahead
-              // at the start and 4% behind at the end — visible as
-              // the text "finishing early" while the video was
-              // still scrubbing the last frames.
-              range={[0, 1]}
-              spread={1}
-              finalColor="#fff"
-              flashColor="#D4E030"
-              restColor="rgba(255,255,255,0.18)"
-            />
-          </h1>
-        </div>
+            <h1
+              style={{
+                fontSize: 'clamp(32px, 7vw, 96px)',
+                fontWeight: 400,
+                lineHeight: 1.05,
+                letterSpacing: '-0.02em',
+                fontFamily: 'var(--font-primary)',
+                margin: 0,
+                color: '#fff',
+              }}
+            >
+              <span style={{ color: '#fff' }}>We</span>{' '}
+              <CascadeText
+                text="haul what others won't touch."
+                progress={heroProgress}
+                range={[0, 1]}
+                spread={1}
+                finalColor="#fff"
+                flashColor="#D4E030"
+                restColor="rgba(255,255,255,0.18)"
+              />
+            </h1>
+          </div>
 
           <div
             style={{
@@ -388,6 +360,32 @@ export function HeroSection() {
           </div>
         </div>
       </div>
-    </section>
+
+      {/*
+        Scroll runway. Invisible — just gives the page the
+        scrollable height the rAF loop reads to drive the video
+        scrub. The visible hero above is `position: fixed`, so
+        it's not in this element's box. The runway height lives
+        in CSS (.mkt-hero-runway in globals.css) and adapts per
+        breakpoint.
+      */}
+      <section
+        ref={sectionRef}
+        className="mkt-hero-runway"
+        aria-hidden
+        style={{
+          position: 'relative',
+          // overflow-x clip so the 100vw fixed stage above
+          // doesn't bleed horizontally; clip does NOT create
+          // a Y scroll context that would break the runway's
+          // sizing.
+          overflowX: 'clip',
+          // Behind the typewriter section but above the fixed
+          // stage so anchor-link targets land here, not under
+          // the hero video.
+          zIndex: 1,
+        }}
+      />
+    </>
   );
 }

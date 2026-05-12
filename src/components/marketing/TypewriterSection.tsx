@@ -7,38 +7,48 @@ import { CascadeText } from './CascadeText';
 const TEXT = 'across Colorado, straight to your customers.';
 
 /**
- * White-panel pull-quote that slides UP over the tail of the hero
- * with parallax — terminal-industries.com style. Three forces
- * combine to sell the "panel rising over hero" feel:
+ * White-panel pull-quote that scrolls UP over the FIXED hero
+ * stage that precedes it in the page tree.
  *
- *   1. marginTop: -120px so the white panel naturally overlaps the
- *      bottom of the hero by a meaningful amount (large enough that
- *      the rounded top corners read clearly against the dark video).
- *   2. borderTopLeftRadius / borderTopRightRadius: 40px so the
- *      panel reads as a "sheet" with curved edges, not a flat block.
- *   3. A scroll-linked translateY parallax: while the section's top
- *      is between viewport-bottom and viewport-mid, we offset the
- *      whole section downward by up to 80px and animate it back to 0
- *      as the user scrolls. So as you scroll into it, the section
- *      visually "rises" instead of just sliding linearly with the
- *      page. zIndex 5 keeps it above the hero so the rounded corners
- *      cut out the dark video underneath.
+ *   1. `marginTop: -100vh` — the panel starts overlapping the
+ *      hero by a full viewport height. As the user scrolls past
+ *      the hero runway, this panel scrolls UP across the still-
+ *      visible hero video, eventually covering it entirely.
+ *   2. `position: relative; zIndex: 10` — layers on top of the
+ *      fixed hero so the white background reads cleanly.
+ *   3. Rounded top corners + soft shadow for a "sheet rising"
+ *      look as it overtakes the hero.
+ *   4. Inner text wrapper uses a scroll-linked opacity so the
+ *      cascade text fades IN as the panel approaches the
+ *      viewport top — synchronized with the hero headline
+ *      fading OUT (in HeroSection.tsx's rAF loop). The two
+ *      text states visually swap.
  */
 export function TypewriterSection() {
   const ref = useRef<HTMLElement>(null);
 
-  // Track scroll while the section's top edge crosses the viewport
-  // from "just appearing at the bottom" to "settled in the middle".
+  // Track scroll progress as the panel's TOP edge transitions
+  // from "just below viewport" (start end) to "fully at
+  // viewport top" (start start). Used for both the parallax
+  // and the cascade-text opacity fade-in.
   const { scrollYProgress } = useScroll({
     target: ref,
-    offset: ['start end', 'start 30%'],
+    offset: ['start end', 'start start'],
   });
 
-  // While entering: translate the section down by up to 80px (so it
-  // appears to "rise" as the user scrolls). Settles to 0 by the time
-  // its top reaches 30% of viewport. Clamped so the panel doesn't
-  // overshoot once the user has scrolled past it.
+  // Parallax lift kept from the prior iteration so the panel
+  // reads as "rising" not "sliding flat" while it enters.
   const y = useTransform(scrollYProgress, [0, 1], [80, 0], { clamp: true });
+
+  // Cascade text fades IN over the LAST third of the panel's
+  // approach. By the time the panel's top has reached the
+  // viewport top (scrollYProgress = 1), opacity = 1. This
+  // matches the hero headline's fade-OUT window driven from
+  // HeroSection.tsx (sectionProgress 0.7 → 1.0), so the
+  // operator sees the two text states visually trade.
+  const textOpacity = useTransform(scrollYProgress, [0.6, 1], [0, 1], {
+    clamp: true,
+  });
 
   return (
     <motion.section
@@ -47,26 +57,25 @@ export function TypewriterSection() {
         background: '#fff',
         borderTopLeftRadius: '40px',
         borderTopRightRadius: '40px',
-        marginTop: '-120px',
+        // Full-viewport overlap so the panel SLIDES UP over the
+        // fixed hero stage (previously -120px, which was a tiny
+        // visual nibble and let the hero scroll off behind it).
+        marginTop: '-100vh',
         position: 'relative',
-        zIndex: 5,
-        // Soft top-edge shadow so the rounded corners read as elevated
-        // when they overlap the dark hero. Subtle but visible against
-        // the video frames.
+        // Above the fixed hero (zIndex 0) so the white panel
+        // reads cleanly on top.
+        zIndex: 10,
         boxShadow: '0 -32px 60px -32px rgba(0, 0, 0, 0.7)',
         minHeight: '100vh',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         overflow: 'hidden',
-        // Parallax lift: animate transform: translateY(...) tied to
-        // section scroll progress.
         y,
         willChange: 'transform',
       }}
     >
-      {/* Subtle dark-on-white grid pattern (matches FeaturesSection
-          and BenefitsSection visual language). */}
+      {/* Subtle dark-on-white grid pattern. */}
       <div
         style={{
           position: 'absolute',
@@ -78,8 +87,10 @@ export function TypewriterSection() {
         }}
       />
 
-      {/* Headline */}
-      <div
+      {/* Headline. Wrapper opacity is scroll-linked so the
+          cascade text fades in as the panel arrives, synced
+          with the hero headline's fade out. */}
+      <motion.div
         style={{
           position: 'relative',
           zIndex: 1,
@@ -92,6 +103,8 @@ export function TypewriterSection() {
           fontFamily: 'var(--font-primary)',
           color: '#0F1A1A',
           letterSpacing: '-0.01em',
+          opacity: textOpacity,
+          willChange: 'opacity',
         }}
       >
         <CascadeText
@@ -113,7 +126,7 @@ export function TypewriterSection() {
         >
           |
         </span>
-      </div>
+      </motion.div>
     </motion.section>
   );
 }
