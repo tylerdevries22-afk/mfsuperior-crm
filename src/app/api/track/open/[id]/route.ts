@@ -35,24 +35,49 @@ export async function GET(
 
 async function recordOpen(eventId: string) {
   try {
+    // Pull the FULL context of the originating send so the open event
+    // is correlatable: lead, enrollment, sequence step, and template.
+    // Previously we only copied leadId, which orphaned opens from the
+    // sequence/template they belonged to and made per-step + per-
+    // template engagement reporting impossible.
     const [parent] = await db
-      .select({ leadId: emailEvents.leadId })
+      .select({
+        leadId: emailEvents.leadId,
+        enrollmentId: emailEvents.enrollmentId,
+        sequenceStep: emailEvents.sequenceStep,
+        templateId: emailEvents.templateId,
+      })
       .from(emailEvents)
       .where(eq(emailEvents.id, eventId))
       .limit(1);
-    if (!parent) return;
+    if (!parent) {
+      console.warn(
+        "[track/open] no parent event for pixel hit",
+        eventId.slice(0, 8),
+      );
+      return;
+    }
 
-    // Insert a separate "opened" event linked back to the same lead.
-    // The unique idempotency index doesn't apply here (it's keyed on
-    // enrollment_id+step+event_type) — multiple opens are allowed and
-    // counted. The dashboard treats first-open as the engagement signal.
     await db.insert(emailEvents).values({
       leadId: parent.leadId,
+      enrollmentId: parent.enrollmentId ?? undefined,
+      sequenceStep: parent.sequenceStep ?? undefined,
+      templateId: parent.templateId ?? undefined,
       eventType: "opened",
-      metadataJson: { sourceEventId: eventId, openedAt: new Date().toISOString() },
+      metadataJson: {
+        source: "pixel",
+        sourceEventId: eventId,
+        openedAt: new Date().toISOString(),
+      },
       occurredAt: sql`now()`,
     });
-  } catch {
-    // Tracking must never throw to the client.
+  } catch (err) {
+    // Tracking must never throw to the client, but log so we can
+    // diagnose silent drops in /admin Health.
+    console.error(
+      "[track/open] recordOpen failed for",
+      eventId.slice(0, 8),
+      (err as Error).message?.slice(0, 120),
+    );
   }
 }

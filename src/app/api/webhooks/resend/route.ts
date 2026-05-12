@@ -104,13 +104,17 @@ export async function POST(req: Request) {
     return new Response("ok", { status: 200 });
   }
 
-  // Find the sent/draft event by providerMessageId
+  // Find the sent/draft event by providerMessageId. We pull templateId
+  // too so the open/click event rows below carry the full sequence-
+  // step + template context — otherwise downstream dashboards can't
+  // group engagement by template.
   const [parentEvent] = await db
     .select({
       id: emailEvents.id,
       leadId: emailEvents.leadId,
       enrollmentId: emailEvents.enrollmentId,
       sequenceStep: emailEvents.sequenceStep,
+      templateId: emailEvents.templateId,
     })
     .from(emailEvents)
     .where(eq(emailEvents.providerMessageId, emailId))
@@ -144,6 +148,7 @@ export async function POST(req: Request) {
         await db.insert(emailEvents).values({
           leadId: parentEvent.leadId,
           enrollmentId: parentEvent.enrollmentId ?? undefined,
+          templateId: parentEvent.templateId ?? undefined,
           eventType,
           sequenceStep: parentEvent.sequenceStep ?? undefined,
           metadataJson: {
@@ -184,32 +189,74 @@ export async function POST(req: Request) {
     }
 
     case "email.opened": {
-      // Supplement pixel tracking — Resend's open tracking fires even when
-      // images are blocked (via Apple MPP proxy etc.)
-      await db.insert(emailEvents).values({
-        leadId: parentEvent.leadId,
-        enrollmentId: parentEvent.enrollmentId ?? undefined,
-        eventType: "opened",
-        sequenceStep: parentEvent.sequenceStep ?? undefined,
-        metadataJson: { source: "resend_webhook", emailId },
-        occurredAt: sql`now()`,
-      });
+      // Supplement pixel tracking — Resend's open tracking fires even
+      // when images are blocked (e.g. Apple MPP proxy). Webhook
+      // deliveries can retry on transient failures, so we guard
+      // against duplicates by checking for an existing
+      // resend_webhook-sourced "opened" event for the same parent
+      // email. Pixel-sourced opens are a separate stream and are
+      // not collapsed (different `source` metadata).
+      const [dupOpen] = await db
+        .select({ id: emailEvents.id })
+        .from(emailEvents)
+        .where(
+          and(
+            eq(emailEvents.leadId, parentEvent.leadId),
+            eq(emailEvents.eventType, "opened"),
+            sql`${emailEvents.metadataJson}->>'emailId' = ${emailId}`,
+            sql`${emailEvents.metadataJson}->>'source' = 'resend_webhook'`,
+          ),
+        )
+        .limit(1);
+      if (!dupOpen) {
+        await db.insert(emailEvents).values({
+          leadId: parentEvent.leadId,
+          enrollmentId: parentEvent.enrollmentId ?? undefined,
+          templateId: parentEvent.templateId ?? undefined,
+          eventType: "opened",
+          sequenceStep: parentEvent.sequenceStep ?? undefined,
+          metadataJson: { source: "resend_webhook", emailId },
+          occurredAt: sql`now()`,
+        });
+      }
       break;
     }
 
     case "email.clicked": {
-      await db.insert(emailEvents).values({
-        leadId: parentEvent.leadId,
-        enrollmentId: parentEvent.enrollmentId ?? undefined,
-        eventType: "clicked",
-        sequenceStep: parentEvent.sequenceStep ?? undefined,
-        metadataJson: {
-          source: "resend_webhook",
-          emailId,
-          link: (event.data as { click?: { link?: string } }).click?.link,
-        },
-        occurredAt: sql`now()`,
-      });
+      // Same idempotency story as opens. Resend includes the clicked
+      // link URL in `click.link`; we collapse on (emailId, link) so
+      // multiple clicks on different links still count separately
+      // while a retried webhook for the same click does not.
+      const clickedLink =
+        (event.data as { click?: { link?: string } }).click?.link ?? "";
+      const [dupClick] = await db
+        .select({ id: emailEvents.id })
+        .from(emailEvents)
+        .where(
+          and(
+            eq(emailEvents.leadId, parentEvent.leadId),
+            eq(emailEvents.eventType, "clicked"),
+            sql`${emailEvents.metadataJson}->>'emailId' = ${emailId}`,
+            sql`${emailEvents.metadataJson}->>'source' = 'resend_webhook'`,
+            sql`coalesce(${emailEvents.metadataJson}->>'link', '') = ${clickedLink}`,
+          ),
+        )
+        .limit(1);
+      if (!dupClick) {
+        await db.insert(emailEvents).values({
+          leadId: parentEvent.leadId,
+          enrollmentId: parentEvent.enrollmentId ?? undefined,
+          templateId: parentEvent.templateId ?? undefined,
+          eventType: "clicked",
+          sequenceStep: parentEvent.sequenceStep ?? undefined,
+          metadataJson: {
+            source: "resend_webhook",
+            emailId,
+            link: clickedLink,
+          },
+          occurredAt: sql`now()`,
+        });
+      }
       break;
     }
 
