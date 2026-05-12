@@ -54,18 +54,14 @@ export function TypewriterSection() {
     <motion.section
       ref={ref}
       style={{
-        background: '#fff',
-        borderTopLeftRadius: '40px',
-        borderTopRightRadius: '40px',
-        // Full-viewport overlap so the panel SLIDES UP over the
-        // fixed hero stage (previously -120px, which was a tiny
-        // visual nibble and let the hero scroll off behind it).
-        marginTop: '-100vh',
+        // No bg / grid / negative margin / rounded corners /
+        // shadow here anymore — InteractiveGridCanvas wrapping
+        // this section in page.tsx owns all of that so the post-
+        // hero region is one continuous canvas. This section's
+        // only job now is the typewriter headline + its scroll-
+        // linked text fade-in (synced with the hero headline's
+        // fade-out).
         position: 'relative',
-        // Above the fixed hero (zIndex 0) so the white panel
-        // reads cleanly on top.
-        zIndex: 10,
-        boxShadow: '0 -32px 60px -32px rgba(0, 0, 0, 0.7)',
         minHeight: '100vh',
         display: 'flex',
         alignItems: 'center',
@@ -75,18 +71,6 @@ export function TypewriterSection() {
         willChange: 'transform',
       }}
     >
-      {/* Subtle dark-on-white grid pattern. */}
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          backgroundImage:
-            'linear-gradient(rgba(17,17,17,0.045) 1px, transparent 1px), linear-gradient(90deg, rgba(17,17,17,0.045) 1px, transparent 1px)',
-          backgroundSize: '80px 80px',
-          pointerEvents: 'none',
-        }}
-      />
-
       {/* Headline. Wrapper opacity is scroll-linked so the
           cascade text fades in as the panel arrives, synced
           with the hero headline's fade out. */}

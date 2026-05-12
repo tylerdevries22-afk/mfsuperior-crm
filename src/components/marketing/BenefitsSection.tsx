@@ -229,7 +229,10 @@ export function BenefitsSection() {
       <div
         style={{
           padding: '80px 5.128vw',
-          backgroundColor: '#fff',
+          // Transparent — let the InteractiveGridCanvas show through.
+          // (The text strips below still use white so they read as
+          // discrete cards alternating with the dark video frames.)
+          backgroundColor: 'transparent',
           borderBottom: '1px solid #e5e5e5',
         }}
       >

@@ -17,10 +17,13 @@ export function LogosSection() {
   return (
     <section
       style={{
-        backgroundColor: '#fff',
+        // Transparent — InteractiveGridCanvas in page.tsx owns the
+        // bg/grid for the entire post-Typewriter region so the
+        // yellow-spotlight effect carries through.
+        backgroundColor: 'transparent',
         padding: '80px 0',
-        backgroundImage:
-          'linear-gradient(rgba(0,0,0,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,0.04) 1px, transparent 1px)',
+        // Local grid is also removed for the same reason — the
+        // canvas one is the single source of truth.
         backgroundSize: '40px 40px',
       }}
     >
