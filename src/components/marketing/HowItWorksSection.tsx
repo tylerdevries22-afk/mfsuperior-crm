@@ -181,7 +181,10 @@ export function HowItWorksSection() {
       id="contact"
       ref={sectionRef}
       style={{
-        backgroundColor: '#fff',
+        // Transparent — InteractiveGridCanvas in page.tsx owns the
+        // canvas + interactive grid for the whole post-Typewriter
+        // region. Form inputs inside keep their own white bg.
+        backgroundColor: 'transparent',
         position: 'relative',
         overflow: 'hidden',
         scrollMarginTop: '80px',

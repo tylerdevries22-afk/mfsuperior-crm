@@ -46,7 +46,10 @@ export function FeaturesSection() {
         // (margin: '40px -5.128vw 0' inside MobileCarousel) so it can't
         // trigger horizontal scroll on small viewports.
         overflowX: 'clip',
-        backgroundColor: '#fff',
+        // Transparent — the InteractiveGridCanvas wrapping this
+        // section in page.tsx paints the white-grid backdrop +
+        // the interactive yellow spotlight underneath.
+        backgroundColor: 'transparent',
         paddingTop: '120px',
         scrollMarginTop: '80px',
       }}
