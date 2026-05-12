@@ -1446,6 +1446,8 @@ export async function revalidateAllLeadEmailsAction(): Promise<void> {
   let unverified = 0;
   let invalid = 0;
   let archivedAsInvalid = 0;
+  let hunterCalls = 0;
+  let partial = false;
   let durationMs = 0;
 
   try {
@@ -1466,6 +1468,8 @@ export async function revalidateAllLeadEmailsAction(): Promise<void> {
       unverified = report.byTrust.unverified;
       invalid = report.byTrust.invalid;
       archivedAsInvalid = report.archivedAsInvalid;
+      hunterCalls = report.hunterCalls;
+      partial = report.partial;
       durationMs = report.durationMs;
       if (report.errors.length > 0) {
         errorMsg = report.errors.slice(0, 3).join("; ").slice(0, 200);
@@ -1488,6 +1492,8 @@ export async function revalidateAllLeadEmailsAction(): Promise<void> {
     t_unverified: String(unverified),
     t_invalid: String(invalid),
     t_archived: String(archivedAsInvalid),
+    t_hunter: String(hunterCalls),
+    t_partial: partial ? "1" : "0",
     t_dur: String(durationMs),
   });
   if (errorMsg) params.set("trust_error", errorMsg);
