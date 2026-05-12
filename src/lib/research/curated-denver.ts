@@ -1,13 +1,22 @@
 /**
- * Curated seed list of confirmed Denver Metro businesses with public
+ * Curated seed list of confirmed Front Range businesses with public
  * websites. This is the **guaranteed source** the free-mode research
  * script always has access to — works regardless of whether OSM
  * Overpass / Vercel outbound restrictions are blocking external
  * discovery APIs.
  *
- * Each entry is a real, publicly-known business with operations in the
- * Denver Metro 6-county area. Domains are root domains (no scheme,
- * no path) so the scraper + MX-validator can latch onto them directly.
+ * Coverage: Denver Metro 6-county (Denver, Adams, Arapahoe, Boulder,
+ * Broomfield, Douglas, Jefferson), Boulder, Fort Collins, Loveland,
+ * Greeley, Colorado Springs, Pueblo, and mountain resort towns
+ * (Vail, Aspen, Telluride, Steamboat, Crested Butte, Estes Park,
+ * Breckenridge). The list mixes national-chain Denver branches (top
+ * section, kept for legacy compatibility) with a much larger block of
+ * locally-owned independents added 2026-05 — the latter is the
+ * higher-quality outreach target for a regional freight carrier.
+ *
+ * Each entry is a real, publicly-known business. Domains are root
+ * domains (no scheme, no path) so the scraper + MX-validator can latch
+ * onto them directly.
  *
  * No street addresses or phone numbers — those are filled in by the
  * scrape pass (or surfaced as `address=null` if the website doesn't
@@ -261,4 +270,227 @@ export const CURATED_DENVER: CuratedEntry[] = [
   { name: "Strawberry Fields Cannabis", industry: "cannabis", domain: "strawberryfieldscolorado.com", emailLocal: "info" },
   { name: "Silver Stem Fine Cannabis", industry: "cannabis", domain: "silverstemcannabis.com", emailLocal: "info" },
   { name: "Cannabis Supply", industry: "cannabis", domain: "cannabissupply.com", emailLocal: "orders" },
+
+  // ╔════════════════════════════════════════════════════════════════╗
+  // ║ FRONT RANGE INDEPENDENTS                                       ║
+  // ║                                                                ║
+  // ║ Locally-owned operators across Denver Metro + Boulder + Fort   ║
+  // ║ Collins + Loveland + Greeley + Colorado Springs + mountain     ║
+  // ║ resort towns. Skews to single-/multi-location independents     ║
+  // ║ where the owner or GM is the right freight-outreach            ║
+  // ║ decision-maker. National chains intentionally excluded — they  ║
+  // ║ gate procurement corporate-side and rarely engage with cold    ║
+  // ║ outbound from a regional carrier.                              ║
+  // ╚════════════════════════════════════════════════════════════════╝
+
+  // ── Denver independent restaurants & restaurant groups ──────────
+  { name: "Root Down", industry: "restaurants", domain: "rootdownrestaurant.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Linger", industry: "restaurants", domain: "lingerdenver.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Ophelia's Electric Soapbox", industry: "restaurants", domain: "opheliasdenver.com", refrigerated: true, emailLocal: "orders" },
+  { name: "El Five", industry: "restaurants", domain: "elfivedenver.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Vital Root", industry: "restaurants", domain: "vitalrootdenver.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Sam's No. 3", industry: "restaurants", domain: "samsno3.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Cherry Cricket", industry: "restaurants", domain: "cherrycricket.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Park Burger", industry: "restaurants", domain: "parkburger.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Highland Tap & Burger", industry: "restaurants", domain: "tapandburger.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Steuben's", industry: "restaurants", domain: "steubens.com", refrigerated: true, emailLocal: "orders" },
+  { name: "City O' City", industry: "restaurants", domain: "cityocitydenver.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Watercourse Foods", industry: "restaurants", domain: "watercoursefoods.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Avanti Food & Beverage", industry: "restaurants", domain: "avantifandb.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Mercantile Dining & Provision", industry: "restaurants", domain: "mercantiledenver.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Tavernetta", industry: "restaurants", domain: "tavernettadenver.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Pizzeria Locale", industry: "restaurants", domain: "pizzerialocale.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Annette", industry: "restaurants", domain: "annettescratchtotable.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Hop Alley", industry: "restaurants", domain: "hopalleydenver.com", refrigerated: true, emailLocal: "orders" },
+  { name: "ChoLon Modern Asian", industry: "restaurants", domain: "cholon.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Sushi Sasa", industry: "restaurants", domain: "sushisasa.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Beast + Bottle", industry: "restaurants", domain: "beastandbottle.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Coperta", industry: "restaurants", domain: "copertadenver.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Domo Restaurant", industry: "restaurants", domain: "domorestaurant.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Mizuna", industry: "restaurants", domain: "mizunadenver.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Fruition Restaurant", industry: "restaurants", domain: "fruitionrestaurant.com", refrigerated: true, emailLocal: "orders" },
+  { name: "The Kitchen Restaurant Group", industry: "restaurants", domain: "thekitchen.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Casa Bonita", industry: "restaurants", domain: "casabonitadenver.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Work & Class", industry: "restaurants", domain: "workandclassdenver.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Ace Eat Serve", industry: "restaurants", domain: "aceeatserve.com", refrigerated: true, emailLocal: "orders" },
+  { name: "White Pie", industry: "restaurants", domain: "whitepiedenver.com", refrigerated: true, emailLocal: "orders" },
+  { name: "The Plimoth", industry: "restaurants", domain: "theplimoth.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Bonanno Concepts", industry: "restaurants", domain: "bonannoconcepts.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Cart-Driver", industry: "restaurants", domain: "cart-driver.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Tacos Tequila Whiskey", industry: "restaurants", domain: "tacostequilawhiskey.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Vesta", industry: "restaurants", domain: "vestadenver.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Spuntino", industry: "restaurants", domain: "spuntinodenver.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Pete's Kitchen", industry: "restaurants", domain: "peteskitchencolfax.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Bigsby's Folly Winery", industry: "restaurants", domain: "bigsbysfolly.com", refrigerated: true, emailLocal: "orders" },
+
+  // ── Boulder / Fort Collins independent restaurants ──────────────
+  { name: "Frasca Food and Wine", industry: "restaurants", domain: "frascafoodandwine.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Mountain Sun Pub & Brewery", industry: "restaurants", domain: "mountainsunpub.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Black Cat Bistro", industry: "restaurants", domain: "blackcatboulder.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Bramble & Hare", industry: "restaurants", domain: "brambleandhare.com", refrigerated: true, emailLocal: "orders" },
+  { name: "River and Woods", industry: "restaurants", domain: "riverandwoods.com", refrigerated: true, emailLocal: "orders" },
+  { name: "The Mediterranean Restaurant", industry: "restaurants", domain: "themedboulder.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Acreage by Stem Ciders", industry: "restaurants", domain: "acreageco.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Pizza Casbah", industry: "restaurants", domain: "pizzacasbah.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Coopersmith's Pub & Brewing", industry: "restaurants", domain: "coopersmithspub.com", refrigerated: true, emailLocal: "orders" },
+
+  // ── Colorado Springs / Pueblo independent restaurants ──────────
+  { name: "The Famous Steakhouse", industry: "restaurants", domain: "thefamoussteakhouse.net", refrigerated: true, emailLocal: "orders" },
+  { name: "Adam's Mountain Cafe", industry: "restaurants", domain: "adamsmountain.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Walter's Bistro", industry: "restaurants", domain: "waltersbistro.com", refrigerated: true, emailLocal: "orders" },
+  { name: "The Margarita at PineCreek", industry: "restaurants", domain: "margaritaatpinecreek.com", refrigerated: true, emailLocal: "orders" },
+
+  // ── Front Range craft breweries ─────────────────────────────────
+  { name: "Wynkoop Brewing Company", industry: "smallbiz", domain: "wynkoop.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Great Divide Brewing", industry: "smallbiz", domain: "greatdivide.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Renegade Brewing", industry: "smallbiz", domain: "renegadebrewing.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Black Shirt Brewing", industry: "smallbiz", domain: "blackshirtbrewingco.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Crooked Stave Artisan Beer", industry: "smallbiz", domain: "crookedstave.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Cerebral Brewing", industry: "smallbiz", domain: "cerebralbrewing.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Ratio Beerworks", industry: "smallbiz", domain: "ratiobeerworks.com", refrigerated: true, emailLocal: "orders" },
+  { name: "TRVE Brewing", industry: "smallbiz", domain: "trvebrewing.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Comrade Brewing", industry: "smallbiz", domain: "comradebrewing.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Spangalang Brewery", industry: "smallbiz", domain: "spangalangbrewery.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Mockery Brewing", industry: "smallbiz", domain: "mockerybrewing.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Diebolt Brewing", industry: "smallbiz", domain: "dieboltbrewing.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Joyride Brewing", industry: "smallbiz", domain: "joyridebrewing.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Goldspot Brewing", industry: "smallbiz", domain: "goldspotbrewing.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Bull & Bush Brewery", industry: "smallbiz", domain: "bullandbush.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Strange Craft Beer Company", industry: "smallbiz", domain: "strangecraft.com", refrigerated: true, emailLocal: "orders" },
+  { name: "4 Noses Brewing", industry: "smallbiz", domain: "4nosesbrewing.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Westbound & Down Brewing", industry: "smallbiz", domain: "westboundanddown.com", refrigerated: true, emailLocal: "orders" },
+  { name: "New Image Brewing", industry: "smallbiz", domain: "newimagebrewing.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Avery Brewing", industry: "smallbiz", domain: "averybrewing.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Upslope Brewing", industry: "smallbiz", domain: "upslopebrewing.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Sanitas Brewing", industry: "smallbiz", domain: "sanitasbrewing.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Twisted Pine Brewing", industry: "smallbiz", domain: "twistedpinebrewing.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Asher Brewing", industry: "smallbiz", domain: "asherbrewing.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Wibby Brewing", industry: "smallbiz", domain: "wibbybrewing.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Oskar Blues Brewery", industry: "smallbiz", domain: "oskarblues.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Left Hand Brewing", industry: "smallbiz", domain: "lefthandbrewing.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Grimm Brothers Brewhouse", industry: "smallbiz", domain: "grimmbrosbrewhouse.com", refrigerated: true, emailLocal: "orders" },
+  { name: "New Belgium Brewing", industry: "smallbiz", domain: "newbelgium.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Odell Brewing", industry: "smallbiz", domain: "odellbrewing.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Funkwerks", industry: "smallbiz", domain: "funkwerks.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Equinox Brewing", industry: "smallbiz", domain: "equinoxbrewing.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Horse & Dragon Brewing", industry: "smallbiz", domain: "horseanddragonbrewing.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Black Bottle Brewery", industry: "smallbiz", domain: "blackbottlebrewery.com", refrigerated: true, emailLocal: "orders" },
+  { name: "WeldWerks Brewing", industry: "smallbiz", domain: "weldwerksbrewing.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Bristol Brewing", industry: "smallbiz", domain: "bristolbrewing.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Phantom Canyon Brewing", industry: "smallbiz", domain: "phantomcanyon.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Trinity Brewing", industry: "smallbiz", domain: "trinitybrew.com", refrigerated: true, emailLocal: "orders" },
+
+  // ── Distilleries & wineries ─────────────────────────────────────
+  { name: "Stranahan's Colorado Whiskey", industry: "smallbiz", domain: "stranahans.com", emailLocal: "orders" },
+  { name: "Mile High Spirits", industry: "smallbiz", domain: "milehighspirits.com", emailLocal: "orders" },
+  { name: "Family Jones Spirit House", industry: "smallbiz", domain: "thefamilyjones.co", emailLocal: "orders" },
+  { name: "Leopold Bros. Distillery", industry: "smallbiz", domain: "leopoldbros.com", emailLocal: "orders" },
+  { name: "Bear Creek Distillery", industry: "smallbiz", domain: "bearcreekdistillery.com", emailLocal: "orders" },
+  { name: "Boulder Spirits", industry: "smallbiz", domain: "boulderspirits.com", emailLocal: "orders" },
+  { name: "Spirit Hound Distillers", industry: "smallbiz", domain: "spirithounds.com", emailLocal: "orders" },
+  { name: "Distillery 291", industry: "smallbiz", domain: "distillery291.com", emailLocal: "orders" },
+  { name: "Talnua Distillery", industry: "smallbiz", domain: "talnua.com", emailLocal: "orders" },
+  { name: "Carboy Winery", industry: "smallbiz", domain: "carboywinery.com", emailLocal: "orders" },
+  { name: "Balistreri Vineyards", industry: "smallbiz", domain: "balistrerivineyards.com", emailLocal: "orders" },
+
+  // ── Specialty coffee roasters (B2B wholesale + cafés) ───────────
+  { name: "Novo Coffee", industry: "smallbiz", domain: "novocoffee.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Corvus Coffee Roasters", industry: "smallbiz", domain: "corvuscoffee.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Pablo's Coffee", industry: "smallbiz", domain: "pabloscoffee.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Sweet Bloom Coffee Roasters", industry: "smallbiz", domain: "sweetbloomcoffee.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Boxcar Coffee Roasters", industry: "smallbiz", domain: "boxcarcoffeeroasters.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Ozo Coffee", industry: "smallbiz", domain: "ozocoffee.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Allegro Coffee Roasters", industry: "smallbiz", domain: "allegrocoffee.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Conscious Coffees", industry: "smallbiz", domain: "consciouscoffees.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Kaladi Coffee Roasters", industry: "smallbiz", domain: "kaladicoffee.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Solar Roast Coffee", industry: "smallbiz", domain: "solarroast.com", refrigerated: true, emailLocal: "orders" },
+
+  // ── Bakeries / specialty food / artisan markets ─────────────────
+  { name: "Rheinlander Bakery", industry: "restaurants", domain: "rheinlanderbakery.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Tony's Market", industry: "smallbiz", domain: "tonysmarket.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Marczyk Fine Foods", industry: "smallbiz", domain: "marczykfinefoods.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Babettes Artisan Breads", industry: "restaurants", domain: "babettesbakery.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Trompeau Bakery", industry: "restaurants", domain: "trompeaubakery.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Cured", industry: "smallbiz", domain: "curedboulder.com", refrigerated: true, emailLocal: "orders" },
+  { name: "The Truffle Cheese Shop", industry: "smallbiz", domain: "trufflecheese.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Mondo Vino", industry: "smallbiz", domain: "mondovino.com", refrigerated: true, emailLocal: "orders" },
+  { name: "The Real Dill", industry: "smallbiz", domain: "therealdill.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Polidori Sausage", industry: "smallbiz", domain: "polidorisausage.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Continental Sausage", industry: "smallbiz", domain: "continental-sausage.com", refrigerated: true, emailLocal: "orders" },
+
+  // ── Independent caterers / event food ───────────────────────────
+  { name: "Three Tomatoes Catering", industry: "restaurants", domain: "threetomatoescatering.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Catering by Design", industry: "restaurants", domain: "cateringbydesign.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Footers Catering", industry: "restaurants", domain: "footerscatering.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Biscuits & Berries", industry: "restaurants", domain: "biscuitsandberries.com", refrigerated: true, emailLocal: "orders" },
+  { name: "Occasions Catering", industry: "restaurants", domain: "occasionscatering.com", refrigerated: true, emailLocal: "orders" },
+  { name: "A Spice of Life", industry: "restaurants", domain: "aspiceoflife.com", refrigerated: true, emailLocal: "orders" },
+
+  // ── Independent CO general contractors / construction managers ──
+  { name: "Saunders Construction", industry: "construction", domain: "saundersci.com", emailLocal: "procurement" },
+  { name: "Catamount Constructors", industry: "construction", domain: "catamountinc.com", emailLocal: "procurement" },
+  { name: "Haselden Construction", industry: "construction", domain: "haselden.com", emailLocal: "procurement" },
+  { name: "Hyder Construction", industry: "construction", domain: "hyderconstruction.com", emailLocal: "procurement" },
+  { name: "Pinkard Construction", industry: "construction", domain: "pinkardcc.com", emailLocal: "procurement" },
+  { name: "GE Johnson Construction", industry: "construction", domain: "gejohnson.com", emailLocal: "procurement" },
+  { name: "Calcon Constructors", industry: "construction", domain: "calconconstructors.com", emailLocal: "procurement" },
+  { name: "Drahota Commercial", industry: "construction", domain: "drahotacommercial.com", emailLocal: "procurement" },
+  { name: "Bryan Construction", industry: "construction", domain: "bryanconstruction.com", emailLocal: "procurement" },
+  { name: "Adolfson & Peterson Construction", industry: "construction", domain: "a-p.com", emailLocal: "procurement" },
+  { name: "Mortenson Construction", industry: "construction", domain: "mortenson.com", emailLocal: "procurement" },
+  { name: "Brinkmann Constructors", industry: "construction", domain: "brinkmannconstructors.com", emailLocal: "procurement" },
+  { name: "PCL Construction", industry: "construction", domain: "pcl.com", emailLocal: "procurement" },
+
+  // ── Heavy equipment / industrial dealers (CO-based) ─────────────
+  { name: "Wagner Equipment Co.", industry: "construction", domain: "wagnerequipment.com", emailLocal: "procurement" },
+  { name: "Honnen Equipment", industry: "construction", domain: "honnen.com", emailLocal: "procurement" },
+  { name: "4 Rivers Equipment", industry: "construction", domain: "4riversequipment.com", emailLocal: "procurement" },
+  { name: "Power Motive Corporation", industry: "construction", domain: "pmccolorado.com", emailLocal: "procurement" },
+  { name: "Faris Machinery", industry: "construction", domain: "farismachinery.com", emailLocal: "procurement" },
+
+  // ── Construction supply (lumber / concrete / masonry) ───────────
+  { name: "Front Range Lumber", industry: "construction", domain: "frontrangelumber.com", emailLocal: "procurement" },
+  { name: "Stock Building Supply", industry: "construction", domain: "stockbuildingsupply.com", emailLocal: "procurement" },
+  { name: "Brannan Companies", industry: "construction", domain: "brannancos.com", emailLocal: "procurement" },
+  { name: "Aggregate Industries", industry: "construction", domain: "aggregate-us.com", emailLocal: "procurement" },
+  { name: "Castle Rock Construction", industry: "construction", domain: "castlerockcc.com", emailLocal: "procurement" },
+
+  // ── Boutique / historic hotels ──────────────────────────────────
+  { name: "The Brown Palace Hotel", industry: "smallbiz", domain: "brownpalace.com", refrigerated: true, emailLocal: "purchasing" },
+  { name: "The Crawford Hotel", industry: "smallbiz", domain: "thecrawfordhotel.com", refrigerated: true, emailLocal: "purchasing" },
+  { name: "Hotel Boulderado", industry: "smallbiz", domain: "boulderado.com", refrigerated: true, emailLocal: "purchasing" },
+  { name: "The Stanley Hotel", industry: "smallbiz", domain: "stanleyhotel.com", refrigerated: true, emailLocal: "purchasing" },
+  { name: "The Broadmoor", industry: "smallbiz", domain: "broadmoor.com", refrigerated: true, emailLocal: "purchasing" },
+  { name: "The Cliff House at Pikes Peak", industry: "smallbiz", domain: "thecliffhouse.com", refrigerated: true, emailLocal: "purchasing" },
+  { name: "Sonnenalp Hotel", industry: "smallbiz", domain: "sonnenalp.com", refrigerated: true, emailLocal: "purchasing" },
+  { name: "Hotel Talisa", industry: "smallbiz", domain: "hoteltalisa.com", refrigerated: true, emailLocal: "purchasing" },
+  { name: "Manor Vail Lodge", industry: "smallbiz", domain: "manorvail.com", refrigerated: true, emailLocal: "purchasing" },
+  { name: "The Little Nell", industry: "smallbiz", domain: "thelittlenell.com", refrigerated: true, emailLocal: "purchasing" },
+  { name: "Beaver Run Resort", industry: "smallbiz", domain: "beaverrun.com", refrigerated: true, emailLocal: "purchasing" },
+
+  // ── Mountain ski areas & resort operators ──────────────────────
+  { name: "Aspen Skiing Company", industry: "smallbiz", domain: "aspensnowmass.com", refrigerated: true, emailLocal: "purchasing" },
+  { name: "Steamboat Ski Resort", industry: "smallbiz", domain: "steamboat.com", refrigerated: true, emailLocal: "purchasing" },
+  { name: "Arapahoe Basin (A-Basin)", industry: "smallbiz", domain: "arapahoebasin.com", refrigerated: true, emailLocal: "purchasing" },
+  { name: "Winter Park Resort", industry: "smallbiz", domain: "winterparkresort.com", refrigerated: true, emailLocal: "purchasing" },
+  { name: "Eldora Mountain Resort", industry: "smallbiz", domain: "eldora.com", refrigerated: true, emailLocal: "purchasing" },
+  { name: "Crested Butte Mountain Resort", industry: "smallbiz", domain: "skicb.com", refrigerated: true, emailLocal: "purchasing" },
+  { name: "Telluride Ski Resort", industry: "smallbiz", domain: "tellurideskiresort.com", refrigerated: true, emailLocal: "purchasing" },
+  { name: "Wolf Creek Ski Area", industry: "smallbiz", domain: "wolfcreekski.com", emailLocal: "purchasing" },
+  { name: "Loveland Ski Area", industry: "smallbiz", domain: "skiloveland.com", emailLocal: "purchasing" },
+  { name: "Echo Mountain", industry: "smallbiz", domain: "echomtn.com", emailLocal: "purchasing" },
+
+  // ── Independent retail (book / outdoor / specialty) ─────────────
+  { name: "Tattered Cover Book Store", industry: "smallbiz", domain: "tatteredcover.com", emailLocal: "procurement" },
+  { name: "Boulder Book Store", industry: "smallbiz", domain: "boulderbookstore.com", emailLocal: "procurement" },
+  { name: "BookBar", industry: "smallbiz", domain: "bookbardenver.com", emailLocal: "procurement" },
+  { name: "The Wizard's Chest", industry: "smallbiz", domain: "wizardschest.com", emailLocal: "procurement" },
+  { name: "Topo Designs", industry: "smallbiz", domain: "topodesigns.com", emailLocal: "procurement" },
+  { name: "Wilderness Exchange", industry: "smallbiz", domain: "wildernessx.com", emailLocal: "procurement" },
+  { name: "McGuckin Hardware", industry: "smallbiz", domain: "mcguckin.com", emailLocal: "procurement" },
+  { name: "Boulder Cycle Sport", industry: "smallbiz", domain: "bouldercyclesport.com", emailLocal: "procurement" },
+  { name: "Backcountry Access (BCA)", industry: "smallbiz", domain: "backcountryaccess.com", emailLocal: "procurement" },
+  { name: "Smartwool", industry: "smallbiz", domain: "smartwool.com", emailLocal: "procurement" },
+  { name: "Eldorado Climbing Walls", industry: "smallbiz", domain: "eldoclimbing.com", emailLocal: "procurement" },
+  { name: "Ute Mountaineer", industry: "smallbiz", domain: "utemountaineer.com", emailLocal: "procurement" },
 ];
