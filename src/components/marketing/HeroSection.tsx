@@ -129,10 +129,27 @@ export function HeroSection() {
       const sectionProgress =
         maxScroll > 0 ? Math.min(1, scrolled / maxScroll) : 0;
 
-      // Map both animations into a sub-range of section progress
-      // so the scrub completes BEFORE the next section reveals.
-      const ANIM_END = 0.85;
-      const animProgress = Math.min(1, sectionProgress / ANIM_END);
+      // ── Cascade reveal timing ─────────────────────────────────
+      // Operators reported on mobile that the white panel covered
+      // the headline before the cascade finished revealing. Root
+      // cause: the previous ANIM_END = 0.85 was progress-based,
+      // and progress maps to different absolute scroll distances
+      // on different runway heights (280vh desktop vs 220vh
+      // mobile). The white panel — `<InteractiveGridCanvas>` with
+      // `marginTop: -100vh` — arrives at viewport top at a FIXED
+      // absolute scroll of 100vh regardless of runway, so the
+      // progress-based animation could finish AFTER the panel
+      // already covered the text on shorter runways.
+      //
+      // Fix: drive the cascade off absolute scroll-px, not
+      // progress, so the timing works the same on every viewport.
+      // CASCADE_DONE_PX = 0.55 × viewH means the reveal is fully
+      // done by the time the user has scrolled 55% of one
+      // viewport — well before the panel hits at 100vh — giving
+      // the operator a 45vh window of fully-readable headline
+      // before the fade-out begins.
+      const CASCADE_DONE_PX = viewH * 0.55;
+      const animProgress = Math.min(1, scrolled / CASCADE_DONE_PX);
 
       heroProgress.set(animProgress);
 
@@ -141,19 +158,21 @@ export function HeroSection() {
       }
 
       // Headline opacity fade-out, synced with the white panel's
-      // arrival. The TypewriterSection has marginTop: -100vh, so
-      // its top edge arrives at viewport top at sectionProgress
-      // = 1.0 (scrolled = maxScroll). Fading the headline out
-      // between 0.7 and 1.0 means it's gone by the time the
-      // panel fully covers — and the typewriter cascade
-      // (controlled by its own scroll progress) is fading in
-      // over the same scroll window, so the two text states
-      // visually trade off.
+      // arrival in ABSOLUTE scroll-px (not section progress) so
+      // the timing works the same on desktop and mobile.
+      //
+      // The InteractiveGridCanvas has `marginTop: -100vh`, so its
+      // top edge reaches viewport top at scrolled = viewH (one
+      // viewport). Fade-in begins 25% of a viewport before that
+      // and ends right as the panel arrives — the fade overlaps
+      // the panel's leading edge so the user perceives a smooth
+      // crossfade between "dark video + headline" and "white
+      // panel + grid".
       if (headlineRef.current) {
-        const FADE_START = 0.7;
-        const FADE_END = 1.0;
+        const FADE_START_PX = viewH * 0.75; // begin fade at 75vh of scroll
+        const FADE_END_PX = viewH * 1.0; // fully faded at 100vh — panel arrival
         const t =
-          (sectionProgress - FADE_START) / (FADE_END - FADE_START);
+          (scrolled - FADE_START_PX) / (FADE_END_PX - FADE_START_PX);
         const opacity = Math.max(0, Math.min(1, 1 - t));
         headlineRef.current.style.opacity = String(opacity);
       }
