@@ -37,6 +37,25 @@ const STATEMENTS: ReadonlyArray<string> = [
   // Added by PR #46 (email-trust pipeline).
   `ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "email_trust" text`,
   `ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "email_validated_at" timestamp with time zone`,
+
+  // Quick-add backlog (Quick-add button drains pre-verified leads
+  // INSTANTLY instead of running the 30-60s verify pipeline on
+  // every click). Refill runs in a Next.js `after()` background
+  // task triggered by the same action.
+  `CREATE TABLE IF NOT EXISTS "quick_add_backlog" (
+    "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    "email" text NOT NULL,
+    "company_name" text NOT NULL,
+    "website" text,
+    "industry" varchar(60),
+    "vertical" text,
+    "refrigerated" boolean NOT NULL DEFAULT false,
+    "chain" boolean NOT NULL DEFAULT false,
+    "source" varchar(32) NOT NULL,
+    "source_note" text,
+    "verified_at" timestamp with time zone NOT NULL DEFAULT now()
+  )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "quick_add_backlog_email_unique" ON "quick_add_backlog" ("email")`,
 ];
 
 // Module-level flag. Survives between requests inside a single
