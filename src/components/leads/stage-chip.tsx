@@ -119,6 +119,12 @@ const TAG_LABEL: Record<string, string> = {
 // Hide noise tags. `tier-*` markers duplicate the Tier column; the
 // vertical-label tags duplicate the Vertical column; and `email-role-
 // account` is a legacy spelling of `role-account` we now render once.
+//
+// `refrigerated` and `Dry Van` are also hidden here — we render a
+// derived "cold-chain" badge below based on whether `refrigerated`
+// is present so each lead gets EXACTLY ONE of Refrigerated /
+// Non-refrigerated (never both, never neither). This matches the
+// new dedicated Cold-chain filter in the rail.
 const HIDDEN_EXACT = new Set([
   "tier-A",
   "tier-B",
@@ -129,6 +135,9 @@ const HIDDEN_EXACT = new Set([
   "Freight broker / 3PL",
   "Small business",
   "email-role-account",
+  "refrigerated",
+  "Dry Van",
+  "dry-van",
 ]);
 const HIDDEN_PREFIXES: string[] = [];
 
@@ -141,14 +150,33 @@ export function TagBadges({
   className?: string;
   max?: number;
 }) {
+  // Derived cold-chain badge — always rendered, always exactly one.
+  // Pinned first in the row so it reads at a glance as the lead's
+  // primary freight-type indicator.
+  const isRefrigerated = tags.includes("refrigerated");
+  const coldBadge = {
+    label: isRefrigerated ? "Refrigerated" : "Non-refrigerated",
+    classes: isRefrigerated
+      ? "bg-cyan-100 text-cyan-900 ring-cyan-300 dark:bg-cyan-900/40 dark:text-cyan-100 dark:ring-cyan-700"
+      : "bg-muted text-muted-foreground ring-border",
+  };
+
   const visible = tags
     .filter(
       (t) => !HIDDEN_PREFIXES.some((p) => t.startsWith(p)) && !HIDDEN_EXACT.has(t),
     )
-    .slice(0, max);
-  if (visible.length === 0) return null;
+    .slice(0, Math.max(0, max - 1));
+
   return (
     <div className={cn("flex flex-wrap items-center gap-1", className)}>
+      <span
+        className={cn(
+          "inline-flex items-center rounded-full px-2 py-0.5 text-[10.5px] font-medium leading-none ring-1 ring-inset",
+          coldBadge.classes,
+        )}
+      >
+        {coldBadge.label}
+      </span>
       {visible.map((tag) => (
         <span
           key={tag}
