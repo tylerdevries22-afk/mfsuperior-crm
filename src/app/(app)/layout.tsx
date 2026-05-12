@@ -29,12 +29,12 @@ export default async function AppLayout({
     .where(isNull(notifications.readAt));
 
   return (
-    <div className="flex h-screen w-full flex-col md:flex-row">
+    // Always flex-row: on mobile the Sidebar renders a 56px icon
+    // rail, on desktop a 240px full sidebar — either way the nav
+    // sits flush-left and the main content fills the remainder.
+    <div className="flex h-screen w-full">
       <Sidebar unreadNotifications={unreadCount} />
       <main className="flex-1 overflow-y-auto bg-background">{children}</main>
-      {/* Cmd+K global palette — listens for ⌘K / Ctrl+K from any
-          authed page. No visible chrome by default; mounts the modal
-          on demand. */}
       <CommandPalette />
     </div>
   );
