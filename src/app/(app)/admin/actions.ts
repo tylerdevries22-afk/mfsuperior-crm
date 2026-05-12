@@ -28,6 +28,12 @@ import {
 } from "@/lib/research/osm";
 import type { Industry } from "@/lib/research/score";
 import { verifyWebsiteEmail } from "@/lib/research/verify-website-email";
+import {
+  HunterClient,
+  pickBestContact,
+  type Budget as HunterBudget,
+} from "@/lib/research/hunter";
+import { loadCache, saveCache, currentMonth } from "@/lib/research/cache";
 
 /**
  * Manually trigger the sequence tick. Authed UI users only — this is a
@@ -629,16 +635,34 @@ export async function manualSyncAction(): Promise<void> {
  * insert count will typically be far lower than the curated total — but
  * every inserted row is a real, deliverable address.
  */
+/**
+ * Quick-add target: how many verified-email leads to insert per click.
+ * Old behavior walked the entire curated list and inserted whatever
+ * passed website-scrape — typically 5-40 leads with wide variance.
+ * New behavior commits to a fixed deliverable: every click yields up
+ * to N freshly-verified leads (or stops early if the curated pool
+ * is exhausted after dedup).
+ */
+const QUICKADD_TARGET = 20;
+
+/** Worker pool size for the per-candidate verify pipeline. ~5 HTTP
+ *  fetches per worker × 8 workers = ~40 in-flight requests at peak. */
+const QUICKADD_CONCURRENCY = 8;
+
+/** Hunter free-tier monthly cap (searches + verifications, each). */
+const QUICKADD_HUNTER_CAP = 25;
+
 export async function verifiedQuickAddAction(): Promise<void> {
   let errorMsg: string | null = null;
   let attempted = 0;
   let inserted = 0;
   let skippedAlreadyExists = 0;
   let skippedNoEmail = 0;
-  let skippedNoHtml = 0;
   let skippedMxFailed = 0;
-  let skippedTimeout = 0;
   let skippedOther = 0;
+  let hunterCalls = 0;
+  let viaWebsite = 0;
+  let viaHunter = 0;
   const start = Date.now();
 
   try {
@@ -651,14 +675,9 @@ export async function verifiedQuickAddAction(): Promise<void> {
       const sample = CURATED_DENVER;
       attempted = sample.length;
 
-      // 1. Pre-fetch every existing non-archived lead matching one of our
-      //    candidate domains or company names — single SELECT.
-      const allDomains = sample.map((c) => c.domain);
-      // Fetch every non-archived lead and dedupe in JS. Previous version
-      // used `sql\`split_part(...) = ANY(${jsArray})\`` which doesn't bind
-      // reliably through Drizzle — Postgres rejected the query as malformed.
-      // The leads table is small (hundreds of rows, not millions); this
-      // one-shot fetch is faster and more robust than the conditional WHERE.
+      // 1. Pre-fetch every existing non-archived lead and dedupe in
+      //    JS — leads table is hundreds of rows, single SELECT is
+      //    cheaper than a conditional WHERE with a long IN list.
       const allExisting = await db
         .select({
           email: leadsTable.email,
@@ -669,7 +688,7 @@ export async function verifiedQuickAddAction(): Promise<void> {
         .where(isNull(leadsTable.archivedAt));
 
       const candidateDomains = new Set(
-        allDomains.map((d) => d.toLowerCase()),
+        sample.map((c) => c.domain.toLowerCase()),
       );
       const candidateNames = new Set(sample.map((c) => c.name));
 
@@ -699,8 +718,10 @@ export async function verifiedQuickAddAction(): Promise<void> {
         cannabis: "Cannabis (dispensary / cultivation)",
       };
 
-      // 2. Verify-or-skip each remaining entry, in parallel with a hard
-      //    per-company timeout so one stuck site can't blow our budget.
+      // 2. Dedupe + shuffle the candidate pool. Shuffling is what
+      //    makes repeat clicks deliver DIFFERENT batches of 20 —
+      //    otherwise we'd attempt the same first 20 every run and
+      //    pin to whichever subset of those have public emails.
       const work = sample.filter((c) => {
         if (
           existingDomains.has(c.domain.toLowerCase()) ||
@@ -711,80 +732,190 @@ export async function verifiedQuickAddAction(): Promise<void> {
         }
         return true;
       });
+      for (let i = work.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [work[i], work[j]] = [work[j], work[i]];
+      }
 
-      type Verified = {
-        c: (typeof sample)[number];
-        email: string;
-        sourcePath: string;
-      };
-      const verified: Verified[] = [];
-      const results = await Promise.allSettled(
-        work.map(async (c) => {
-          const r = await verifyWebsiteEmail(c.domain);
-          return { c, r };
-        }),
-      );
-      for (const s of results) {
-        if (s.status === "rejected") {
-          skippedOther++;
-          continue;
-        }
-        const { c, r } = s.value;
-        if (r.kind === "verified") {
-          verified.push({ c, email: r.email, sourcePath: r.sourcePath });
-          continue;
-        }
-        switch (r.reason) {
-          case "no_html":
-            skippedNoHtml++;
-            break;
-          case "no_emails_on_website":
-          case "no_usable_email":
-          case "no_domain":
-            skippedNoEmail++;
-            break;
-          case "mx_failed":
-            skippedMxFailed++;
-            break;
-          case "timeout":
-            skippedTimeout++;
-            break;
-          default:
-            skippedOther++;
+      // 3. Bring up Hunter client if the key is set. Budget is
+      //    persisted in the local cache file so multiple Quick-add
+      //    + Re-validate runs in the same month share the same
+      //    monthly quota. saveCache is a no-op on Vercel's read-
+      //    only runtime; Hunter's own 402 response then becomes the
+      //    hard limit.
+      let hunter: HunterClient | null = null;
+      let cachedSearchesUsed = 0;
+      let cachedVerificationsUsed = 0;
+      if (process.env.HUNTER_API_KEY) {
+        try {
+          const cache = loadCache();
+          cachedSearchesUsed = cache.hunterUsage.searches;
+          cachedVerificationsUsed = cache.hunterUsage.verifications;
+          const budget: HunterBudget = {
+            searches: { used: cachedSearchesUsed, cap: QUICKADD_HUNTER_CAP },
+            verifications: {
+              used: cachedVerificationsUsed,
+              cap: QUICKADD_HUNTER_CAP,
+            },
+          };
+          hunter = new HunterClient(process.env.HUNTER_API_KEY, budget);
+        } catch (err) {
+          console.error(
+            "[verifiedQuickAdd] hunter init failed:",
+            (err as Error).message,
+          );
         }
       }
 
-      // 3. Bulk insert all verified leads in one INSERT.
-      if (verified.length > 0) {
-        const values = verified.map(({ c, email, sourcePath }) => {
-          const vertical = verticalLabel[c.industry];
-          const tags: string[] = ["tier-A", vertical, "email-verified"];
-          if (c.refrigerated || c.industry === "restaurants")
-            tags.push("refrigerated");
-          if (c.chain) tags.push("chain-store");
-          return {
-            email,
-            phone: null,
-            companyName: c.name,
-            website: `https://${c.domain}`,
-            vertical,
-            address: null,
-            city: "Denver Metro",
-            state: "CO",
-            source: "website-scrape" as const,
-            tier: "A" as const,
-            score: 80,
-            tags,
-            notes: `Email extracted from https://${c.domain}${sourcePath}; MX-validated.`,
-          };
-        });
+      // 4. Worker pool. Each worker pulls a candidate off the queue,
+      //    tries website-scrape first (free, ~3s), and falls back
+      //    to Hunter domain-search + verify if the site doesn't
+      //    publish a usable contact. We stop the whole pool the
+      //    moment `verified.length` hits TARGET so a fast click
+      //    isn't waiting on slow tail candidates.
+      type Verified = {
+        c: (typeof sample)[number];
+        email: string;
+        sourceNote: string;
+        sourceTag: "website-scrape" | "hunter-search";
+      };
+      const verified: Verified[] = [];
+      const queue = [...work];
+
+      const tryCandidate = async (
+        c: (typeof sample)[number],
+      ): Promise<void> => {
+        // ── Path A: website-scrape (free) ─────────────────────
+        try {
+          const r = await verifyWebsiteEmail(c.domain, 4_000);
+          if (r.kind === "verified") {
+            if (verified.length < QUICKADD_TARGET) {
+              verified.push({
+                c,
+                email: r.email,
+                sourceNote: `Scraped from https://${c.domain}${r.sourcePath}; MX-validated.`,
+                sourceTag: "website-scrape",
+              });
+              viaWebsite += 1;
+            }
+            return;
+          }
+          if (r.reason === "mx_failed") {
+            skippedMxFailed += 1;
+            return; // MX-fail means the domain itself is dead — Hunter can't help.
+          }
+          // For no_html / no_emails / timeout, fall through to Hunter.
+        } catch {
+          skippedOther += 1;
+          return;
+        }
+
+        // ── Path B: Hunter domain-search + verify (paid API) ──
+        if (!hunter) {
+          skippedNoEmail += 1;
+          return;
+        }
+        const left = hunter.budgetLeft();
+        if (left.searches <= 0 || left.verifications <= 0) {
+          skippedNoEmail += 1;
+          return;
+        }
+        try {
+          const search = await hunter.domainSearch(c.domain);
+          hunterCalls += 1;
+          if (!search || search.emails.length === 0) {
+            skippedNoEmail += 1;
+            return;
+          }
+          const best = pickBestContact(search.emails);
+          if (!best?.value) {
+            skippedNoEmail += 1;
+            return;
+          }
+          const v = await hunter.verify(best.value);
+          hunterCalls += 1;
+          if (v?.result === "deliverable") {
+            if (verified.length < QUICKADD_TARGET) {
+              verified.push({
+                c,
+                email: best.value,
+                sourceNote: `Hunter API: domain-search → ${best.value} (deliverable${
+                  v.score != null ? `, score ${v.score}` : ""
+                }${best.position ? `, ${best.position}` : ""}).`,
+                sourceTag: "hunter-search",
+              });
+              viaHunter += 1;
+            }
+            return;
+          }
+          skippedNoEmail += 1;
+        } catch (err) {
+          console.error(
+            "[verifiedQuickAdd] hunter path failed:",
+            (err as Error).message,
+          );
+          skippedOther += 1;
+        }
+      };
+
+      const workers = Array.from(
+        { length: QUICKADD_CONCURRENCY },
+        async () => {
+          while (queue.length > 0 && verified.length < QUICKADD_TARGET) {
+            const c = queue.shift();
+            if (!c) break;
+            await tryCandidate(c);
+          }
+        },
+      );
+      await Promise.all(workers);
+
+      // Cap at TARGET in case multiple workers raced past the check.
+      const toInsert = verified.slice(0, QUICKADD_TARGET);
+
+      // 5. Bulk insert. Tags reflect which verification path each
+      //    lead came through — `email-website-confirmed` for
+      //    scraped, `email-api-verified` for Hunter-found.
+      if (toInsert.length > 0) {
+        const values = toInsert.map(
+          ({ c, email, sourceNote, sourceTag }) => {
+            const vertical = verticalLabel[c.industry];
+            const trustTag =
+              sourceTag === "hunter-search"
+                ? "email-api-verified"
+                : "email-website-confirmed";
+            const tags: string[] = [
+              "tier-A",
+              vertical,
+              "email-verified",
+              trustTag,
+            ];
+            if (c.refrigerated || c.industry === "restaurants")
+              tags.push("refrigerated");
+            if (c.chain) tags.push("chain-store");
+            return {
+              email,
+              phone: null,
+              companyName: c.name,
+              website: `https://${c.domain}`,
+              vertical,
+              address: null,
+              city: "Denver Metro",
+              state: "CO",
+              source: sourceTag,
+              tier: "A" as const,
+              score: 80,
+              tags,
+              emailTrust: "verified",
+              emailValidatedAt: sql`now()` as unknown as Date,
+              notes: sourceNote,
+            };
+          },
+        );
         try {
           await db.insert(leadsTable).values(values);
-          inserted = verified.length;
+          inserted = toInsert.length;
         } catch (err) {
-          // If the bulk insert fails (likely a uniqueness conflict for an
-          // email we didn't dedupe against), fall back to one-by-one with
-          // try/catch so partial success is captured.
           console.error(
             "[verifiedQuickAdd] bulk insert failed; falling back:",
             (err as Error).message,
@@ -792,12 +923,27 @@ export async function verifiedQuickAddAction(): Promise<void> {
           for (const v of values) {
             try {
               await db.insert(leadsTable).values(v);
-              inserted++;
+              inserted += 1;
             } catch {
-              skippedOther++;
+              skippedOther += 1;
             }
           }
         }
+      }
+
+      // 6. Persist Hunter usage (no-op on Vercel; the API enforces
+      //    the real monthly cap server-side).
+      if (hunter) {
+        try {
+          const cache = loadCache();
+          const left = hunter.budgetLeft();
+          cache.hunterUsage = {
+            month: currentMonth(),
+            searches: QUICKADD_HUNTER_CAP - left.searches,
+            verifications: QUICKADD_HUNTER_CAP - left.verifications,
+          };
+          saveCache(cache);
+        } catch {}
       }
 
       try {
@@ -808,13 +954,15 @@ export async function verifiedQuickAddAction(): Promise<void> {
           action: "verified_quick_add",
           beforeJson: null,
           afterJson: {
-            attempted,
+            target: QUICKADD_TARGET,
+            attempted: work.length,
             inserted,
+            viaWebsite,
+            viaHunter,
+            hunterCalls,
             skippedAlreadyExists,
             skippedNoEmail,
-            skippedNoHtml,
             skippedMxFailed,
-            skippedTimeout,
             skippedOther,
             durationMs: Date.now() - start,
           },
@@ -838,14 +986,16 @@ export async function verifiedQuickAddAction(): Promise<void> {
 
   const params = new URLSearchParams({
     verified: "1",
+    v_target: String(QUICKADD_TARGET),
     v_inserted: String(inserted),
     v_attempted: String(attempted),
     v_already: String(skippedAlreadyExists),
     v_no_email: String(skippedNoEmail),
-    v_no_html: String(skippedNoHtml),
     v_mx_failed: String(skippedMxFailed),
-    v_timeout: String(skippedTimeout),
     v_other: String(skippedOther),
+    v_website: String(viaWebsite),
+    v_hunter: String(viaHunter),
+    v_hcalls: String(hunterCalls),
     stage: "all",
   });
   if (errorMsg) params.set("verified_error", errorMsg);

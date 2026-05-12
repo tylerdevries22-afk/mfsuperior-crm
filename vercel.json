@@ -1,3 +1,13 @@
 {
-  "$schema": "https://openapi.vercel.sh/vercel.json"
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "crons": [
+    {
+      "path": "/api/cron/tick-sequences",
+      "schedule": "0 13 * * *"
+    },
+    {
+      "path": "/api/cron/poll-replies",
+      "schedule": "0 14 * * *"
+    }
+  ]
 }
