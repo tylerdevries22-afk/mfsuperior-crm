@@ -52,6 +52,11 @@ type Search = {
   enrollment?: string; // "any" | "none" | "active" | "paused" | "completed"
   hasEmail?: string; // "yes" | "no" | "any"
   emailTrust?: string; // CSV of "verified" | "guessed" | "unverified" | "invalid"
+  /** Cold-chain facet — promoted out of the generic `tags` filter
+   *  into its own dedicated SingleSection. "dry" (default) hides
+   *  refrigerated leads; "refrig" shows only refrigerated; "any"
+   *  drops the filter. */
+  cold?: string; // "dry" | "refrig" | "any"
   perPage?: string;
   page?: string;
   // Quick-add starter pack redirect params
@@ -159,6 +164,21 @@ export default async function LeadsPage({
     .filter((s) => s.length > 0 && s.length < 60)
     .slice(0, 20);
 
+  // Cold-chain facet. Operators wanted ONE explicit toggle for
+  // refrigerated vs non-refrigerated rather than having to know to
+  // include / exclude the `refrigerated` tag manually. Default is
+  // "dry" — non-refrigerated freight is the carrier's larger book of
+  // business, so the unfiltered landing view should match that.
+  // "all" is the explicit no-filter sentinel; the FilterRail uses
+  // "all" instead of "any" because `build()` strips "any" values
+  // from URLs.
+  const COLD_VALUES = ["dry", "refrig", "all"] as const;
+  const cold = (
+    COLD_VALUES.includes(sp.cold as (typeof COLD_VALUES)[number])
+      ? sp.cold
+      : "dry"
+  ) as (typeof COLD_VALUES)[number];
+
   // Email-trust facet (from the rail). Allowlist enforced so the SQL
   // IN-clause can't be coerced into accepting arbitrary values.
   const EMAIL_TRUST_VALUES = ["verified", "guessed", "unverified", "invalid"] as const;
@@ -240,6 +260,17 @@ export default async function LeadsPage({
         sql`, `,
       )}]::text[])`,
     );
+  }
+
+  // Cold-chain SQL. Maps directly onto the existing `refrigerated`
+  // tag — `dry` excludes leads carrying it, `refrig` requires it,
+  // `all` is a no-op.
+  if (cold === "dry") {
+    filters.push(
+      sql`NOT (${leads.tags} && ARRAY['refrigerated']::text[])`,
+    );
+  } else if (cold === "refrig") {
+    filters.push(sql`${leads.tags} && ARRAY['refrigerated']::text[]`);
   }
 
   if (lastContacted === "never") {
@@ -345,7 +376,12 @@ export default async function LeadsPage({
     emailTrust.length +
     (lastContacted !== "any" ? 1 : 0) +
     (enrollment !== "any" ? 1 : 0) +
-    (hasEmail !== "any" ? 1 : 0);
+    (hasEmail !== "any" ? 1 : 0) +
+    // Only count cold-chain when the operator explicitly opens it
+    // up to "any" or flips it to refrigerated. "dry" is the default
+    // landing state — counting it as an active filter would make
+    // the unfiltered page look like it already has 1 filter set.
+    (cold !== "dry" ? 1 : 0);
 
   return (
     // Two-column shell: faceted filter rail on the left, main content
@@ -366,6 +402,7 @@ export default async function LeadsPage({
         enrollment={enrollment}
         hasEmail={hasEmail}
         emailTrust={emailTrust}
+        cold={cold}
         perPage={perPage}
       />
 

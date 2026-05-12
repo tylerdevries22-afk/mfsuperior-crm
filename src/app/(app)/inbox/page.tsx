@@ -15,8 +15,16 @@ import { db } from "@/lib/db/client";
 import { emailEvents, emailTemplates, leads } from "@/lib/db/schema";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { InboxAutoRefresh } from "./inbox-auto-refresh";
 
 export const metadata = { title: "Inbox" };
+
+// Force every navigation/refresh to re-fetch from Postgres. The
+// inbox auto-refresh client component depends on `router.refresh()`
+// pulling fresh rows on each tick; without this, Next.js may serve
+// the cached RSC payload and the visible feed stays stale even
+// though the spin animation plays.
+export const dynamic = "force-dynamic";
 
 const PAGE_SIZE = 50;
 
@@ -142,13 +150,16 @@ export default async function InboxPage({
 
   return (
     <div className="px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
-      <header className="mb-6">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-          Inbox
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Email activity feed — every send, open, click, and reply.
-        </p>
+      <header className="mb-6 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+            Inbox
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Email activity feed — every send, open, click, and reply.
+          </p>
+        </div>
+        <InboxAutoRefresh />
       </header>
 
       {/* Filter tabs */}

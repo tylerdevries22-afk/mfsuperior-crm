@@ -99,7 +99,14 @@ type TagGroup = "ops" | "source" | "email" | "other";
 
 function tagGroup(tag: string): TagGroup | null {
   if (tag.startsWith("tier-")) return null; // hidden — covered by Tier facet
-  if (tag === "refrigerated" || tag === "role-account" || tag === "chain-store") {
+  // `refrigerated` + the legacy `Dry Van` synonym are promoted to
+  // the dedicated "Cold chain" SingleSection. Hide them from the
+  // tag-cluster groups so the operator only has ONE place to
+  // pick refrigerated vs non-refrigerated.
+  if (tag === "refrigerated" || tag === "Dry Van" || tag === "dry-van") {
+    return null;
+  }
+  if (tag === "role-account" || tag === "chain-store") {
     return "ops";
   }
   if (tag.startsWith("email-")) return "email";
@@ -165,6 +172,10 @@ export type FilterRailProps = {
   /** CSV-multi: which email-trust buckets to include. Empty array
    * means "any trust level". */
   emailTrust: string[];
+  /** Cold-chain SingleSection. "dry" (default) = non-refrigerated
+   *  only, "refrig" = refrigerated only, "all" = no cold filter
+   *  (must be "all" not "any" because `build()` strips "any"). */
+  cold: "dry" | "refrig" | "all";
   perPage: number;
 };
 
@@ -206,6 +217,7 @@ export function FilterRail(props: FilterRailProps) {
     enrollment: props.enrollment,
     hasEmail: props.hasEmail,
     emailTrust: emailTrustCsv,
+    cold: props.cold,
     perPage: String(props.perPage),
   };
 
@@ -218,7 +230,10 @@ export function FilterRail(props: FilterRailProps) {
     props.emailTrust.length +
     (props.lastContacted !== "any" ? 1 : 0) +
     (props.enrollment !== "any" ? 1 : 0) +
-    (props.hasEmail !== "any" ? 1 : 0);
+    (props.hasEmail !== "any" ? 1 : 0) +
+    // "dry" is the implicit default — only count cold-chain in the
+    // active filter total when the operator has explicitly switched it.
+    (props.cold !== "dry" ? 1 : 0);
 
   const tagOptionsRaw =
     props.availableTags && props.availableTags.length > 0
@@ -298,6 +313,26 @@ export function FilterRail(props: FilterRailProps) {
           selected={props.tiers}
           baseParams={baseParams}
           defaultOpen
+        />
+        {/* Cold chain — dedicated facet replacing the generic
+            `refrigerated` tag toggle and the legacy "Dry Van" tag
+            row. Default is "dry" (non-refrigerated only) so the
+            unfiltered landing view matches the carrier's larger
+            book of business; operators flip to "refrig" or "any"
+            explicitly when needed. */}
+        <SingleSection
+          title="Cold chain"
+          paramName="cold"
+          options={[
+            { value: "dry", label: "Non-refrigerated" },
+            { value: "refrig", label: "Refrigerated" },
+            // Sentinel must be "all", not "any" — `build()` strips
+            // "any" values from URLs, which would make clicking
+            // "Any" silently fall back to the "dry" default.
+            { value: "all", label: "Any" },
+          ]}
+          selected={props.cold}
+          baseParams={baseParams}
         />
         <SingleSection
           title="Email"
