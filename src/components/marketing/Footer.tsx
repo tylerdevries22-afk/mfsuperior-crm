@@ -9,14 +9,14 @@ interface FooterLink {
 }
 
 // All footer links repointed to in-page anchor sections that actually
-// exist (matching the navbar scroll-spy ids: #fleet, #industries,
+// exist (matching the navbar scroll-spy ids: #fleet, #how-it-works,
 // #about, #contact). Several previous links pointed at routes
 // (/services, /liftgate-service, /about, /resources) that were
 // 404-ing — repaired here.
 const servicesLinks: FooterLink[] = [
   { label: 'Homepage', href: '#' },
   { label: 'Fleet capabilities', href: '#fleet' },
-  { label: 'Industries we serve', href: '#industries' },
+  { label: 'How it works', href: '#how-it-works' },
   { label: 'Get a quote', href: '#contact' },
 ];
 

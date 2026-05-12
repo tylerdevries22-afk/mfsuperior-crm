@@ -12,7 +12,7 @@ import { MFLogo, LockIcon } from './icons';
  */
 const NAV_LINKS: Array<{ label: string; id: string }> = [
   { label: 'Fleet', id: 'fleet' },
-  { label: 'Industries', id: 'industries' },
+  { label: 'How it works', id: 'how-it-works' },
   { label: 'About', id: 'about' },
   { label: 'Contact', id: 'contact' },
 ];
