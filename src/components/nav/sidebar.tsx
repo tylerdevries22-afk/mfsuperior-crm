@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -11,8 +10,6 @@ import {
   Mail,
   Shield,
   Settings,
-  Menu,
-  X,
   Bell,
   Inbox,
 } from "lucide-react";
@@ -34,59 +31,38 @@ const NAV: Array<{
 ];
 
 /**
- * App shell: persistent sidebar on ≥md, slide-out drawer on <md.
+ * App shell sidebar.
  *
- * Behaviour the previous version was missing:
- *  - Drawer open/close state lives here (client component)
- *  - Body scroll is locked while the drawer is open
- *  - Escape closes the drawer
- *  - Route changes close the drawer (so a tap on a nav link feels right)
- *  - The trigger lives in a mobile-only top bar so the layout is symmetric
- *    with the desktop sidebar's brand strip
+ *   • Desktop (≥md): full 240px sidebar with logo, labels, and footer.
+ *   • Mobile  (<md): persistent 56px left rail with icon-only nav.
+ *
+ * The mobile rail is ALWAYS visible — replaces the previous
+ * top-bar + slide-out drawer pattern. Operators on phones reported
+ * the hamburger added a click they shouldn't need; a thin icon rail
+ * gives one-tap access to every section without sacrificing much
+ * horizontal real estate.
+ *
+ * Layout requirements (handled in `(app)/layout.tsx`):
+ *   • Root container is `flex flex-row` at every breakpoint so the
+ *     rail / sidebar sits flush-left.
  */
 export function Sidebar({ unreadNotifications = 0 }: { unreadNotifications?: number }) {
   const pathname = usePathname();
-  const [open, setOpen] = useState(false);
-
-  // Close the mobile drawer when the user navigates. The lint rule
-  // `react-hooks/set-state-in-effect` warns here, but the equivalent
-  // ref-based "derive during render" pattern triggers
-  // `Cannot access refs during render` — the two rules are in
-  // contradiction for this exact case.
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setOpen(false);
-  }, [pathname]);
-
-  // Lock body scroll while drawer is open.
-  useEffect(() => {
-    if (!open) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, [open]);
-
-  // Escape key closes the drawer.
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open]);
 
   return (
     <>
-      {/* Mobile top bar — only on <md */}
-      <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-card px-4 md:hidden">
+      {/* Mobile rail — only on <md. 56px (w-14) wide, icon-only,
+          always visible. */}
+      <aside
+        aria-label="Main navigation"
+        className="flex h-screen w-14 shrink-0 flex-col items-center border-r border-border bg-card md:hidden"
+      >
         <Link
           href="/dashboard"
-          className="flex items-center gap-2 transition-opacity hover:opacity-80"
+          aria-label="Dashboard — MF Superior"
+          className="flex h-14 w-full items-center justify-center border-b border-border transition-opacity hover:opacity-80"
         >
-          <div className="logo-neon-glow relative size-8 shrink-0 overflow-hidden rounded-md">
+          <div className="logo-neon-glow relative size-8 overflow-hidden rounded-md">
             <Image
               src="/logo.png"
               alt="MF Superior Products"
@@ -96,101 +72,66 @@ export function Sidebar({ unreadNotifications = 0 }: { unreadNotifications?: num
               priority
             />
           </div>
-          <span className="truncate text-sm font-semibold leading-tight text-foreground">
-            MF Superior
-          </span>
         </Link>
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          aria-label="Open navigation"
-          aria-expanded={open}
-          aria-controls="mobile-nav-drawer"
-          className="inline-flex size-10 items-center justify-center rounded-md border border-border text-foreground transition-colors hover:bg-secondary"
-        >
-          <Menu className="size-5" />
-        </button>
-      </header>
+        <nav className="flex flex-1 flex-col items-center gap-1 overflow-y-auto py-3">
+          {NAV.map(({ href, label, icon: Icon }) => {
+            const active =
+              pathname === href || pathname.startsWith(`${href}/`);
+            const showBadge =
+              href === "/notifications" && unreadNotifications > 0;
+            return (
+              <Link
+                key={href}
+                href={href}
+                title={label}
+                aria-label={label}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "relative flex size-10 items-center justify-center rounded-md transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
+                  active
+                    ? "bg-secondary text-foreground"
+                    : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground",
+                )}
+              >
+                {/* Active-item stripe on the left edge. */}
+                {active && (
+                  <span
+                    aria-hidden
+                    className="absolute -left-3 top-2 bottom-2 w-0.5 rounded-r-sm bg-primary"
+                  />
+                )}
+                <Icon
+                  className={cn(
+                    "size-5",
+                    active ? "text-primary" : "",
+                  )}
+                  aria-hidden
+                />
+                {showBadge && (
+                  <span
+                    aria-hidden
+                    className="absolute right-1 top-1 inline-flex h-[16px] min-w-[16px] items-center justify-center rounded-full bg-primary px-1 text-[9px] font-semibold tabular-nums text-primary-foreground"
+                  >
+                    {unreadNotifications > 9 ? "9+" : unreadNotifications}
+                  </span>
+                )}
+              </Link>
+            );
+          })}
+        </nav>
+      </aside>
 
-      {/* Desktop sidebar — only on ≥md */}
+      {/* Desktop sidebar — only on ≥md. Unchanged from prior layout. */}
       <aside className="hidden h-screen w-60 shrink-0 flex-col border-r border-border bg-card md:flex">
         <SidebarBrand />
         <SidebarNav pathname={pathname} unreadNotifications={unreadNotifications} />
         <SidebarFooter />
       </aside>
-
-      {/* Mobile drawer — fixed overlay, only on <md */}
-      <div
-        id="mobile-nav-drawer"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Main navigation"
-        className={cn(
-          "fixed inset-0 z-50 md:hidden",
-          open ? "pointer-events-auto" : "pointer-events-none",
-        )}
-      >
-        {/* Backdrop */}
-        <button
-          type="button"
-          tabIndex={-1}
-          aria-label="Close navigation"
-          onClick={() => setOpen(false)}
-          className={cn(
-            "absolute inset-0 bg-black/40 transition-opacity duration-200",
-            open ? "opacity-100" : "opacity-0",
-          )}
-        />
-        {/* Drawer panel */}
-        <div
-          className={cn(
-            "absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col border-r border-border bg-card shadow-xl transition-transform duration-300 ease-out",
-            open ? "translate-x-0" : "-translate-x-full",
-          )}
-        >
-          <div className="flex items-center justify-between border-b border-border px-5 py-3">
-            <Link
-              href="/dashboard"
-              className="flex items-center gap-3 transition-opacity hover:opacity-80"
-              onClick={() => setOpen(false)}
-            >
-              <div className="logo-neon-glow relative size-9 shrink-0 overflow-hidden rounded-md">
-                <Image
-                  src="/logo.png"
-                  alt="MF Superior Products"
-                  fill
-                  sizes="36px"
-                  className="object-contain p-1"
-                  priority
-                />
-              </div>
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold leading-tight text-foreground">
-                  MF Superior
-                </p>
-                <p className="truncate text-xs text-muted-foreground">
-                  Freight Box Trucks
-                </p>
-              </div>
-            </Link>
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              aria-label="Close navigation"
-              className="inline-flex size-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-            >
-              <X className="size-5" />
-            </button>
-          </div>
-          <SidebarNav pathname={pathname} unreadNotifications={unreadNotifications} />
-          <SidebarFooter />
-        </div>
-      </div>
     </>
   );
 }
 
-/* ─── Sub-pieces, shared between desktop sidebar and mobile drawer ─── */
+/* ─── Desktop sub-pieces ──────────────────────────────────────────── */
 
 function SidebarBrand() {
   return (
@@ -240,12 +181,6 @@ function SidebarNav({
               <Link
                 href={href}
                 className={cn(
-                  // Linear/Attio-style nav item: subtle pill with a
-                  // left-edge accent line on the active item. Active
-                  // background is `bg-secondary` (not the loud lime
-                  // primary) so the notification badge + chevrons can
-                  // still read in lime. Focus-visible ring keeps
-                  // keyboard navigation legible.
                   "group relative flex items-center gap-3 rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
                   active
                     ? "bg-secondary text-foreground"
@@ -253,10 +188,6 @@ function SidebarNav({
                 )}
                 aria-current={active ? "page" : undefined}
               >
-                {/* Active-item indicator: 2px lime stripe on the left
-                    edge, matching the look used by Linear, Attio,
-                    Slack threads, etc. Cleaner than a full background
-                    flood. */}
                 {active && (
                   <span
                     aria-hidden
@@ -275,8 +206,6 @@ function SidebarNav({
                   <span
                     className={cn(
                       "ml-auto inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1.5 text-[10px] font-semibold tabular-nums",
-                      // Lime accent badge on the unread count so it
-                      // pops against both active + inactive nav rows.
                       "bg-primary text-primary-foreground",
                     )}
                   >
@@ -297,8 +226,6 @@ function SidebarFooter() {
     <div className="flex flex-col gap-1.5 border-t border-border px-3 py-3 text-[11px] text-muted-foreground">
       <p className="flex items-center justify-between font-mono tabular-nums">
         <span>v0.1.0 · MVP</span>
-        {/* Discoverability for the command palette. The actual key
-            handler is mounted in (app)/layout.tsx via <CommandPalette>. */}
         <kbd className="rounded border border-border bg-secondary/60 px-1.5 py-px font-mono">
           ⌘K
         </kbd>
