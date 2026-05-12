@@ -450,9 +450,11 @@ html.lenis body {
   .mkt-features-desktop { display: none !important; }
   .mkt-features-mobile-carousel { display: block !important; }
 
-  /* Benefits section */
-  .mkt-benefits-strip { grid-template-columns: 1fr !important; gap: 16px !important; padding: 32px 6vw !important; }
-  .mkt-benefits-video { height: 56vw !important; min-height: 220px !important; }
+  /* How-it-works section — drop the scrolly sticky track on mobile and
+     fall back to a stacked card list. The desktop track is N×100vh
+     tall, which would otherwise create a giant dead zone on phones. */
+  .mkt-process-track { display: none !important; }
+  .mkt-process-mobile { display: block !important; }
 
   /* HowItWorks section */
   .mkt-howitworks-grid { grid-template-columns: 1fr !important; }
