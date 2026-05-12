@@ -455,6 +455,9 @@ html.lenis body {
      tall, which would otherwise create a giant dead zone on phones. */
   .mkt-process-track { display: none !important; }
   .mkt-process-mobile { display: block !important; }
+  /* Tighten the intro header padding on phones (the desktop 120px top
+     wastes too much vertical real estate on a 6" viewport). */
+  .mkt-process-intro { padding: 64px 6vw 0 !important; }
 
   /* HowItWorks section */
   .mkt-howitworks-grid { grid-template-columns: 1fr !important; }
