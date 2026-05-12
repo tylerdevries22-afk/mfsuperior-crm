@@ -25,11 +25,47 @@ function sevenDaysAgo(): Date {
 export default async function DashboardPage() {
   const since = sevenDaysAgo();
 
+  // ── Email-engagement funnel ──────────────────────────────────────
+  // One aggregated query over `emailEvents` returns counts of EVERY
+  // tracked event-type in the last 7 days. Previously we issued 5+
+  // separate `count(*)` queries and the dashboard only surfaced
+  // 2 of them (opens, replies) — sends, clicks and bounces were
+  // completely invisible to the operator even though the pipeline
+  // was writing them. Single-query approach also lets unique
+  // (distinct-lead) counts come back without N round-trips.
+  type EventTypeRow = {
+    eventType: string;
+    eventCount: number;
+    uniqueLeads: number;
+  };
+  const eventCountsRows = (await db
+    .select({
+      eventType: emailEvents.eventType,
+      eventCount: sql<number>`count(*)::int`,
+      uniqueLeads: sql<number>`count(distinct ${emailEvents.leadId})::int`,
+    })
+    .from(emailEvents)
+    .where(gte(emailEvents.occurredAt, since))
+    .groupBy(emailEvents.eventType)) as EventTypeRow[];
+
+  const eventCount = (type: string): number =>
+    eventCountsRows.find((r) => r.eventType === type)?.eventCount ?? 0;
+  const uniqueLeads = (type: string): number =>
+    eventCountsRows.find((r) => r.eventType === type)?.uniqueLeads ?? 0;
+
+  const sent7d = eventCount("sent");
+  const draftsPending = eventCount("draft_created");
+  const opens7d = eventCount("opened");
+  const clicks7d = eventCount("clicked");
+  const replies7d = eventCount("replied");
+  const bounced7d = eventCount("bounced");
+  const failed7d = eventCount("failed");
+  // Unique-leads counts let us compute "open rate" as a percentage of
+  // sends-to-distinct-recipients instead of inflating with multi-opens.
+  const uniqueOpens7d = uniqueLeads("opened");
+
   const [
     [{ activeEnrollments }],
-    [{ draftsPending }],
-    [{ replies7d }],
-    [{ opens7d }],
     [{ totalLeads }],
     [{ newThisWeek }],
   ] = await Promise.all([
@@ -37,36 +73,6 @@ export default async function DashboardPage() {
       .select({ activeEnrollments: sql<number>`count(*)::int` })
       .from(leadSequenceEnrollments)
       .where(eq(leadSequenceEnrollments.status, "active")),
-
-    db
-      .select({ draftsPending: sql<number>`count(*)::int` })
-      .from(emailEvents)
-      .where(
-        and(
-          eq(emailEvents.eventType, "draft_created"),
-          gte(emailEvents.occurredAt, since),
-        ),
-      ),
-
-    db
-      .select({ replies7d: sql<number>`count(*)::int` })
-      .from(emailEvents)
-      .where(
-        and(
-          eq(emailEvents.eventType, "replied"),
-          gte(emailEvents.occurredAt, since),
-        ),
-      ),
-
-    db
-      .select({ opens7d: sql<number>`count(*)::int` })
-      .from(emailEvents)
-      .where(
-        and(
-          eq(emailEvents.eventType, "opened"),
-          gte(emailEvents.occurredAt, since),
-        ),
-      ),
 
     db
       .select({ totalLeads: sql<number>`count(*)::int` })
@@ -89,14 +95,41 @@ export default async function DashboardPage() {
       ),
   ]);
 
+  // Engagement rate (open rate) — unique opens / sends. Sends ==0
+  // case avoided so the dashboard doesn't render NaN%.
+  const openRate =
+    sent7d > 0 ? Math.round((uniqueOpens7d / sent7d) * 100) : null;
+
+  // KPI grid order: funnel left-to-right (Sent → Opened → Clicked →
+  // Replied), bounces + drafts on a second row, lead counts on the
+  // third. Primary card highlights the headline send volume so the
+  // operator sees at a glance whether the cron-driven tick is
+  // actually firing.
   const KPI = [
-    { label: "Active enrollments", value: String(activeEnrollments), primary: true },
-    { label: "Drafts pending (7d)", value: String(draftsPending), primary: false },
+    { label: "Sent (7d)", value: String(sent7d), primary: true },
+    {
+      label: "Opens (7d)",
+      value:
+        openRate != null
+          ? `${opens7d} · ${openRate}%`
+          : String(opens7d),
+      primary: false,
+    },
+    { label: "Clicks (7d)", value: String(clicks7d), primary: false },
     { label: "Replies (7d)", value: String(replies7d), primary: false },
-    { label: "Opens (7d)", value: String(opens7d), primary: false },
+    { label: "Bounced (7d)", value: String(bounced7d), primary: false },
+    {
+      label: "Drafts pending (7d)",
+      value: String(draftsPending),
+      primary: false,
+    },
+    { label: "Active enrollments", value: String(activeEnrollments), primary: false },
     { label: "Total active leads", value: String(totalLeads), primary: false },
-    { label: "New this week", value: String(newThisWeek), primary: false },
+    { label: "New leads this week", value: String(newThisWeek), primary: false },
   ] as const;
+
+  // Surface tick failures as a separate warning banner if any.
+  const showFailureWarning = failed7d > 0;
 
   return (
     <div className="px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
@@ -108,6 +141,23 @@ export default async function DashboardPage() {
           Overview of pipeline activity and outbound email engagement.
         </p>
       </header>
+
+      {showFailureWarning && (
+        <div
+          role="alert"
+          className="mb-6 flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2.5 text-sm text-destructive"
+        >
+          <span aria-hidden className="font-semibold">
+            ⚠
+          </span>
+          <span>
+            <span className="font-mono tabular-nums">{failed7d}</span> email
+            send{failed7d === 1 ? "" : "s"} failed in the last 7 days —
+            check <Link href="/admin?tab=tick" className="underline">Admin → Engine</Link>{" "}
+            for the most recent tick report.
+          </span>
+        </div>
+      )}
 
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {KPI.map(({ label, value, primary }) => (
