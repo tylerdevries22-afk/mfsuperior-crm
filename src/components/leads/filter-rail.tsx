@@ -401,7 +401,10 @@ function MultiSection({
           </span>
           {title}
           {count > 0 && (
-            <span className="rounded-full bg-primary/15 px-1.5 py-px text-[10px] font-medium normal-case tracking-normal text-primary tabular-nums">
+            <span
+              title={`${count} selected`}
+              className="rounded-full bg-primary px-2 py-px text-[10.5px] font-semibold normal-case tracking-normal text-primary-foreground tabular-nums"
+            >
               {count}
             </span>
           )}
@@ -649,7 +652,10 @@ function SingleSection({
           </span>
           {title}
           {active && (
-            <span className="rounded-full bg-primary/15 px-1.5 py-px text-[10px] font-medium normal-case tracking-normal text-primary">
+            <span
+              title="1 selected"
+              className="rounded-full bg-primary px-2 py-px text-[10.5px] font-semibold normal-case tracking-normal text-primary-foreground"
+            >
               1
             </span>
           )}

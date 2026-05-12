@@ -22,7 +22,7 @@ export function StageChip({ stage, className }: { stage: string; className?: str
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-sm px-1.5 py-0.5 text-xs font-medium leading-none ring-1 ring-inset",
+        "inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium leading-none ring-1 ring-inset",
         STAGE_STYLE[stage] ?? STAGE_STYLE.new,
         className,
       )}
@@ -43,7 +43,7 @@ export function TierChip({ tier, className }: { tier: string | null; className?:
   return (
     <span
       className={cn(
-        "inline-flex size-5 items-center justify-center rounded-sm font-mono text-xs font-semibold tabular-nums",
+        "inline-flex size-5 items-center justify-center rounded-full font-mono text-xs font-semibold tabular-nums",
         TIER_STYLE[tier] ?? TIER_STYLE.C,
         className,
       )}
@@ -56,6 +56,12 @@ export function TierChip({ tier, className }: { tier: string | null; className?:
 
 /* ── Tag badges (renders the interesting tags from leads.tags[]) ─── */
 
+// Color language:
+//   • refrigerated → cyan (cold-chain visual cue)
+//   • email-guessed / -unverified / -risky → amber (caution)
+//   • email-invalid / -api-invalid → destructive (deletion candidate)
+//   • email-verified / -api-verified / -website-confirmed → primary (lime)
+//   • everything else → neutral muted ring
 const TAG_STYLE: Record<string, string> = {
   refrigerated:
     "bg-cyan-100 text-cyan-900 ring-cyan-300 dark:bg-cyan-900/40 dark:text-cyan-100 dark:ring-cyan-700",
@@ -63,34 +69,56 @@ const TAG_STYLE: Record<string, string> = {
     "bg-amber-100 text-amber-900 ring-amber-300 dark:bg-amber-900/40 dark:text-amber-100 dark:ring-amber-700",
   "email-unverified":
     "bg-amber-50 text-amber-800 ring-amber-200 dark:bg-amber-900/30 dark:text-amber-100 dark:ring-amber-800",
+  "email-guessed":
+    "bg-amber-100 text-amber-900 ring-amber-300 dark:bg-amber-900/40 dark:text-amber-100 dark:ring-amber-700",
+  "email-risky":
+    "bg-amber-100 text-amber-900 ring-amber-300 dark:bg-amber-900/40 dark:text-amber-100 dark:ring-amber-700",
+  "email-verified":
+    "bg-brand-100 text-brand-800 ring-brand-300 dark:bg-brand-900/40 dark:text-brand-100 dark:ring-brand-700",
+  "email-api-verified":
+    "bg-brand-100 text-brand-800 ring-brand-300 dark:bg-brand-900/40 dark:text-brand-100 dark:ring-brand-700",
+  "email-website-confirmed":
+    "bg-brand-100 text-brand-800 ring-brand-300 dark:bg-brand-900/40 dark:text-brand-100 dark:ring-brand-700",
+  "email-invalid":
+    "bg-destructive/10 text-destructive ring-destructive/40",
+  "email-api-invalid":
+    "bg-destructive/10 text-destructive ring-destructive/40",
   freemail:
     "bg-muted text-muted-foreground ring-border",
   "role-account":
-    "bg-muted text-muted-foreground ring-border",
+    "bg-secondary text-secondary-foreground ring-border",
   "chain-store":
     "bg-secondary text-secondary-foreground ring-border",
   "catch-all":
     "bg-muted text-muted-foreground ring-border",
-  "email-guessed":
-    "bg-amber-100 text-amber-900 ring-amber-300 dark:bg-amber-900/40 dark:text-amber-100 dark:ring-amber-700",
   "tier-untriaged":
     "bg-muted text-muted-foreground ring-border",
 };
 
 const TAG_LABEL: Record<string, string> = {
-  refrigerated: "❄ Refrigerated",
-  "needs-manual-email": "⚠ Needs email",
-  "email-unverified": "Email unverified",
+  refrigerated: "Refrigerated",
+  "needs-manual-email": "Needs email",
+  "email-unverified": "Email: unverified",
+  "email-guessed": "Email: guessed",
+  "email-verified": "Email: verified",
+  "email-website-confirmed": "Email: on website",
+  "email-api-verified": "Email: Hunter ✓",
+  "email-api-invalid": "Email: Hunter ✗",
+  "email-invalid": "Email: invalid",
+  "email-risky": "Email: risky",
   freemail: "Free webmail",
   "role-account": "Role account",
   "chain-store": "Chain store",
   "catch-all": "Catch-all domain",
-  "email-guessed": "Email guessed",
   "tier-untriaged": "Untriaged",
+  "denver-batch-1": "Denver batch 1",
+  "discovered-via-osm": "Found via OSM",
+  "discovered-via-curated": "From curated list",
 };
 
-// Hide noise tags (tier markers, vertical labels — already shown in their
-// own columns). `tier-untriaged` is the one tier-* tag we want visible.
+// Hide noise tags. `tier-*` markers duplicate the Tier column; the
+// vertical-label tags duplicate the Vertical column; and `email-role-
+// account` is a legacy spelling of `role-account` we now render once.
 const HIDDEN_EXACT = new Set([
   "tier-A",
   "tier-B",
@@ -100,6 +128,7 @@ const HIDDEN_EXACT = new Set([
   "Big-box retail",
   "Freight broker / 3PL",
   "Small business",
+  "email-role-account",
 ]);
 const HIDDEN_PREFIXES: string[] = [];
 
@@ -124,7 +153,7 @@ export function TagBadges({
         <span
           key={tag}
           className={cn(
-            "inline-flex items-center rounded-sm px-1.5 py-0.5 text-[10px] font-medium leading-none ring-1 ring-inset",
+            "inline-flex items-center rounded-full px-2 py-0.5 text-[10.5px] font-medium leading-none ring-1 ring-inset",
             TAG_STYLE[tag] ?? "bg-muted text-muted-foreground ring-border",
           )}
         >
