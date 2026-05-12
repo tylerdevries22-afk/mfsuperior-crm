@@ -230,7 +230,20 @@ export const emailTemplates = pgTable("email_templates", {
     onDelete: "set null",
   }),
   sequenceStep: integer("sequence_step"),
-  sendMode: sendModeEnum("send_mode").notNull().default("draft"),
+  /**
+   * Send mode for a template. `auto_send` actually dispatches the
+   * email via the configured provider (Resend / Gmail) when the
+   * sequence tick reaches this step. `draft` only creates a Gmail
+   * draft for the operator to review + send manually.
+   *
+   * Default is `auto_send` — the whole sequence engine exists to
+   * dispatch outreach automatically; defaulting to `draft` meant
+   * every new template silently stopped at draft-creation and
+   * never sent until the operator flipped the mode in the UI.
+   * Switch back to `draft` per-template if a particular template
+   * needs human review before going out.
+   */
+  sendMode: sendModeEnum("send_mode").notNull().default("auto_send"),
   attachmentDriveFileIds: jsonb("attachment_drive_file_ids")
     .notNull()
     .default([]),
