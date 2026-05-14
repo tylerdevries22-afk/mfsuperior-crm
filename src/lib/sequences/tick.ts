@@ -133,6 +133,26 @@ export async function tickSequences(opts: TickOptions): Promise<TickReport> {
   for (const enrollment of due) {
     if (outboundToday >= dailyCap) {
       report.skippedCapped++;
+      // Write a `failed` event with kind="skipped_capped" so the
+      // operator can see in /inbox why a particular lead's send
+      // didn't fire today — previously this branch produced ZERO
+      // observable signal and the lead just stayed pinned in
+      // /leads with no explanation.
+      try {
+        await db.insert(emailEvents).values({
+          leadId: enrollment.leadId,
+          enrollmentId: enrollment.id,
+          eventType: "failed",
+          templateId: null,
+          sequenceStep: enrollment.currentStep,
+          metadataJson: {
+            kind: "skipped_capped",
+            outboundToday,
+            dailyCap,
+          },
+          occurredAt: sql`now()`,
+        });
+      } catch {}
       // Don't advance the enrollment; leave it for the next tick.
       continue;
     }
@@ -265,6 +285,20 @@ async function processOne(input: ProcessOneInput): Promise<Outcome> {
   }
   if (!lead.email) {
     // No email — leave enrollment active (user may add email later); but skip this tick.
+    // Write an inbox-visible event so the operator can see WHY a
+    // particular lead's send didn't fire (previously this branch
+    // produced no event row → the lead "disappeared" from /inbox).
+    try {
+      await db.insert(emailEvents).values({
+        leadId: lead.id,
+        enrollmentId: enrollment.id,
+        eventType: "failed",
+        templateId: null,
+        sequenceStep: enrollment.currentStep,
+        metadataJson: { kind: "skipped_no_email" },
+        occurredAt: sql`now()`,
+      });
+    } catch {}
     return { kind: "skipped_no_email" };
   }
 
@@ -276,6 +310,21 @@ async function processOne(input: ProcessOneInput): Promise<Outcome> {
     .where(sql`lower(${suppressionList.email}) = lower(${lead.email})`)
     .limit(1);
   if (supp) {
+    // Same rationale: a suppressed lead used to be invisible — no
+    // event, just the lead pinned in /leads. Write a `failed` event
+    // with kind="skipped_suppressed" so operators can debug why a
+    // particular send didn't fire.
+    try {
+      await db.insert(emailEvents).values({
+        leadId: lead.id,
+        enrollmentId: enrollment.id,
+        eventType: "failed",
+        templateId: null,
+        sequenceStep: enrollment.currentStep,
+        metadataJson: { kind: "skipped_suppressed" },
+        occurredAt: sql`now()`,
+      });
+    } catch {}
     await stopEnrollment(enrollment.id, "suppressed");
     return { kind: "skipped_suppressed" };
   }
