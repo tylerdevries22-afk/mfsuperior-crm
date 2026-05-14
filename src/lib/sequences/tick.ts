@@ -399,7 +399,15 @@ async function processOne(input: ProcessOneInput): Promise<Outcome> {
             threadId: enrollment.gmailThreadId ?? undefined,
           });
 
-    // Record success event.
+    // Record success event. Tag with the actual provider that
+    // shipped the email so operators can verify in /admin Health
+    // (and so the audit log shows which channel actually
+    // delivered each row, vs. the silent "I sent it but Resend
+    // says zero" confusion). Provider is derived from the env at
+    // the time of send — same source `getEmailProvider` reads.
+    const providerKind: "resend" | "gmail" = env().RESEND_API_KEY
+      ? "resend"
+      : "gmail";
     await db.insert(emailEvents).values({
       leadId: lead.id,
       enrollmentId: enrollment.id,
@@ -410,6 +418,7 @@ async function processOne(input: ProcessOneInput): Promise<Outcome> {
       metadataJson: {
         threadId: result.threadId,
         draftId: result.draftId ?? null,
+        provider: providerKind,
       },
       occurredAt: sql`now()`,
     });

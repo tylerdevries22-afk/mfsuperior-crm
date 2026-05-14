@@ -678,6 +678,27 @@ export async function verifiedQuickAddAction(): Promise<void> {
 
       backlogBefore = await backlogSize();
 
+      // Self-healing cold-start: if the backlog is empty (first
+      // click after deploy, or backlog drained dry on a previous
+      // click and refill hasn't fired yet), run the refill
+      // SYNCHRONOUSLY here before we drain. Operator pays click
+      // latency (capped at ~50s by the refill's own deadline),
+      // but gets actual leads instead of the prior "wait 30s and
+      // click again" warming-toast — which was the #1 reported
+      // failure mode.
+      if (backlogBefore === 0) {
+        console.log("[verifiedQuickAdd] cold-start; running sync refill");
+        try {
+          await refillBacklog({ target: QUICKADD_DRAIN });
+        } catch (err) {
+          console.error(
+            "[verifiedQuickAdd] sync refill threw:",
+            (err as Error).message,
+          );
+        }
+        backlogBefore = await backlogSize();
+      }
+
       // 1. Drain up to N rows from the backlog.
       const drained = await drainBacklog(QUICKADD_DRAIN);
 
@@ -1546,6 +1567,86 @@ export async function applyPendingMigrationsAction(): Promise<void> {
   });
   if (errorMsg) params.set("migrate_error", errorMsg);
   params.set("tab", "health");
+  redirect(`/admin?${params.toString()}`);
+}
+
+/* ── Backlog refill (Quick-add health) ──────────────────────────── */
+
+/**
+ * Operator-triggered alternative to clicking Quick-add and getting
+ * the "warming" toast. Runs the verify pipeline synchronously
+ * (up to ~50s) until the backlog hits BACKLOG_REFILL_TARGET rows,
+ * then redirects back with a result panel. Pair it with the new
+ * backlog-count widget on /admin Health so operators can see what
+ * state the queue is in before they click Quick-add on /leads.
+ */
+export async function refillBacklogNowAction(): Promise<void> {
+  let errorMsg: string | null = null;
+  let inserted = 0;
+  let viaWebsite = 0;
+  let viaHunter = 0;
+  let durationMs = 0;
+  let backlogAfter = 0;
+
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      errorMsg = "unauthorized";
+    } else {
+      env();
+      const { refillBacklog, backlogSize } = await import(
+        "@/lib/leads/quick-add-backlog"
+      );
+      const start = Date.now();
+      const report = await refillBacklog({ target: BACKLOG_REFILL_TARGET });
+      inserted = report.inserted;
+      viaWebsite = report.viaWebsite;
+      viaHunter = report.viaHunter;
+      durationMs = Date.now() - start;
+      backlogAfter = await backlogSize();
+
+      try {
+        await db.insert(auditLog).values({
+          actorUserId: session.user.id,
+          entity: "leads",
+          entityId: null,
+          action: "refill_backlog_now",
+          beforeJson: null,
+          afterJson: {
+            target: BACKLOG_REFILL_TARGET,
+            inserted,
+            viaWebsite,
+            viaHunter,
+            partial: report.partial,
+            backlogAfter,
+            durationMs,
+          },
+          occurredAt: sql`now()`,
+        });
+      } catch (err) {
+        console.error(
+          "[refillBacklogNow] audit failed:",
+          (err as Error).message,
+        );
+      }
+    }
+  } catch (err) {
+    errorMsg = (err as Error).name + ": " + (err as Error).message.slice(0, 120);
+    console.error("[refillBacklogNow] FATAL:", err);
+  }
+
+  revalidatePath("/admin");
+
+  const params = new URLSearchParams({
+    backlog_refilled: "1",
+    bl_inserted: String(inserted),
+    bl_website: String(viaWebsite),
+    bl_hunter: String(viaHunter),
+    bl_after: String(backlogAfter),
+    bl_dur: String(durationMs),
+    tab: "health",
+  });
+  if (errorMsg) params.set("backlog_error", errorMsg);
   redirect(`/admin?${params.toString()}`);
 }
 

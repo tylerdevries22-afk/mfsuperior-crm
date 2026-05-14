@@ -69,6 +69,14 @@ export type AdminSearch = {
   migrated?: string;
   m_applied?: string;
   migrate_error?: string;
+  // ── Backlog refill (operator-triggered) ──────────────────────
+  backlog_refilled?: string;
+  bl_inserted?: string;
+  bl_website?: string;
+  bl_hunter?: string;
+  bl_after?: string;
+  bl_dur?: string;
+  backlog_error?: string;
   // ── Denver batch 1 ───────────────────────────────────────────
   batch1?: string;
   b1_validated?: string;
