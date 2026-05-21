@@ -67,6 +67,31 @@ const EVENT_LABELS: Record<string, string> = {
   queued: "Queued",
 };
 
+/** Friendlier label for `failed` events that were actually skips —
+ *  the tick writes these for suppressed / no-email / capped /
+ *  invalid_email cases so they show up in /inbox instead of vanishing
+ *  silently. We read `metadataJson.kind` to pretty-print. */
+const SKIP_LABELS: Record<string, string> = {
+  skipped_suppressed: "Skipped: on suppression list",
+  skipped_no_email: "Skipped: no email on lead",
+  skipped_capped: "Skipped: daily send cap hit",
+  skipped_invalid_email: "Skipped: invalid email (MX fail)",
+  invalid_email: "Skipped: invalid email (MX fail)",
+  auth: "Failed: provider auth error",
+  other: "Failed: provider error",
+};
+
+function eventLabel(
+  eventType: string,
+  metadata: unknown,
+): string {
+  if (eventType === "failed") {
+    const kind = (metadata as { kind?: string } | null)?.kind;
+    if (kind && SKIP_LABELS[kind]) return SKIP_LABELS[kind];
+  }
+  return EVENT_LABELS[eventType] ?? eventType;
+}
+
 type Filter = "all" | "sent" | "opened" | "clicked" | "replied" | "bounced";
 
 const FILTER_OPTIONS: { value: Filter; label: string }[] = [
@@ -196,7 +221,7 @@ export default async function InboxPage({
             {rows.map((row) => {
               const Icon = EVENT_ICONS[row.eventType] ?? CheckCircle2;
               const variant = EVENT_VARIANT[row.eventType] ?? "muted";
-              const label = EVENT_LABELS[row.eventType] ?? row.eventType;
+              const label = eventLabel(row.eventType, row.metadataJson);
               const displayName =
                 row.companyName ||
                 [row.leadFirstName].filter(Boolean).join(" ") ||
