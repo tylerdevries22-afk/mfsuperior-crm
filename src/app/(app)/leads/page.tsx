@@ -32,7 +32,16 @@ const TIERS = ["A", "B", "C"] as const;
 // match if the operator types ?source=... in the URL.
 const SOURCES = [
   { value: "lead-gen", label: "Generated (OSM + scrape + MX)" },
+  { value: "lead-gen-50", label: "Generated (50-lead bulk batch)" },
   { value: "website-scrape", label: "Generated (curated + scrape + MX)" },
+  { value: "hunter-search", label: "Generated (Hunter API)" },
+  { value: "denver-batch-1", label: "Generated (Denver batch 1)" },
+  { value: "research-free", label: "Generated (free research CLI)" },
+  { value: "research-paid", label: "Generated (paid research CLI)" },
+  { value: "research-free-admin", label: "Generated (free research UI)" },
+  { value: "research-paid-admin", label: "Generated (paid research UI)" },
+  { value: "starter-pack", label: "Generated (starter pack)" },
+  { value: "drive_sync", label: "Imported (Drive sync)" },
   { value: "spreadsheet", label: "Imported (spreadsheet)" },
   { value: "website_contact", label: "Inbound (website contact form)" },
   { value: "manual", label: "Manually added" },
@@ -168,16 +177,14 @@ export default async function LeadsPage({
   // Cold-chain facet. Operators wanted ONE explicit toggle for
   // refrigerated vs non-refrigerated rather than having to know to
   // include / exclude the `refrigerated` tag manually. Default is
-  // "dry" — non-refrigerated freight is the carrier's larger book of
-  // business, so the unfiltered landing view should match that.
-  // "all" is the explicit no-filter sentinel; the FilterRail uses
-  // "all" instead of "any" because `build()` strips "any" values
-  // from URLs.
+  // "all" — the previous "dry" default silently hid every restaurant
+  // / grocery lead (all of which are tagged `refrigerated` by the
+  // generator), so freshly generated batches appeared to vanish.
   const COLD_VALUES = ["dry", "refrig", "all"] as const;
   const cold = (
     COLD_VALUES.includes(sp.cold as (typeof COLD_VALUES)[number])
       ? sp.cold
-      : "dry"
+      : "all"
   ) as (typeof COLD_VALUES)[number];
 
   // Email-trust facet (from the rail). Allowlist enforced so the SQL
@@ -378,11 +385,9 @@ export default async function LeadsPage({
     (lastContacted !== "any" ? 1 : 0) +
     (enrollment !== "any" ? 1 : 0) +
     (hasEmail !== "any" ? 1 : 0) +
-    // Only count cold-chain when the operator explicitly opens it
-    // up to "any" or flips it to refrigerated. "dry" is the default
-    // landing state — counting it as an active filter would make
-    // the unfiltered page look like it already has 1 filter set.
-    (cold !== "dry" ? 1 : 0);
+    // Cold-chain defaults to "all" (no filter); count it as active
+    // only when the operator explicitly narrows to dry or refrig.
+    (cold !== "all" ? 1 : 0);
 
   return (
     // Two-column shell: faceted filter rail on the left, main content

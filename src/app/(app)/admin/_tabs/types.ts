@@ -88,4 +88,16 @@ export type AdminSearch = {
   b1_dur?: string;
   b1_sequence?: string;
   b1_error?: string;
+  // ── Generate 50 + auto-enroll as drafts ──────────────────────
+  g50?: string;
+  g50_validated?: string;
+  g50_inserted?: string;
+  g50_dup?: string;
+  g50_invalid?: string;
+  g50_enrolled?: string;
+  g50_already?: string;
+  g50_templates?: string;
+  g50_dur?: string;
+  g50_sequence?: string;
+  g50_error?: string;
 };

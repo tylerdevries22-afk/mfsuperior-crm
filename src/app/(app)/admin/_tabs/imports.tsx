@@ -1,9 +1,13 @@
 import Link from "next/link";
-import { ArrowDownToLine, Plus, Zap } from "lucide-react";
+import { ArrowDownToLine, FileText, Plus, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
-import { generateLeadsAction, importDenverBatch1Action } from "../actions";
+import {
+  generate50DraftsAction,
+  generateLeadsAction,
+  importDenverBatch1Action,
+} from "../actions";
 import type { AdminSearch } from "./types";
 
 /**
@@ -148,6 +152,103 @@ export function ImportsTab({ sp }: { sp: AdminSearch }) {
               className="text-xs text-muted-foreground hover:text-foreground"
             >
               View batch in /leads →
+            </Link>
+          </div>
+        </form>
+
+        {/* Generate 50 + auto-enroll as drafts — the one-click "fill the
+            pipeline right now" workflow. Sources from CURATED_DENVER
+            (broader pool than batch-1), MX-validates each role-account
+            email, flips the default sequence's templates to draft mode
+            so nothing fires automatically, and auto-enrolls every
+            inserted lead with a 0-30min send jitter. */}
+        <form
+          action={generate50DraftsAction}
+          className="flex flex-col gap-3 rounded-md border border-brand/40 bg-brand/5 p-4"
+        >
+          <div>
+            <p className="font-medium text-foreground">
+              Generate 50 + auto-enroll as drafts
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              One click: picks 50 candidates from the curated Denver Metro
+              pool (367 entries, mix of restaurants / big-box / brokers /
+              small biz), MX-validates each role-account email, inserts
+              the survivors with source{" "}
+              <span className="font-mono">lead-gen-50</span>, flips the
+              default active sequence&apos;s templates to{" "}
+              <strong className="text-foreground">draft mode</strong>{" "}
+              (nothing sends automatically), and auto-enrolls every lead
+              with a 0&ndash;30min send jitter. On the next tick (or a
+              manual tick from the Engine tab) the sequence creates a
+              Gmail draft per lead for your review.
+            </p>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Idempotent: re-clicking skips duplicates by email and
+              unarchives any that were previously archived. Audit-logged.
+            </p>
+
+            {sp.g50 === "1" && sp.g50_error ? (
+              <p className="mt-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 font-mono text-[11px] text-destructive">
+                {decodeURIComponent(sp.g50_error)}
+              </p>
+            ) : sp.g50 === "1" ? (
+              <div className="mt-3 space-y-1 rounded-md border border-brand/40 bg-brand/10 px-3 py-2 text-xs text-foreground">
+                <p>
+                  Validated{" "}
+                  <span className="font-mono tabular-nums">
+                    {Number(sp.g50_validated ?? 0)}
+                  </span>{" "}
+                  · inserted{" "}
+                  <span className="font-mono tabular-nums">
+                    {Number(sp.g50_inserted ?? 0)}
+                  </span>{" "}
+                  · dupes{" "}
+                  <span className="font-mono tabular-nums">
+                    {Number(sp.g50_dup ?? 0)}
+                  </span>{" "}
+                  · invalid{" "}
+                  <span className="font-mono tabular-nums">
+                    {Number(sp.g50_invalid ?? 0)}
+                  </span>
+                </p>
+                <p>
+                  Enrolled{" "}
+                  <span className="font-mono tabular-nums">
+                    {Number(sp.g50_enrolled ?? 0)}
+                  </span>{" "}
+                  · already enrolled{" "}
+                  <span className="font-mono tabular-nums">
+                    {Number(sp.g50_already ?? 0)}
+                  </span>
+                  {sp.g50_sequence
+                    ? ` into "${decodeURIComponent(sp.g50_sequence)}"`
+                    : ""}{" "}
+                  · templates flipped to draft{" "}
+                  <span className="font-mono tabular-nums">
+                    {Number(sp.g50_templates ?? 0)}
+                  </span>{" "}
+                  · {Number(sp.g50_dur ?? 0)}ms
+                </p>
+              </div>
+            ) : null}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <input type="hidden" name="limit" value="50" />
+            <Button type="submit" size="sm">
+              <FileText /> Generate 50 + auto-enroll as drafts
+            </Button>
+            <Link
+              href="/leads?source=lead-gen-50"
+              className="text-xs text-muted-foreground hover:text-foreground"
+            >
+              View this batch in /leads →
+            </Link>
+            <Link
+              href="/admin?tab=tick"
+              className="text-xs text-muted-foreground hover:text-foreground"
+            >
+              Run a tick to generate drafts now →
             </Link>
           </div>
         </form>
