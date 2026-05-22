@@ -228,7 +228,12 @@ export default async function LeadsPage({
   const page = Math.max(1, Number(sp.page ?? 1));
 
   // ── Build WHERE clause ────────────────────────────────────────────
-  const filters: SQL[] = [isNull(leads.archivedAt)];
+  // /leads is the "fresh prospects" worklist — by definition only
+  // stage=new lives here. Anything that's been touched (sent, drafted,
+  // replied, etc.) lives on /contacts. The stage filter is hardcoded
+  // so URL fiddling can't accidentally surface contacted/replied rows
+  // on the wrong page.
+  const filters: SQL[] = [isNull(leads.archivedAt), eq(leads.stage, "new")];
   if (q) {
     const qEsc = q.replace(/[%_\\]/g, "\\$&");
     filters.push(
@@ -240,8 +245,9 @@ export default async function LeadsPage({
       ) as SQL,
     );
   }
-  if (stages.length > 0)
-    filters.push(inArray(leads.stage, stages as (typeof STAGES)[number][]));
+  // Stage filter intentionally ignored here — /leads is locked to
+  // stage=new above. If the operator wants a different stage they
+  // should be on /contacts.
   if (tiers.length > 0)
     filters.push(inArray(leads.tier, tiers as (typeof TIERS)[number][]));
   if (sources.length > 0) filters.push(inArray(leads.source, sources));
@@ -358,21 +364,17 @@ export default async function LeadsPage({
 
   const totalPages = Math.max(1, Math.ceil(count / perPage));
 
-  // If filters are hiding leads but the operator has leads in other
-  // stages/sources, surface that so they don't think the page is broken.
-  let hiddenInOtherStagesCount = 0;
-  if (
-    rows.length === 0 &&
-    !q &&
-    tiers.length === 0 &&
-    sources.length === 0 &&
-    tags.length === 0
-  ) {
+  // Empty-state callout — count of leads that exist but live on
+  // /contacts (because they're past stage=new). Lets the operator
+  // jump straight there if they came to /leads expecting their full
+  // list.
+  let contactsCount = 0;
+  if (rows.length === 0 && !q && tiers.length === 0 && sources.length === 0 && tags.length === 0) {
     const [{ otherCount }] = await db
       .select({ otherCount: sql<number>`count(*)::int` })
       .from(leads)
-      .where(isNull(leads.archivedAt));
-    hiddenInOtherStagesCount = otherCount;
+      .where(and(isNull(leads.archivedAt), sql`${leads.stage} != 'new'`) as SQL);
+    contactsCount = otherCount;
   }
 
   const activeFilterCount =
@@ -467,7 +469,6 @@ export default async function LeadsPage({
           hasFilters={
             !!(
               q ||
-              stages.length ||
               tiers.length ||
               sources.length ||
               tags.length ||
@@ -477,7 +478,7 @@ export default async function LeadsPage({
               hasEmail !== "any"
             )
           }
-          hiddenInOtherStagesCount={hiddenInOtherStagesCount}
+          contactsCount={contactsCount}
         />
       ) : (
         <>
@@ -521,15 +522,14 @@ export default async function LeadsPage({
 
 function EmptyState({
   hasFilters,
-  hiddenInOtherStagesCount,
+  contactsCount,
 }: {
   hasFilters: boolean;
-  hiddenInOtherStagesCount: number;
+  contactsCount: number;
 }) {
-  // Default filter (stage=new) is on, but the user has leads in OTHER stages.
-  // Most common cause: they've already cold-pitched everyone in `new`, so the
-  // worklist is empty — but they came here looking for their full list.
-  if (hiddenInOtherStagesCount > 0) {
+  // /leads is the fresh-prospects worklist — empty means everyone is
+  // already contacted. Point the operator at /contacts.
+  if (contactsCount > 0) {
     return (
       <Card>
         <CardContent className="flex flex-col items-start gap-3 px-6 py-10 text-sm">
@@ -538,22 +538,17 @@ function EmptyState({
           </p>
           <p className="text-muted-foreground">
             You have{" "}
-            <span className="font-mono tabular-nums">
-              {hiddenInOtherStagesCount}
-            </span>{" "}
-            lead{hiddenInOtherStagesCount === 1 ? "" : "s"} in other stages
-            (contacted, replied, etc). The default filter only shows leads
-            still to pitch.
+            <span className="font-mono tabular-nums">{contactsCount}</span>{" "}
+            contact{contactsCount === 1 ? "" : "s"} with outbound activity.
+            /leads only shows fresh prospects (stage=new).
           </p>
           <div className="flex flex-wrap gap-2">
-            <Link href="/leads?stage=all">
-              <Button variant="secondary" size="sm">
-                Show all stages
-              </Button>
+            <Link href="/contacts">
+              <Button size="sm">Go to contacts</Button>
             </Link>
             <Link href="/inbox">
               <Button variant="ghost" size="sm">
-                Go to inbox
+                Open inbox
               </Button>
             </Link>
           </div>

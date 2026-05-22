@@ -478,14 +478,26 @@ async function processOne(input: ProcessOneInput): Promise<Outcome> {
       .set({ gmailThreadId: result.threadId, updatedAt: sql`now()` })
       .where(eq(leadSequenceEnrollments.id, enrollment.id));
 
+    // Move stage new -> contacted on EITHER an auto-send OR a draft
+    // creation. The /leads list shows only `new` leads (fresh
+    // prospects); once an outbound exists for them — sent or in
+    // Gmail drafts queue — they belong on /contacts. The CASE guard
+    // never downgrades replied / quoted / won / lost. Only
+    // `lastContactedAt` differs: only stamped on an actual send,
+    // because a draft hasn't reached the recipient yet.
     if (template.sendMode === "auto_send") {
-      // Move stage new -> contacted on first send so the lead drops out of
-      // the /leads worklist and the operator picks up the conversation in
-      // /inbox instead. Guarded so we never downgrade replied / won / lost.
       await db
         .update(leads)
         .set({
           lastContactedAt: sql`now()`,
+          stage: sql`CASE WHEN ${leads.stage} = 'new' THEN 'contacted'::stage ELSE ${leads.stage} END`,
+          updatedAt: sql`now()`,
+        })
+        .where(eq(leads.id, lead.id));
+    } else {
+      await db
+        .update(leads)
+        .set({
           stage: sql`CASE WHEN ${leads.stage} = 'new' THEN 'contacted'::stage ELSE ${leads.stage} END`,
           updatedAt: sql`now()`,
         })

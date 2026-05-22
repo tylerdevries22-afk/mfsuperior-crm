@@ -1917,6 +1917,78 @@ export async function importDenverBatch1Action(): Promise<void> {
   redirect(`/admin?${params.toString()}`);
 }
 
+/* ── Move all stage=new leads to /contacts ────────────────────────
+ *
+ * The /leads page now hard-filters to stage=new (fresh prospects
+ * only); /contacts shows everything else. This action is a one-time
+ * (per-batch) bulk-promote that takes every non-archived lead still
+ * sitting in `new` and bumps them to `contacted`, so a populated
+ * /leads can be "cleared" in one click without losing the rows.
+ *
+ * Idempotent: re-clicking after the bump moves zero additional rows.
+ * Reversible via direct SQL:
+ *   UPDATE leads SET stage='new', updated_at=now()
+ *   WHERE id = ANY(SELECT entity_id::uuid FROM audit_log
+ *                   WHERE action='move_to_contacts' ORDER BY occurred_at DESC LIMIT 1);
+ */
+export async function moveAllNewToContactsAction(): Promise<void> {
+  let errorMsg: string | null = null;
+  let moved = 0;
+  const movedIds: string[] = [];
+
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      errorMsg = "unauthorized";
+    } else {
+      env();
+
+      const result = await db
+        .update(leadsTable)
+        .set({ stage: "contacted", updatedAt: new Date() })
+        .where(
+          and(isNull(leadsTable.archivedAt), eq(leadsTable.stage, "new")),
+        )
+        .returning({ id: leadsTable.id });
+      moved = result.length;
+      for (const r of result) movedIds.push(r.id);
+
+      try {
+        await db.insert(auditLog).values({
+          actorUserId: session.user.id,
+          entity: "leads",
+          entityId: null,
+          action: "move_to_contacts",
+          beforeJson: null,
+          afterJson: { moved, sampleIds: movedIds.slice(0, 20) },
+          occurredAt: sql`now()`,
+        });
+      } catch (err) {
+        console.error(
+          "[moveAllNewToContacts] audit failed:",
+          (err as Error).message,
+        );
+      }
+    }
+  } catch (err) {
+    errorMsg =
+      (err as Error).name + ": " + (err as Error).message.slice(0, 200);
+    console.error("[moveAllNewToContacts] FATAL:", err);
+  }
+
+  revalidatePath("/leads");
+  revalidatePath("/contacts");
+  revalidatePath("/admin");
+
+  const params = new URLSearchParams({
+    moved_to_contacts: "1",
+    mtc_count: String(moved),
+  });
+  if (errorMsg) params.set("mtc_error", errorMsg);
+  params.set("tab", "operations");
+  redirect(`/admin?${params.toString()}`);
+}
+
 /* ── Generate 50 leads + auto-enroll as drafts ──────────────────────
  *
  * The single-click button operators wanted for "fill my pipeline RIGHT
