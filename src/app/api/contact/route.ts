@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db/client";
-import { leads, notifications } from "@/lib/db/schema";
+import { auditLog, emailEvents, leads, notifications } from "@/lib/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { env } from "@/lib/env";
 
@@ -25,24 +25,37 @@ function escHtml(s: string): string {
     .replace(/'/g, "&#x27;");
 }
 
-async function sendEmail(to: string, subject: string, html: string, text: string) {
+type SendResult = { ok: true } | { ok: false; reason: string };
+
+async function sendEmail(
+  to: string,
+  subject: string,
+  html: string,
+  text: string,
+): Promise<SendResult> {
   const apiKey = env().RESEND_API_KEY;
   if (!apiKey) {
-    // Log but don't fail — DB write is more important than email in dev
     console.warn("[contact/route] RESEND_API_KEY not set; skipping email send.");
-    return;
+    return { ok: false, reason: "RESEND_API_KEY_missing" };
   }
-  const res = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ from: FROM_ADDRESS, to: [to], subject, html, text }),
-  });
-  if (!res.ok) {
-    const body = await res.text();
-    console.error("[contact/route] Resend error:", res.status, body);
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ from: FROM_ADDRESS, to: [to], subject, html, text }),
+    });
+    if (!res.ok) {
+      const body = await res.text();
+      console.error("[contact/route] Resend error:", res.status, body);
+      return { ok: false, reason: `resend_${res.status}` };
+    }
+    return { ok: true };
+  } catch (err) {
+    console.error("[contact/route] Resend fetch threw:", (err as Error).message);
+    return { ok: false, reason: "resend_threw" };
   }
 }
 
@@ -234,7 +247,7 @@ export async function POST(req: NextRequest) {
   const notifyText = `New quote request from ${name.trim()}${company.trim() ? ` (${company.trim()})` : ""}\n\nEmail: ${emailLower}\nPhone: ${phone.trim() || "—"}\nService: ${serviceType || "—"}\n\nMessage:\n${message.trim() || "—"}\n\nView in CRM: ${crmLink}`;
 
   // Fire emails concurrently — non-blocking on failure
-  await Promise.allSettled([
+  const [confirmSettled, notifySettled] = await Promise.allSettled([
     sendEmail(
       emailLower,
       "We received your quote request — MF Superior Products",
@@ -249,5 +262,80 @@ export async function POST(req: NextRequest) {
     ),
   ]);
 
-  return NextResponse.json({ success: true });
+  const confirmResult: SendResult =
+    confirmSettled.status === "fulfilled"
+      ? confirmSettled.value
+      : { ok: false, reason: "rejected" };
+  const notifyResult: SendResult =
+    notifySettled.status === "fulfilled"
+      ? notifySettled.value
+      : { ok: false, reason: "rejected" };
+
+  // Record an emailEvents row per outbound — `sent` on success, `failed`
+  // with a kind metadata on the missing-key / Resend-error paths. This
+  // is what makes the contact-form outbound visible in /inbox; without
+  // it the operator sees the lead but no "we emailed them back" trail.
+  try {
+    await db.insert(emailEvents).values([
+      {
+        leadId,
+        enrollmentId: null,
+        eventType: confirmResult.ok ? "sent" : "failed",
+        templateId: null,
+        sequenceStep: null,
+        metadataJson: {
+          direction: "confirmation_to_submitter",
+          to: emailLower,
+          provider: "resend",
+          ...(confirmResult.ok ? {} : { kind: confirmResult.reason }),
+        },
+        occurredAt: sql`now()` as unknown as Date,
+      },
+      {
+        leadId,
+        enrollmentId: null,
+        eventType: notifyResult.ok ? "sent" : "failed",
+        templateId: null,
+        sequenceStep: null,
+        metadataJson: {
+          direction: "notification_to_team",
+          to: NOTIFY_ADDRESS,
+          provider: "resend",
+          ...(notifyResult.ok ? {} : { kind: notifyResult.reason }),
+        },
+        occurredAt: sql`now()` as unknown as Date,
+      },
+    ]);
+  } catch (err) {
+    console.error("[contact/route] emailEvents insert error:", err);
+  }
+
+  try {
+    await db.insert(auditLog).values({
+      actorUserId: null,
+      entity: "lead",
+      entityId: leadId,
+      action: "contact_form_submitted",
+      beforeJson: null,
+      afterJson: {
+        email: emailLower,
+        company: company.trim() || null,
+        serviceType: serviceType || null,
+        confirmation: confirmResult,
+        notification: notifyResult,
+      },
+      occurredAt: sql`now()`,
+    });
+  } catch (err) {
+    console.error("[contact/route] auditLog insert error:", err);
+  }
+
+  return NextResponse.json({
+    success: true,
+    leadId,
+    emails: {
+      confirmation: confirmResult,
+      notification: notifyResult,
+    },
+  });
 }

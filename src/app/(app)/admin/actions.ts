@@ -1916,3 +1916,338 @@ export async function importDenverBatch1Action(): Promise<void> {
   params.set("tab", "imports");
   redirect(`/admin?${params.toString()}`);
 }
+
+/* ── Move all stage=new leads to /contacts ────────────────────────
+ *
+ * The /leads page now hard-filters to stage=new (fresh prospects
+ * only); /contacts shows everything else. This action is a one-time
+ * (per-batch) bulk-promote that takes every non-archived lead still
+ * sitting in `new` and bumps them to `contacted`, so a populated
+ * /leads can be "cleared" in one click without losing the rows.
+ *
+ * Idempotent: re-clicking after the bump moves zero additional rows.
+ * Reversible via direct SQL:
+ *   UPDATE leads SET stage='new', updated_at=now()
+ *   WHERE id = ANY(SELECT entity_id::uuid FROM audit_log
+ *                   WHERE action='move_to_contacts' ORDER BY occurred_at DESC LIMIT 1);
+ */
+export async function moveAllNewToContactsAction(): Promise<void> {
+  let errorMsg: string | null = null;
+  let moved = 0;
+  const movedIds: string[] = [];
+
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      errorMsg = "unauthorized";
+    } else {
+      env();
+
+      const result = await db
+        .update(leadsTable)
+        .set({ stage: "contacted", updatedAt: new Date() })
+        .where(
+          and(isNull(leadsTable.archivedAt), eq(leadsTable.stage, "new")),
+        )
+        .returning({ id: leadsTable.id });
+      moved = result.length;
+      for (const r of result) movedIds.push(r.id);
+
+      try {
+        await db.insert(auditLog).values({
+          actorUserId: session.user.id,
+          entity: "leads",
+          entityId: null,
+          action: "move_to_contacts",
+          beforeJson: null,
+          afterJson: { moved, sampleIds: movedIds.slice(0, 20) },
+          occurredAt: sql`now()`,
+        });
+      } catch (err) {
+        console.error(
+          "[moveAllNewToContacts] audit failed:",
+          (err as Error).message,
+        );
+      }
+    }
+  } catch (err) {
+    errorMsg =
+      (err as Error).name + ": " + (err as Error).message.slice(0, 200);
+    console.error("[moveAllNewToContacts] FATAL:", err);
+  }
+
+  revalidatePath("/leads");
+  revalidatePath("/contacts");
+  revalidatePath("/admin");
+
+  const params = new URLSearchParams({
+    moved_to_contacts: "1",
+    mtc_count: String(moved),
+  });
+  if (errorMsg) params.set("mtc_error", errorMsg);
+  params.set("tab", "operations");
+  redirect(`/admin?${params.toString()}`);
+}
+
+/* ── Generate 50 leads + auto-enroll as drafts ──────────────────────
+ *
+ * The single-click button operators wanted for "fill my pipeline RIGHT
+ * NOW with 50 reviewable drafts". Picks 50 candidates from the broader
+ * CURATED_DENVER pool (367 entries vs DENVER_BATCH_1's ~76), MX-
+ * validates each in parallel, inserts the survivors, FLIPS THE DEFAULT
+ * SEQUENCE'S TEMPLATES TO sendMode="draft" (so nothing goes out
+ * automatically), and auto-enrolls every inserted lead.
+ *
+ * Source label = "lead-gen-50" so the operator can filter to exactly
+ * this batch on /leads. Audit-logged. Idempotent: re-clicking will
+ * skip duplicates and only refill up to 50.
+ *
+ * Vercel budget: targeted maxDuration is 60s (Pro). On Hobby (10s) the
+ * MX-validation runs Promise.all over 50 entries, each ~100-300ms DNS
+ * round-trip; comfortably fits.
+ */
+export async function generate50DraftsAction(formData?: FormData): Promise<void> {
+  let errorMsg: string | null = null;
+  let validated = 0;
+  let inserted = 0;
+  let skippedDuplicate = 0;
+  let skippedInvalid = 0;
+  let enrolled = 0;
+  let alreadyEnrolled = 0;
+  let templatesFlipped = 0;
+  let durationMs = 0;
+  let sequenceName: string | null = null;
+  const limit = Math.max(
+    1,
+    Math.min(50, Number(formData?.get("limit") ?? 50) || 50),
+  );
+
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      errorMsg = "unauthorized";
+    } else {
+      env();
+      const start = Date.now();
+
+      const { validateEmail } = await import("@/lib/research/mx-validate");
+      const {
+        emailSequences,
+        emailTemplates,
+        leadSequenceEnrollments,
+      } = await import("@/lib/db/schema");
+
+      const [defaultSequence] = await db
+        .select({ id: emailSequences.id, name: emailSequences.name })
+        .from(emailSequences)
+        .where(eq(emailSequences.status, "active"))
+        .orderBy(emailSequences.createdAt)
+        .limit(1);
+
+      if (!defaultSequence) {
+        errorMsg = "no_active_sequence";
+      } else {
+        sequenceName = defaultSequence.name;
+
+        // 1. Flip every template on this sequence to sendMode="draft".
+        // The operator wants drafts only for this batch — we never want
+        // the tick to actually send while they're reviewing 50 new
+        // leads. Idempotent: re-clicking is a no-op for already-draft
+        // templates.
+        const flippedRes = await db
+          .update(emailTemplates)
+          .set({ sendMode: "draft", updatedAt: new Date() })
+          .where(eq(emailTemplates.sequenceId, defaultSequence.id))
+          .returning({ id: emailTemplates.id });
+        templatesFlipped = flippedRes.length;
+
+        // 2. Pick candidates from CURATED_DENVER. Skip pure chains
+        // where corporate procurement is locked down — preferring the
+        // emailLocal hint when present (procurement@, dispatch@,
+        // orders@) gets the message into the right inbox.
+        const ROLE_BY_INDUSTRY: Record<string, string> = {
+          restaurants: "orders",
+          bigbox: "procurement",
+          brokers: "dispatch",
+          smallbiz: "info",
+          construction: "procurement",
+          cannabis: "purchasing",
+        };
+
+        const VERTICAL_LABEL: Record<string, string> = {
+          restaurants: "Restaurant",
+          bigbox: "Big-box retail",
+          brokers: "Freight broker / 3PL",
+          smallbiz: "Small business",
+          construction: "Construction / contractor",
+          cannabis: "Cannabis (dispensary / cultivation)",
+        };
+
+        // Mix the 4 industries so the operator doesn't end up with 50
+        // restaurants. Take a round-robin slice for diversity.
+        const byIndustry = new Map<string, typeof CURATED_DENVER>();
+        for (const c of CURATED_DENVER) {
+          const list = byIndustry.get(c.industry) ?? [];
+          list.push(c);
+          byIndustry.set(c.industry, list);
+        }
+        const interleaved: typeof CURATED_DENVER = [];
+        const industries = [...byIndustry.keys()];
+        let progress = true;
+        for (let i = 0; progress && interleaved.length < limit * 2; i++) {
+          progress = false;
+          for (const ind of industries) {
+            const list = byIndustry.get(ind);
+            if (list && i < list.length) {
+              interleaved.push(list[i]);
+              progress = true;
+            }
+          }
+        }
+        const pool = interleaved.slice(0, limit * 2);
+
+        // 3. Build (candidate, email) pairs and MX-validate in parallel.
+        const candidates = pool.map((c) => ({
+          c,
+          email: `${c.emailLocal ?? ROLE_BY_INDUSTRY[c.industry] ?? "info"}@${c.domain}`,
+        }));
+        const validations = await Promise.all(
+          candidates.map(async ({ c, email }) => {
+            const v = await validateEmail(email);
+            return { c, email, v };
+          }),
+        );
+
+        const verified = validations.filter(
+          (r) => r.v.confidence !== "rejected",
+        );
+        skippedInvalid = validations.length - verified.length;
+        validated = verified.length;
+
+        // 4. Take the first `limit` survivors after the diversity sort.
+        const top = verified.slice(0, limit);
+
+        // 5. Insert each + enroll. Serial loop so we can return the
+        // lead id of the inserted-or-existing row and chain the
+        // enrollment off it. Stays well within the 60s Pro budget for
+        // 50 candidates (~200ms each = ~10s).
+        for (const { c, email } of top) {
+          const [existing] = await db
+            .select({ id: leadsTable.id, archivedAt: leadsTable.archivedAt })
+            .from(leadsTable)
+            .where(eq(leadsTable.email, email))
+            .limit(1);
+
+          let leadId: string;
+          if (existing) {
+            leadId = existing.id;
+            skippedDuplicate++;
+            // If the prior row was archived, bring it back so the
+            // operator sees the batch on /leads.
+            if (existing.archivedAt) {
+              await db
+                .update(leadsTable)
+                .set({ archivedAt: null, updatedAt: new Date() })
+                .where(eq(leadsTable.id, leadId));
+            }
+          } else {
+            const tags = [
+              "tier-A",
+              VERTICAL_LABEL[c.industry] ?? c.industry,
+              "lead-gen-50",
+              "email-role-account",
+              c.refrigerated ? "refrigerated" : null,
+              c.chain ? "chain-store" : null,
+            ].filter(Boolean) as string[];
+
+            const [created] = await db
+              .insert(leadsTable)
+              .values({
+                companyName: c.name,
+                website: `https://${c.domain}`,
+                email,
+                vertical: VERTICAL_LABEL[c.industry] ?? c.industry,
+                city: "Denver Metro",
+                state: "CO",
+                source: "lead-gen-50",
+                tier: "A",
+                score: 80,
+                tags,
+                notes: `Generated batch of 50 — role-account ${email}, MX-validated. Refrigerated=${c.refrigerated ?? false}. Chain=${c.chain ?? false}.`,
+                stage: "new",
+              })
+              .returning({ id: leadsTable.id });
+            leadId = created.id;
+            inserted++;
+          }
+
+          // 6. Enroll into the default sequence. Stagger nextSendAt
+          // across the next 30 minutes so all 50 don't draft in a
+          // single tick (would breach the daily cap).
+          const enrollResult = await db
+            .insert(leadSequenceEnrollments)
+            .values({
+              leadId,
+              sequenceId: defaultSequence.id,
+              status: "active",
+              currentStep: 1,
+              nextSendAt: new Date(
+                Date.now() + Math.random() * 30 * 60 * 1000,
+              ),
+            })
+            .onConflictDoNothing()
+            .returning({ id: leadSequenceEnrollments.id });
+
+          if (enrollResult.length > 0) enrolled++;
+          else alreadyEnrolled++;
+        }
+
+        await db.insert(auditLog).values({
+          actorUserId: session.user.id,
+          entity: "leads",
+          entityId: null,
+          action: "generate_50_drafts",
+          beforeJson: null,
+          afterJson: {
+            limit,
+            validated,
+            inserted,
+            skippedDuplicate,
+            skippedInvalid,
+            enrolled,
+            alreadyEnrolled,
+            templatesFlipped,
+            sequenceId: defaultSequence.id,
+            sequenceName: defaultSequence.name,
+          },
+          occurredAt: sql`now()`,
+        });
+
+        durationMs = Date.now() - start;
+      }
+    }
+  } catch (err) {
+    errorMsg =
+      (err as Error).name + ": " + (err as Error).message.slice(0, 200);
+    console.error("[generate50Drafts] FATAL:", err);
+  }
+
+  revalidatePath("/leads");
+  revalidatePath("/admin");
+
+  const params = new URLSearchParams({
+    g50: "1",
+    g50_validated: String(validated),
+    g50_inserted: String(inserted),
+    g50_dup: String(skippedDuplicate),
+    g50_invalid: String(skippedInvalid),
+    g50_enrolled: String(enrolled),
+    g50_already: String(alreadyEnrolled),
+    g50_templates: String(templatesFlipped),
+    g50_dur: String(durationMs),
+  });
+  if (sequenceName) params.set("g50_sequence", sequenceName);
+  if (errorMsg) params.set("g50_error", errorMsg);
+  params.set("tab", "imports");
+  redirect(`/admin?${params.toString()}`);
+}

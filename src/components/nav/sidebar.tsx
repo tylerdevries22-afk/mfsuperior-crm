@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   Users,
+  BookUser,
   GitBranch,
   Mail,
   Shield,
@@ -22,6 +23,7 @@ const NAV: Array<{
 }> = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/leads", label: "Leads", icon: Users },
+  { href: "/contacts", label: "Contacts", icon: BookUser },
   { href: "/sequences", label: "Sequences", icon: GitBranch },
   { href: "/templates", label: "Templates", icon: Mail },
   { href: "/inbox", label: "Inbox", icon: Inbox },

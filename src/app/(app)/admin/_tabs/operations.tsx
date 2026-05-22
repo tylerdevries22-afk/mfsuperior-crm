@@ -1,8 +1,9 @@
-import { X } from "lucide-react";
+import { BookUser, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   fixBusinessNameAction,
+  moveAllNewToContactsAction,
   purgeNoEmailLeadsAction,
   revalidateAllLeadEmailsAction,
   unarchiveAllLeadsAction,
@@ -28,6 +29,45 @@ export function OperationsTab({ sp }: { sp: AdminSearch }) {
         <CardTitle>Bulk lead operations</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Bulk move stage=new → contacted (clears /leads, populates /contacts) */}
+        <form
+          action={moveAllNewToContactsAction}
+          className="flex flex-wrap items-start gap-3 rounded-md border border-brand/40 bg-brand/5 p-4"
+        >
+          <div className="flex-1 min-w-[260px]">
+            <p className="font-medium text-foreground">
+              Move all fresh leads → /contacts
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Promotes every non-archived lead with{" "}
+              <span className="font-mono">stage=new</span> to{" "}
+              <span className="font-mono">stage=contacted</span>. They
+              disappear from <span className="font-mono">/leads</span>{" "}
+              (which only shows fresh prospects) and appear on{" "}
+              <span className="font-mono">/contacts</span>. Use this to
+              clear out a batch you&apos;ve already worked. Idempotent;
+              audit-logged.
+            </p>
+            {sp.moved_to_contacts === "1" && sp.mtc_error ? (
+              <p className="mt-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 font-mono text-[11px] text-destructive">
+                {decodeURIComponent(sp.mtc_error)}
+              </p>
+            ) : sp.moved_to_contacts === "1" ? (
+              <p className="mt-3 rounded-md border border-brand/40 bg-brand/10 px-3 py-2 text-xs text-foreground">
+                Moved{" "}
+                <span className="font-mono tabular-nums">
+                  {Number(sp.mtc_count ?? 0)}
+                </span>{" "}
+                lead{Number(sp.mtc_count ?? 0) === 1 ? "" : "s"} to
+                /contacts.
+              </p>
+            ) : null}
+          </div>
+          <Button type="submit" size="sm">
+            <BookUser /> Move all to contacts
+          </Button>
+        </form>
+
         {/* Unarchive: reverse every archive (full table or last N) */}
         <form
           action={unarchiveAllLeadsAction}
