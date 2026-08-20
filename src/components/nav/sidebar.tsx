@@ -13,6 +13,7 @@ import {
   Settings,
   Bell,
   Inbox,
+  Truck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -26,6 +27,7 @@ const NAV: Array<{
   { href: "/contacts", label: "Contacts", icon: BookUser },
   { href: "/sequences", label: "Sequences", icon: GitBranch },
   { href: "/templates", label: "Templates", icon: Mail },
+  { href: "/carrier", label: "Carrier", icon: Truck },
   { href: "/inbox", label: "Inbox", icon: Inbox },
   { href: "/notifications", label: "Notifications", icon: Bell },
   { href: "/admin", label: "Admin", icon: Shield },
