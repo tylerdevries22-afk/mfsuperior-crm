@@ -72,7 +72,7 @@ function createUnconfiguredRepository(missing: readonly string[]): OperationsRep
     sendMessage: fail,
     signIn: fail,
     signOut: fail,
-    simulateDriverLocation: fail,
+    recordDriverLocation: fail,
     submitProofOfDelivery: fail,
     subscribe: () => () => undefined,
     switchDemoRole: fail,

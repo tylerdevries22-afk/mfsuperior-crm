@@ -460,7 +460,7 @@ export class DemoOperationsRepository implements OperationsRepository {
     });
   }
 
-  simulateDriverLocation(coordinates: GeoPoint): Promise<DemoOperationsState> {
+  recordDriverLocation(coordinates: GeoPoint): Promise<DemoOperationsState> {
     return this.commit((state, occurredAt) => {
       validateCoordinates(coordinates);
       const context = getSessionContext(state);

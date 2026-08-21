@@ -52,7 +52,7 @@ export interface OperationsActions {
   ): Promise<boolean>;
   advanceIntermediateStop(shipmentId: string, stopId: string): Promise<boolean>;
   transitionDutyStatus(nextStatus: HosDutyStatus): Promise<boolean>;
-  simulateDriverLocation(coordinates: GeoPoint): Promise<boolean>;
+  recordDriverLocation(coordinates: GeoPoint): Promise<boolean>;
   reportException(shipmentId: string, input: ExceptionReportInput): Promise<boolean>;
   resolveException(
     exceptionId: string,
@@ -167,8 +167,8 @@ export function OperationsProvider({
       transitionDutyStatus: (nextStatus) => runMutation(
         () => repository.transitionDutyStatus(nextStatus),
       ),
-      simulateDriverLocation: (coordinates) => runMutation(
-        () => repository.simulateDriverLocation(coordinates),
+      recordDriverLocation: (coordinates) => runMutation(
+        () => repository.recordDriverLocation(coordinates),
       ),
       reportException: (shipmentId, input) => runMutation(
         () => repository.reportException(shipmentId, input),

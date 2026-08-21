@@ -171,7 +171,7 @@ describe("unified demo operations domain", () => {
     await repository.transitionShipment("shipment-28492", "dispatched");
     await repository.switchDemoRole("driver");
     await repository.transitionDutyStatus("driving");
-    await repository.simulateDriverLocation({ latitude: 44.95, longitude: -92.99 });
+    await repository.recordDriverLocation({ latitude: 44.95, longitude: -92.99 });
     await repository.switchDemoRole("admin");
     await repository.transitionShipment("shipment-28492", "at_pickup", "stop-28492-pickup");
     await repository.transitionShipment("shipment-28492", "loaded", "stop-28492-pickup");

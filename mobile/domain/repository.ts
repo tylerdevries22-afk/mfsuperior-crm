@@ -51,7 +51,7 @@ export interface OperationsRepository {
   ): Promise<Shipment>;
   advanceIntermediateStop(shipmentId: EntityId, stopId: EntityId): Promise<Shipment>;
   transitionDutyStatus(nextStatus: HosDutyStatus): Promise<DemoOperationsState>;
-  simulateDriverLocation(coordinates: GeoPoint): Promise<DemoOperationsState>;
+  recordDriverLocation(coordinates: GeoPoint): Promise<DemoOperationsState>;
   reportException(shipmentId: EntityId, input: ExceptionReportInput): Promise<ExceptionReport>;
   resolveException(
     exceptionId: EntityId,

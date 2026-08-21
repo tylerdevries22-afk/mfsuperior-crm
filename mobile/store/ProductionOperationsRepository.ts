@@ -184,7 +184,7 @@ export class ProductionOperationsRepository implements OperationsRepository {
     return this.state;
   }
 
-  async simulateDriverLocation(coordinates: GeoPoint): Promise<DemoOperationsState> {
+  async recordDriverLocation(coordinates: GeoPoint): Promise<DemoOperationsState> {
     const identity = this.requireIdentity();
     const shipment = this.findActiveShipment();
     const driverId = this.requireCurrentDriverId();

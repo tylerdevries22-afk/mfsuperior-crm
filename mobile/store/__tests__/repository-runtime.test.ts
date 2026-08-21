@@ -62,7 +62,7 @@ describe("ProductionOperationsRepository", () => {
     await repository.signIn("driver@example.com", "correct horse battery staple");
     await repository.transitionDutyStatus("driving");
     expect(repository.getState().hosClocks[0]?.status).toBe("driving");
-    await repository.simulateDriverLocation({ latitude: 44.1, longitude: -93.2 });
+    await repository.recordDriverLocation({ latitude: 44.1, longitude: -93.2 });
     const report = await repository.reportException("shipment-28471", {
       attachmentUris: ["file://damage.jpg"],
       category: "cargo_damage",

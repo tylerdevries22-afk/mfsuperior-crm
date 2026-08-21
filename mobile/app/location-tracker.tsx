@@ -70,7 +70,7 @@ export default function LocationTrackerScreen() {
           const coordinates = { latitude: location.coords.latitude, longitude: location.coords.longitude };
           setPosition(coordinates);
           setAccuracy(location.coords.accuracy);
-          void actions.simulateDriverLocation(coordinates);
+          void actions.recordDriverLocation(coordinates);
         },
       );
       setTracking(true);
