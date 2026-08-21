@@ -3,6 +3,7 @@ import type {
   GeoPoint,
   HosDutyStatus,
   ProofOfDeliveryInput,
+  ShipmentStatus,
 } from "../../domain/types";
 
 export const OFFLINE_MUTATION_KINDS = [
@@ -10,6 +11,7 @@ export const OFFLINE_MUTATION_KINDS = [
   "exception",
   "location",
   "photo",
+  "shipment_status",
   "signature",
   "pod",
 ] as const;
@@ -21,6 +23,7 @@ export type OfflineMutationPayload =
   | { readonly input: ExceptionReportInput }
   | { readonly coordinates: GeoPoint }
   | { readonly fileName: string; readonly fileUri: string; readonly mimeType: string }
+  | { readonly status: ShipmentStatus; readonly stopId?: string }
   | { readonly signatureData: string }
   | { readonly input: ProofOfDeliveryInput };
 

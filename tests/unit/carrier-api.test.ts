@@ -380,6 +380,96 @@ describe("strict API contracts", () => {
     ).toBe(false);
   });
 
+  it("accepts every offline mutation operation and rejects invalid payloads", () => {
+    const base = {
+      idempotencyKey: "mutation-key-00001",
+      occurredAt: "2026-08-21T12:00:00Z",
+    };
+    const documentId = "550e8400-e29b-41d4-a716-446655440004";
+    const mutations = [
+      {
+        ...base,
+        operation: "driver.duty_status.update",
+        payload: { status: "driving" },
+      },
+      {
+        ...base,
+        operation: "shipment.status.update",
+        payload: { shipmentId: carrierId, status: "dispatched" },
+      },
+      {
+        ...base,
+        operation: "driver.location.record",
+        payload: { latitude: 44.1, longitude: -93.2, shipmentId: carrierId },
+      },
+      {
+        ...base,
+        operation: "shipment.exception.report",
+        payload: {
+          category: "cargo_damage",
+          description: "One pallet wrap is torn.",
+          severity: "medium",
+          shipmentId: carrierId,
+        },
+      },
+      {
+        ...base,
+        operation: "shipment.photo.attach",
+        payload: { documentId, shipmentId: carrierId },
+      },
+      {
+        ...base,
+        operation: "shipment.signature.record",
+        payload: { documentId, shipmentId: carrierId },
+      },
+      {
+        ...base,
+        operation: "shipment.pod.submit",
+        payload: {
+          photoDocumentIds: [documentId],
+          recipientName: "Receiver",
+          shipmentId: carrierId,
+          signatureDocumentId: documentId,
+        },
+      },
+    ];
+    for (const mutation of mutations) {
+      const parsed = offlineMutationBatchSchema.safeParse({ mutations: [mutation] });
+      expect(parsed.success).toBe(true);
+    }
+
+    const invalid = [
+      { ...base, operation: "driver.duty_status.update", payload: { status: "loaded" } },
+      {
+        ...base,
+        operation: "shipment.photo.attach",
+        payload: { documentId: "not-a-uuid", shipmentId: carrierId },
+      },
+      {
+        ...base,
+        operation: "shipment.pod.submit",
+        payload: { shipmentId: carrierId },
+      },
+      {
+        ...base,
+        operation: "shipment.exception.report",
+        payload: {
+          category: "unknown",
+          description: "Nope",
+          severity: "medium",
+          shipmentId: carrierId,
+        },
+      },
+      { ...base, operation: "shipment.pod.delete", payload: {} },
+    ];
+    for (const mutation of invalid) {
+      expect(offlineMutationBatchSchema.safeParse({ mutations: [mutation] }).success).toBe(false);
+    }
+
+    const oversized = Array.from({ length: 26 }, () => mutations[0]);
+    expect(offlineMutationBatchSchema.safeParse({ mutations: oversized }).success).toBe(false);
+  });
+
   it("always emits request metadata in the structured envelope", async () => {
     const response = apiSuccess({ count: 2 }, "request-1234", {
       meta: { page: 1 },

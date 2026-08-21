@@ -50,7 +50,13 @@ export function createOperationsRepositoryFromEnvironment(
     fetchImplementation: options.fetchImplementation,
     getAccessToken: () => auth.getAccessToken(),
   });
-  return new ProductionOperationsRepository({ apiClient, auth, offlineQueue: queue });
+  return new ProductionOperationsRepository({
+    apiClient,
+    auth,
+    fetchImplementation: options.fetchImplementation,
+    offlineQueue: queue,
+    uploadBaseUrl: runtime.config.supabaseUrl,
+  });
 }
 
 function createUnconfiguredRepository(missing: readonly string[]): OperationsRepository {

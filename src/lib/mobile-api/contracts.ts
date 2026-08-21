@@ -116,6 +116,8 @@ export const uploadIntentSchema = z
       "rate_confirmation",
       "receipt",
       "damage_photo",
+      "photo",
+      "signature",
       "other",
     ]),
     shipmentId: z.uuid().nullable().optional(),
@@ -136,6 +138,7 @@ const shipmentStatusMutationSchema = z
       .object({
         shipmentId: z.uuid(),
         status: z.enum([
+          "dispatched",
           "at_pickup",
           "in_transit",
           "at_delivery",
@@ -176,6 +179,91 @@ const requestCreateMutationSchema = z
   })
   .strict();
 
+const driverDutyStatusMutationSchema = z
+  .object({
+    ...mutationBase,
+    operation: z.literal("driver.duty_status.update"),
+    payload: z
+      .object({
+        status: z.enum([
+          "off_duty",
+          "sleeper_berth",
+          "driving",
+          "on_duty_not_driving",
+        ]),
+        shipmentId: z.uuid().nullable().optional(),
+      })
+      .strict(),
+  })
+  .strict();
+
+const shipmentExceptionMutationSchema = z
+  .object({
+    ...mutationBase,
+    operation: z.literal("shipment.exception.report"),
+    payload: z
+      .object({
+        shipmentId: z.uuid(),
+        stopId: z.uuid().nullable().optional(),
+        category: z.enum([
+          "delay",
+          "equipment",
+          "temperature",
+          "cargo_damage",
+          "refused_delivery",
+          "route",
+          "other",
+        ]),
+        severity: z.enum(["low", "medium", "high", "critical"]),
+        description: z.string().trim().min(1).max(2_000),
+      })
+      .strict(),
+  })
+  .strict();
+
+const shipmentPhotoMutationSchema = z
+  .object({
+    ...mutationBase,
+    operation: z.literal("shipment.photo.attach"),
+    payload: z
+      .object({
+        shipmentId: z.uuid(),
+        documentId: z.uuid(),
+      })
+      .strict(),
+  })
+  .strict();
+
+const shipmentSignatureMutationSchema = z
+  .object({
+    ...mutationBase,
+    operation: z.literal("shipment.signature.record"),
+    payload: z
+      .object({
+        shipmentId: z.uuid(),
+        documentId: z.uuid(),
+      })
+      .strict(),
+  })
+  .strict();
+
+const shipmentPodMutationSchema = z
+  .object({
+    ...mutationBase,
+    operation: z.literal("shipment.pod.submit"),
+    payload: z
+      .object({
+        shipmentId: z.uuid(),
+        stopId: z.uuid().nullable().optional(),
+        recipientName: z.string().trim().min(1).max(200),
+        notes: z.string().trim().min(1).max(2_000).nullable().optional(),
+        signatureDocumentId: z.uuid().nullable().optional(),
+        photoDocumentIds: z.array(z.uuid()).max(8).optional(),
+      })
+      .strict(),
+  })
+  .strict();
+
 export const offlineMutationBatchSchema = z
   .object({
     mutations: z
@@ -183,6 +271,11 @@ export const offlineMutationBatchSchema = z
         z.discriminatedUnion("operation", [
           shipmentStatusMutationSchema,
           driverLocationMutationSchema,
+          driverDutyStatusMutationSchema,
+          shipmentExceptionMutationSchema,
+          shipmentPhotoMutationSchema,
+          shipmentSignatureMutationSchema,
+          shipmentPodMutationSchema,
           requestCreateMutationSchema,
         ]),
       )

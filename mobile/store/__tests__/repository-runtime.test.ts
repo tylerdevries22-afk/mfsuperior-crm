@@ -35,7 +35,10 @@ describe("ProductionOperationsRepository", () => {
   it("hydrates production data and queues driver, location, exception, photo, signature, and POD writes", async () => {
     const state = productionState("driver");
     const identity = identityFor("driver", "account-driver");
-    const fetchImplementation = createApiFetch(state);
+    const captured: { mutations: { operation: string; payload: Record<string, unknown> }[] } = {
+      mutations: [],
+    };
+    const fetchImplementation = createApiFetch(state, captured);
     const queue = new OfflineMutationQueue({
       idempotencyKeyFactory: createIdFactory(),
       storage: new MemoryOfflineQueueStorage(),
@@ -54,8 +57,10 @@ describe("ProductionOperationsRepository", () => {
         signOut: async () => undefined,
       },
       clock: () => "2026-08-21T13:00:00.000Z",
+      fetchImplementation,
       idFactory: createIdFactory(),
       offlineQueue: queue,
+      uploadBaseUrl: "https://storage.example.com",
     });
 
     await repository.hydrate();
@@ -81,6 +86,19 @@ describe("ProductionOperationsRepository", () => {
     expect(report.id).toMatch(/^id-/);
     expect(proof.status).toBe("submitted");
     expect(await queue.list()).toEqual([]);
+    expect(captured.mutations.map((mutation) => mutation.operation)).toEqual([
+      "driver.duty_status.update",
+      "driver.location.record",
+      "shipment.photo.attach",
+      "shipment.exception.report",
+      "shipment.photo.attach",
+      "shipment.signature.record",
+      "shipment.pod.submit",
+    ]);
+    expect(captured.mutations[2]?.payload).toEqual({
+      documentId: "document-damage.jpg",
+      shipmentId: "shipment-28471",
+    });
     expect(repository.getShipmentEdiTransactions("shipment-28471")).toEqual([]);
     await repository.signOut();
     expect(repository.getState().session.accountId).toBeNull();
@@ -89,10 +107,13 @@ describe("ProductionOperationsRepository", () => {
   it("keeps admin-only online mutations separate from demo role controls", async () => {
     const state = productionState("admin");
     const identity = identityFor("admin", "account-admin");
+    const captured: { mutations: { operation: string; payload: Record<string, unknown> }[] } = {
+      mutations: [],
+    };
     const repository = new ProductionOperationsRepository({
       apiClient: new ApiClient({
         baseUrl: "https://api.example.com",
-        fetchImplementation: createApiFetch(state),
+        fetchImplementation: createApiFetch(state, captured),
         getAccessToken: async () => "access-token",
         requestIdFactory: createIdFactory(),
         sleep: async () => undefined,
@@ -103,12 +124,22 @@ describe("ProductionOperationsRepository", () => {
         signOut: async () => undefined,
       },
       idFactory: createIdFactory(),
-      offlineQueue: new OfflineMutationQueue(),
+      offlineQueue: new OfflineMutationQueue({
+        idempotencyKeyFactory: createIdFactory(),
+        storage: new MemoryOfflineQueueStorage(),
+      }),
     });
     await repository.hydrate();
     await repository.respondToTender("shipment-28492", "accepted");
     await repository.assignShipment("shipment-28492", "driver-brenna");
-    await repository.transitionShipment("shipment-28492", "dispatched");
+    const dispatched = await repository.transitionShipment("shipment-28492", "dispatched");
+    expect(dispatched.status).toBe("dispatched");
+    expect(captured.mutations.map(({ operation, payload }) => ({ operation, payload }))).toEqual([
+      {
+        operation: "shipment.status.update",
+        payload: { shipmentId: "shipment-28492", status: "dispatched" },
+      },
+    ]);
     await repository.advanceIntermediateStop("shipment-28471", "stop-28471-intermediate");
     await repository.resolveException("exception-delay", "Resolved", "dispatched");
     await repository.sendMessage({
@@ -156,16 +187,54 @@ function identityFor(role: "admin" | "driver", userId: string): AuthIdentity {
   };
 }
 
-function createApiFetch(state: DemoOperationsState): typeof fetch {
+function createApiFetch(
+  state: DemoOperationsState,
+  captured?: { mutations: { operation: string; payload: Record<string, unknown> }[] },
+): typeof fetch {
   return async (input, init) => {
     const url = input.toString();
-    if ((init?.method ?? "GET") === "GET") {
+    const method = init?.method ?? "GET";
+    if (url.startsWith("file://")) {
+      return {
+        blob: async () => ({ size: 18 }) as unknown as Blob,
+        json: async () => ({}),
+        ok: true,
+        status: 200,
+      } as Response;
+    }
+    if (method === "PUT" || url.includes("/storage/")) {
+      return jsonResponse({});
+    }
+    if (method === "GET") {
       if (url.includes("/v1/bootstrap")) return jsonResponse(envelope(bootstrapPayload(state)));
       if (url.includes("/v1/shipments")) return jsonResponse(envelope(shipmentPayload(state)));
       if (url.includes("/v1/requests")) return jsonResponse(envelope(requestPayload(state)));
     }
-    if (url.endsWith("/offline-mutations")) {
-      return jsonResponse({ accepted: true });
+    if (url.endsWith("/v1/documents/upload-intent")) {
+      const body = JSON.parse(String(init?.body)) as { contentType: string; fileName: string };
+      return jsonResponse(envelope({
+        documentId: `document-${body.fileName}`,
+        upload: {
+          contentType: body.contentType,
+          expiresAt: "2026-08-21T13:02:00.000Z",
+          token: "upload-token",
+          url: "https://storage.example.com/storage/v1/object/upload/sign/docs/path",
+        },
+      }));
+    }
+    if (url.endsWith("/v1/mutations")) {
+      const body = JSON.parse(String(init?.body)) as {
+        mutations: { idempotencyKey: string; operation: string; payload: Record<string, unknown> }[];
+      };
+      captured?.mutations.push(...body.mutations);
+      return jsonResponse(envelope({
+        results: body.mutations.map((mutation) => ({
+          idempotencyKey: mutation.idempotencyKey,
+          operation: mutation.operation,
+          replayed: false,
+          result: { id: "result-id" },
+        })),
+      }));
     }
     return jsonResponse({ result: resultForPath(state, url), state });
   };

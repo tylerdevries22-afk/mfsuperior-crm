@@ -26,9 +26,17 @@ import type {
 } from "../domain/types";
 import { DEMO_STATE_VERSION } from "../domain/types";
 import type { AuthIdentity } from "../lib/auth";
-import { ApiClient, NetworkRequestError } from "../lib/network";
+import {
+  ApiClient,
+  NetworkRequestError,
+  readUploadBody,
+  uploadToSignedUrl,
+  type UploadIntentResponse,
+  type UploadSource,
+} from "../lib/network";
 import {
   OfflineMutationQueue,
+  toMutationOperation,
   type OfflineMutation,
   type OfflineMutationDraft,
   type OfflineQueueHooks,
@@ -51,9 +59,11 @@ export interface ProductionOperationsRepositoryOptions {
   readonly apiClient: ApiClient;
   readonly auth: ProductionAuthGateway;
   readonly clock?: () => string;
+  readonly fetchImplementation?: typeof fetch;
   readonly idFactory?: () => string;
   readonly offlineQueue: OfflineMutationQueue;
   readonly queueHooks?: OfflineQueueHooks;
+  readonly uploadBaseUrl?: string;
 }
 
 interface ProductionMutationResponse<Result> {
@@ -66,10 +76,12 @@ export class ProductionOperationsRepository implements OperationsRepository {
   private readonly apiClient: ApiClient;
   private readonly auth: ProductionAuthGateway;
   private readonly clock: () => string;
+  private readonly fetchImplementation: typeof fetch;
   private readonly idFactory: () => string;
   private readonly listeners = new Set<OperationsStateListener>();
   private readonly offlineQueue: OfflineMutationQueue;
   private readonly queueHooks: OfflineQueueHooks;
+  private readonly uploadBaseUrl: string | undefined;
   private identity: AuthIdentity | null = null;
   private state: DemoOperationsState;
 
@@ -77,9 +89,11 @@ export class ProductionOperationsRepository implements OperationsRepository {
     this.apiClient = options.apiClient;
     this.auth = options.auth;
     this.clock = options.clock ?? (() => new Date().toISOString());
+    this.fetchImplementation = options.fetchImplementation ?? fetch;
     this.idFactory = options.idFactory ?? randomUUID;
     this.offlineQueue = options.offlineQueue;
     this.queueHooks = options.queueHooks ?? {};
+    this.uploadBaseUrl = options.uploadBaseUrl;
     this.state = createEmptyOperationsState(this.clock());
   }
 
@@ -155,10 +169,25 @@ export class ProductionOperationsRepository implements OperationsRepository {
     nextStatus: ShipmentStatus,
     stopId?: EntityId,
   ): Promise<Shipment> {
-    return this.performMutation(`/v1/shipments/${encodeId(shipmentId)}/status`, {
-      nextStatus,
-      stopId,
+    const identity = this.requireIdentity();
+    const shipment = this.requireShipment(shipmentId);
+    await this.enqueueAndSync({
+      entityId: shipmentId,
+      entityVersion: shipmentVersion(shipment),
+      kind: "shipment_status",
+      ownerUserId: identity.userId,
+      payload: stopId ? { status: nextStatus, stopId } : { status: nextStatus },
+      shipmentId,
     });
+    const transitioned: Shipment = { ...shipment, status: nextStatus, updatedAt: this.clock() };
+    this.replaceState({
+      ...this.state,
+      shipments: this.state.shipments.map((candidate) => (
+        candidate.id === shipmentId ? transitioned : candidate
+      )),
+      updatedAt: this.clock(),
+    });
+    return transitioned;
   }
 
   async advanceIntermediateStop(shipmentId: EntityId, stopId: EntityId): Promise<Shipment> {
@@ -332,11 +361,82 @@ export class ProductionOperationsRepository implements OperationsRepository {
   }
 
   private async sendOfflineMutation(mutation: OfflineMutation): Promise<void> {
-    await this.apiClient.requestJson<unknown>("/v1/mobile/offline-mutations", {
-      body: mutation,
+    const documentId = await this.uploadPendingDocument(mutation);
+    const operation = toMutationOperation(mutation, documentId);
+    if (!operation) {
+      return;
+    }
+    await this.apiClient.requestJson<unknown>("v1/mutations", {
+      body: { mutations: [operation] },
       idempotencyKey: mutation.idempotencyKey,
       method: "POST",
     });
+  }
+
+  /** Uploads retained photo/signature bytes, returning the linked document id. */
+  private async uploadPendingDocument(mutation: OfflineMutation): Promise<string | undefined> {
+    if (mutation.kind === "photo") {
+      const payload = mutation.payload as {
+        readonly fileName: string;
+        readonly fileUri: string;
+        readonly mimeType: string;
+      };
+      return this.uploadDocument(mutation, {
+        contentType: uploadContentType(payload.mimeType, "image/jpeg"),
+        fileName: payload.fileName,
+        kind: "photo",
+        source: { uri: payload.fileUri },
+      });
+    }
+    if (mutation.kind === "signature") {
+      const payload = mutation.payload as { readonly signatureData: string };
+      if (payload.signatureData.startsWith("file://")) {
+        return this.uploadDocument(mutation, {
+          contentType: uploadContentType(mimeTypeFromUri(payload.signatureData), "image/png"),
+          fileName: fileNameFromUri(payload.signatureData),
+          kind: "signature",
+          source: { uri: payload.signatureData },
+        });
+      }
+      return this.uploadDocument(mutation, {
+        contentType: "image/png",
+        fileName: "signature.png",
+        kind: "signature",
+        source: { base64: payload.signatureData },
+      });
+    }
+    return undefined;
+  }
+
+  private async uploadDocument(
+    mutation: OfflineMutation,
+    input: {
+      readonly contentType: string;
+      readonly fileName: string;
+      readonly kind: "photo" | "signature";
+      readonly source: UploadSource;
+    },
+  ): Promise<string> {
+    const body = await readUploadBody(input.source, this.fetchImplementation);
+    const intent = await this.apiClient.requestJson<UploadIntentResponse>(
+      "v1/documents/upload-intent",
+      {
+        body: {
+          byteSize: body.byteSize,
+          contentType: input.contentType,
+          fileName: input.fileName,
+          kind: input.kind,
+          shipmentId: mutation.shipmentId,
+        },
+        idempotencyKey: `${mutation.idempotencyKey}-upload-${mutation.attempts}`,
+        method: "POST",
+      },
+    );
+    await uploadToSignedUrl(intent.upload, body, {
+      baseUrl: this.uploadBaseUrl,
+      fetchImplementation: this.fetchImplementation,
+    });
+    return intent.documentId;
   }
 
   private async enqueueAttachmentMutations(
@@ -531,6 +631,18 @@ function mimeTypeFromUri(uri: string): string {
   if (extension === "heic") return "image/heic";
   if (extension === "pdf") return "application/pdf";
   return "application/octet-stream";
+}
+
+/** Upload intents only accept the document content types the backend signs. */
+function uploadContentType(mimeType: string, fallback: "image/jpeg" | "image/png"): string {
+  const allowed = new Set([
+    "application/pdf",
+    "image/heic",
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+  ]);
+  return allowed.has(mimeType) ? mimeType : fallback;
 }
 
 function encodeId(value: string): string {

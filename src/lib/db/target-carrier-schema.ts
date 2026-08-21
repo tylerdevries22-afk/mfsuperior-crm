@@ -40,6 +40,13 @@ export const driverStatusEnum = pgEnum("driver_status", [
   "suspended",
 ]);
 
+export const hosDutyStatusEnum = pgEnum("hos_duty_status", [
+  "off_duty",
+  "sleeper_berth",
+  "driving",
+  "on_duty_not_driving",
+]);
+
 export const shipmentSourceEnum = pgEnum("shipment_source", [
   "manual",
   "demo",
@@ -360,6 +367,36 @@ export const driverLocations = pgTable(
       table.recordedAt,
     ),
     index("driver_locations_shipment_recorded_at_idx").on(
+      table.shipmentId,
+      table.recordedAt,
+    ),
+  ],
+);
+
+export const driverStatusEvents = pgTable(
+  "driver_status_events",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    driverId: uuid("driver_id")
+      .notNull()
+      .references(() => drivers.id, { onDelete: "cascade" }),
+    shipmentId: uuid("shipment_id").references(() => shipments.id, {
+      onDelete: "set null",
+    }),
+    status: hosDutyStatusEnum("status").notNull(),
+    recordedAt: timestamp("recorded_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("driver_status_events_driver_recorded_at_idx").on(
+      table.driverId,
+      table.recordedAt,
+    ),
+    index("driver_status_events_shipment_recorded_at_idx").on(
       table.shipmentId,
       table.recordedAt,
     ),
