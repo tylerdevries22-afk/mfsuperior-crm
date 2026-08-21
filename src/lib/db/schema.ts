@@ -70,10 +70,16 @@ export const appRoleEnum = pgEnum("app_role", [
 
 export const membershipStatusEnum = pgEnum("membership_status", [
   "invited",
+  "pending",
   "active",
   "suspended",
   "revoked",
 ]);
+
+export const customerAccessRequestStatusEnum = pgEnum(
+  "customer_access_request_status",
+  ["pending", "approved", "rejected", "cancelled"],
+);
 
 export const freightRequestStatusEnum = pgEnum("freight_request_status", [
   "draft",
@@ -225,6 +231,55 @@ export const organizationInvitations = pgTable(
     index("organization_invitations_org_email_idx").on(
       table.organizationId,
       table.email,
+    ),
+  ],
+);
+
+export const customerAccessRequests = pgTable(
+  "customer_access_requests",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    membershipId: uuid("membership_id")
+      .notNull()
+      .references(() => organizationMemberships.id, { onDelete: "cascade" }),
+    status: customerAccessRequestStatusEnum("status")
+      .notNull()
+      .default("pending"),
+    requestedCompanyName: varchar("requested_company_name", { length: 200 }),
+    linkedCustomerAccountId: uuid("linked_customer_account_id").references(
+      () => customerAccounts.id,
+      { onDelete: "set null" },
+    ),
+    reviewedByUserId: uuid("reviewed_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    reviewNotes: text("review_notes"),
+    requestedAt: timestamp("requested_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("customer_access_requests_org_user_unique").on(
+      table.organizationId,
+      table.userId,
+    ),
+    uniqueIndex("customer_access_requests_membership_unique").on(
+      table.membershipId,
+    ),
+    index("customer_access_requests_org_status_idx").on(
+      table.organizationId,
+      table.status,
+      table.requestedAt,
     ),
   ],
 );

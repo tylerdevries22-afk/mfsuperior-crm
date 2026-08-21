@@ -29,7 +29,7 @@ export default function HoursOfServiceScreen() {
       <View style={[styles.fill, { backgroundColor: theme.background }]}>
         <Header centered onBack={() => router.back()} showBack title="Hours of service" />
         <Screen safeEdges={["left", "right", "bottom"]}>
-          <EmptyState actionLabel="Return home" description="Switch to the Driver demo role to view and update the local HOS clock." onAction={() => router.replace("/(tabs)")} title="Driver role required" />
+          <EmptyState actionLabel="Return home" description="A linked Driver membership is required to view and update this HOS clock." onAction={() => router.replace("/(tabs)")} title="Driver role required" />
         </Screen>
       </View>
     );
@@ -49,7 +49,7 @@ export default function HoursOfServiceScreen() {
 
   return (
     <View style={[styles.fill, { backgroundColor: theme.background }]}>
-      <Header centered onBack={() => router.back()} showBack subtitle="Driver demo" title="Hours of service" />
+      <Header centered onBack={() => router.back()} showBack subtitle="Driver duty record" title="Hours of service" />
       <Screen safeEdges={["left", "right", "bottom"]} scroll contentContainerStyle={styles.content}>
 
         <Card>
@@ -123,7 +123,7 @@ export default function HoursOfServiceScreen() {
                 meta={formatMinutes(entry.durationMinutes)}
                 subtitle={`${entry.locationDescription} · ${new Date(entry.startedAt).toLocaleString()}`}
                 title={formatStatus(entry.status)}
-                trailing={<StatusBadge status="simulated" tone="warning" />}
+                trailing={<StatusBadge status="recorded" tone="neutral" />}
               />
             ))}
           </Card>

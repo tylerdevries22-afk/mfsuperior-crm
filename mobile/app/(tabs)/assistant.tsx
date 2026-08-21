@@ -15,7 +15,7 @@ interface ChatMessage {
   readonly body: string;
 }
 
-const SUGGESTIONS = ["What is my next stop?", "Explain the HOS clock", "Is Target EDI live?"] as const;
+const SUGGESTIONS = ["What is my next stop?", "Explain the HOS clock", "Is partner EDI ready?"] as const;
 
 function ChatBubble({ message }: { readonly message: ChatMessage }) {
   const theme = useTheme();

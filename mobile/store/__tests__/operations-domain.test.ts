@@ -145,7 +145,7 @@ describe("unified demo operations domain", () => {
     expect(reloaded.getState().session.accountId).toBeNull();
   });
 
-  it("runs the Target-simulated tender, driver, exception, POD, GPS, and EDI flows", async () => {
+  it("runs the freight tender, driver, exception, POD, GPS, and EDI flows", async () => {
     const repository = createRepository(new MemoryPersistenceAdapter());
     await repository.hydrate();
     await repository.signIn("admin@demo.mfsuperior.com", "3333");

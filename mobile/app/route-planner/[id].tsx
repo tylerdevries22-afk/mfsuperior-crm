@@ -21,7 +21,7 @@ export default function RoutePlannerScreen() {
       <View style={[styles.fill, { backgroundColor: theme.background }]}>
         <Header centered onBack={() => router.back()} showBack title="Route plan" />
         <Screen safeEdges={["left", "right", "bottom"]}>
-          <EmptyState actionLabel="Back to schedule" description="The requested load could not be found in this demo." onAction={() => router.replace("/(tabs)/schedule")} title="Route unavailable" />
+          <EmptyState actionLabel="Back to schedule" description="The requested load is not available to this account." onAction={() => router.replace("/(tabs)/schedule")} title="Route unavailable" />
         </Screen>
       </View>
     );

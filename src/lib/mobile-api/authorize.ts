@@ -26,6 +26,13 @@ import {
 export const runtimeRoles = ["admin", "driver", "customer"] as const;
 export type RuntimeRole = (typeof runtimeRoles)[number];
 export type CredentialKind = "bearer" | "supabase-cookie" | "authjs-cookie";
+export type MembershipStatus =
+  | "invited"
+  | "pending"
+  | "active"
+  | "suspended"
+  | "revoked";
+export type AuthorizedMembershipStatus = "pending" | "active";
 
 export type MobilePrincipal = {
   userId: string;
@@ -34,6 +41,7 @@ export type MobilePrincipal = {
   organizationId: string;
   organizationSlug: string;
   role: RuntimeRole;
+  membershipStatus: AuthorizedMembershipStatus;
   carrierId: string | null;
   driverId: string | null;
   customerAccountId: string | null;
@@ -45,11 +53,15 @@ export type VerifiedIdentity = {
   userId: string | null;
   email: string;
   credentialKind: CredentialKind;
+  assuranceLevel: "aal1" | "aal2" | null;
   responseHeaders: Headers;
 };
 
-export type MembershipCandidate = Omit<MobilePrincipal, "credentialKind"> & {
-  membershipStatus: "invited" | "active" | "suspended" | "revoked";
+export type MembershipCandidate = Omit<
+  MobilePrincipal,
+  "credentialKind" | "membershipStatus"
+> & {
+  membershipStatus: MembershipStatus;
   organizationStatus: "active" | "suspended" | "archived";
   isDefault: boolean;
   driverCarrierId: string | null;
@@ -63,7 +75,9 @@ export type OrganizationSelector =
 
 export type AuthorizeOptions = {
   roles?: ReadonlyArray<RuntimeRole>;
+  allowPendingCustomer?: boolean;
   requireCarrier?: boolean;
+  requireMfa?: boolean;
   rateLimit?: { scope: string; limit: number; windowMs: number } | false;
 };
 
@@ -90,6 +104,7 @@ const claimsSchema = z
   .object({
     sub: z.string().min(1).max(255),
     email: z.email().max(320),
+    aal: z.enum(["aal1", "aal2"]).optional(),
   })
   .passthrough();
 const organizationIdSchema = z.uuid();
@@ -166,6 +181,7 @@ async function loadAuthJsIdentity(): Promise<VerifiedIdentity | null> {
     userId,
     email,
     credentialKind: "authjs-cookie",
+    assuranceLevel: null,
     responseHeaders: new Headers(),
   };
 }
@@ -221,6 +237,7 @@ export async function verifyRequestIdentity(
     userId: null,
     email: claims.data.email.trim().toLowerCase(),
     credentialKind: bearer ? "bearer" : "supabase-cookie",
+    assuranceLevel: claims.data.aal ?? null,
     responseHeaders: requestClient.responseHeaders,
   };
 }
@@ -269,17 +286,23 @@ export async function loadMembershipCandidates(
 export function selectMembershipCandidate(
   candidates: ReadonlyArray<MembershipCandidate>,
   selector: OrganizationSelector,
-): MembershipCandidate {
-  const active = candidates.filter(
+  options: Pick<AuthorizeOptions, "allowPendingCustomer"> = {},
+): MembershipCandidate & { membershipStatus: AuthorizedMembershipStatus } {
+  const eligible = candidates.filter(
     (candidate) =>
-      candidate.membershipStatus === "active" &&
+      (candidate.membershipStatus === "active" ||
+        (options.allowPendingCustomer === true &&
+          candidate.membershipStatus === "pending" &&
+          candidate.role === "customer" &&
+          !candidate.driverId &&
+          !candidate.customerAccountId)) &&
       candidate.organizationStatus === "active" &&
       (!selector ||
         (selector.kind === "id"
           ? candidate.organizationId === selector.value
           : candidate.organizationSlug === selector.value)),
   );
-  if (active.length === 0) {
+  if (eligible.length === 0) {
     throw new MobileApiError(
       403,
       "MEMBERSHIP_REQUIRED",
@@ -287,9 +310,9 @@ export function selectMembershipCandidate(
     );
   }
 
-  const selected = active.length === 1
-    ? active[0]
-    : active.find((candidate) => candidate.isDefault);
+  const selected = eligible.length === 1
+    ? eligible[0]
+    : eligible.find((candidate) => candidate.isDefault);
   if (!selected) {
     throw new MobileApiError(
       409,
@@ -309,6 +332,7 @@ export function selectMembershipCandidate(
   }
   if (
     selected.role === "customer" &&
+    selected.membershipStatus === "active" &&
     (!selected.customerAccountId ||
       selected.customerOrganizationId !== selected.organizationId)
   ) {
@@ -318,7 +342,9 @@ export function selectMembershipCandidate(
       "The customer membership is not linked to this organization.",
     );
   }
-  return selected;
+  return selected as MembershipCandidate & {
+    membershipStatus: AuthorizedMembershipStatus;
+  };
 }
 
 const defaultDependencies: AuthorizeDependencies = {
@@ -345,9 +371,17 @@ export async function authorizeMobileRequest(
         "The request origin is not allowed.",
       );
     }
+    if (options.requireMfa && identity.assuranceLevel !== "aal2") {
+      throw new MobileApiError(
+        403,
+        "MFA_REQUIRED",
+        "Multi-factor authentication is required for this operation.",
+      );
+    }
     const selected = selectMembershipCandidate(
       await dependencies.loadMemberships(identity),
       selector,
+      { allowPendingCustomer: options.allowPendingCustomer },
     );
     if (options.roles && !options.roles.includes(selected.role)) {
       throw new MobileApiError(
@@ -406,6 +440,7 @@ export async function authorizeMobileRequest(
         organizationId: selected.organizationId,
         organizationSlug: selected.organizationSlug,
         role: selected.role,
+        membershipStatus: selected.membershipStatus,
         carrierId: selected.carrierId,
         driverId: selected.driverId,
         customerAccountId: selected.customerAccountId,

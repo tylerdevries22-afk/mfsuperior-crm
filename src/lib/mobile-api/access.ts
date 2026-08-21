@@ -40,6 +40,15 @@ function dbCustomerShipmentAccess(
 export function freightRequestAccessPredicate(principal: MobilePrincipal): SQL {
   const tenant = eq(freightRequests.organizationId, principal.organizationId);
   if (principal.role === "admin") return tenant;
+  if (
+    principal.role === "customer" &&
+    principal.membershipStatus === "pending"
+  ) {
+    return and(
+      tenant,
+      eq(freightRequests.createdByUserId, principal.userId),
+    ) ?? sql`false`;
+  }
   if (principal.role === "customer" && principal.customerAccountId) {
     return and(
       tenant,

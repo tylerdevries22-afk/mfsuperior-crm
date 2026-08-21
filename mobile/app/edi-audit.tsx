@@ -20,7 +20,7 @@ export default function EdiAuditScreen() {
 
   return (
     <View style={[styles.fill, { backgroundColor: theme.background }]}>
-      <Header centered onBack={() => router.back()} showBack subtitle="Local transaction history" title="Target EDI audit" />
+      <Header centered onBack={() => router.back()} showBack subtitle="Validated transaction history" title="X12 audit" />
       <Screen safeEdges={["left", "right", "bottom"]} scroll contentContainerStyle={styles.content}>
         <View style={styles.stats}>
           <StatTile label="Transactions" value={String(transactions.length)} />
@@ -44,7 +44,7 @@ export default function EdiAuditScreen() {
               );
             })}
           </Card>
-        ) : <EmptyState description="Repository actions will add simulated EDI records here." title="No transactions" />}
+        ) : <EmptyState description="Validated partner transactions will appear here after onboarding." title="No transactions" />}
       </Screen>
     </View>
   );

@@ -22,12 +22,12 @@ export default function AnalyticsScreen() {
 
   return (
     <View style={[styles.fill, { backgroundColor: theme.background }]}>
-      <Header centered onBack={() => router.back()} showBack subtitle="Local demo scorecard" title="Analytics" />
+      <Header centered onBack={() => router.back()} showBack subtitle="Operational scorecard" title="Analytics" />
       <Screen safeEdges={["left", "right", "bottom"]} scroll contentContainerStyle={styles.content}>
         <View style={styles.intro}>
           <Text style={[styles.eyebrow, { color: theme.primaryLight }]}>OPERATIONS PERFORMANCE</Text>
           <Text style={[styles.title, { color: theme.text }]}>Freight at a glance</Text>
-          <Text style={[styles.body, { color: theme.textSecondary }]}>Shipment, service, and integration indicators derived from the locally persistent prototype.</Text>
+          <Text style={[styles.body, { color: theme.textSecondary }]}>Shipment, service, and integration indicators derived from the current freight records.</Text>
         </View>
 
 

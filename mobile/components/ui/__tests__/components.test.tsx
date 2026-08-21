@@ -52,7 +52,7 @@ describe("mobile UI primitives", () => {
         <Header onBack={onBack} rightAction={<Badge label="Simulated" tone="warning" />} showBack title="Shipment" />
         <Screen scroll={false}>
           <Card title="Active load"><StatusBadge status="in_transit" /></Card>
-          <List><ListRow isLast onPress={onAction} title="Stop 1" subtitle="Target DC 589" /></List>
+          <List><ListRow isLast onPress={onAction} title="Stop 1" subtitle="Aurora crossdock" /></List>
           <Button onPress={onAction} title="Arrived at stop" />
           <StatTile label="On-time" value="96%" />
         </Screen>
@@ -74,7 +74,7 @@ describe("mobile UI primitives", () => {
         <TextField label="Trailer number" placeholder="Enter trailer" />
         <SearchField label="Search shipments" />
         <TextArea label="Exception notes" />
-        <SwitchRow label="Share simulated location" onValueChange={onChange} value={false} />
+        <SwitchRow label="Share location" onValueChange={onChange} value={false} />
         <SegmentedControl
           accessibilityLabel="Shipment filter"
           onChange={onChange}
@@ -100,7 +100,7 @@ describe("mobile UI primitives", () => {
     );
 
     expect(view.getByLabelText("Trailer number")).toBeTruthy();
-    fireEvent.press(view.getByLabelText("Share simulated location"));
+    fireEvent.press(view.getByLabelText("Share location"));
     expect(onChange).toHaveBeenCalledWith(true);
     expect(view.getByText("No tenders are waiting.")).toBeTruthy();
   });

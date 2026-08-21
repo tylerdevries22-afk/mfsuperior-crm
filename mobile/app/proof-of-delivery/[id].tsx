@@ -30,7 +30,7 @@ export default function ProofOfDeliveryScreen() {
       <View style={[styles.fill, { backgroundColor: theme.background }]}>
         <Header centered onBack={() => router.back()} showBack title="Proof of delivery" />
         <Screen safeEdges={["left", "right", "bottom"]}>
-          <EmptyState description="Switch to the Driver or Admin demo role to submit proof of delivery." title="Role access required" />
+          <EmptyState description="A Driver or Admin membership is required to submit proof of delivery." title="Role access required" />
         </Screen>
       </View>
     );
@@ -118,7 +118,7 @@ export default function ProofOfDeliveryScreen() {
             <TextField
               autoCapitalize="words"
               editable={!existingProof}
-              helperText="For the prototype, typed acknowledgment stands in for a drawn signature."
+              helperText="Enter the recipient’s acknowledgment exactly as it appears on the delivery record."
               label="Signature acknowledgment"
               onChangeText={setSignature}
               placeholder="Type recipient's full name"

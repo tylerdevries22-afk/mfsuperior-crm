@@ -44,7 +44,7 @@ function RelatedShipmentField({ shipments, value, onChange }: {
     <View style={styles.fieldGroup}>
       <Text style={[styles.fieldLabel, { color: theme.text }]}>Related shipment</Text>
       <SegmentedControl accessibilityLabel="Related shipment" onChange={onChange} options={options} value={value} />
-      <Text style={[styles.helper, { color: theme.textSecondary }]}>Optional. Link the request to a demo shipment when useful.</Text>
+      <Text style={[styles.helper, { color: theme.textSecondary }]}>Optional. Link the request to an accessible shipment when useful.</Text>
     </View>
   );
 }

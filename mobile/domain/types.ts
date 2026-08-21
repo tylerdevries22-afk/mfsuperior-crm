@@ -63,7 +63,7 @@ export interface ShipmentStop {
   readonly type: StopType;
   readonly status: StopStatus;
   readonly facilityName: string;
-  readonly targetLocationId?: string;
+  readonly facilityReference?: string;
   readonly address: PostalAddress;
   readonly coordinates: GeoPoint;
   readonly appointment: AppointmentWindow;
@@ -367,7 +367,6 @@ export interface FreightQuote {
 }
 
 export type IntegrationHealthStatus =
-  | "simulated"
   | "not_configured"
   | "connected"
   | "degraded";

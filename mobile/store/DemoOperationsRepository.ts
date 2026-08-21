@@ -433,7 +433,7 @@ export class DemoOperationsRepository implements OperationsRepository {
   transitionDutyStatus(nextStatus: HosDutyStatus): Promise<DemoOperationsState> {
     return this.commit((state, occurredAt) => {
       const context = getSessionContext(state);
-      requireRole(context, "driver", "Switch to the Driver demo role to update HOS status.");
+      requireRole(context, "driver", "A Driver role is required to update HOS status.");
       const driverId = requireDriverId(context);
       const clock = state.hosClocks.find((candidate) => candidate.driverId === driverId);
       if (!clock) {
@@ -448,7 +448,7 @@ export class DemoOperationsRepository implements OperationsRepository {
         occurredAt,
         locationDescription: activeShipment
           ? activeShipment.stops.find((stop) => stop.status !== "completed")?.facilityName ?? "Current route"
-          : "Current simulated location",
+          : "Current recorded location",
         hasActiveShipment: Boolean(activeShipment),
       });
       const nextState: DemoOperationsState = {
@@ -464,7 +464,7 @@ export class DemoOperationsRepository implements OperationsRepository {
     return this.commit((state, occurredAt) => {
       validateCoordinates(coordinates);
       const context = getSessionContext(state);
-      requireRole(context, "driver", "Switch to the Driver demo role to simulate GPS movement.");
+      requireRole(context, "driver", "A Driver role is required to record GPS movement.");
       const driverId = requireDriverId(context);
       const driver = state.drivers.find((candidate) => candidate.id === driverId);
       if (!driver) {
@@ -728,7 +728,7 @@ export class DemoOperationsRepository implements OperationsRepository {
   createCustomerRequest(input: CreateCustomerRequestInput): Promise<CustomerRequest> {
     return this.commit((state, occurredAt) => {
       const context = getSessionContext(state);
-      requireRole(context, "customer", "Switch to the Customer demo role to submit a request.");
+      requireRole(context, "customer", "A Customer role is required to submit a request.");
       requireTrimmedText(input.subject, "Request subject", 3, 160);
       requireTrimmedText(input.details, "Request details", 10, 2_000);
       if (input.shipmentId) {
@@ -883,7 +883,7 @@ function assertCanOperateShipment(context: SessionContext, shipment: Shipment): 
   }
   throw new OperationsDomainError(
     "UNAUTHORIZED",
-    "This demo role cannot update the selected shipment.",
+    "This role cannot update the selected shipment.",
     { shipmentId: shipment.id },
   );
 }
@@ -992,7 +992,7 @@ function createEdiTransaction(
     direction: "outbound",
     status: "generated",
     senderId: "MFS-DEMO",
-    receiverId: "TARGET-DEMO",
+    receiverId: "SHIPPER-DEMO",
     controlNumber: id.replace(/\D/g, "").slice(-12).padStart(12, "0"),
     summary,
     createdAt: occurredAt,
@@ -1028,7 +1028,7 @@ function validateCoordinates(coordinates: GeoPoint): void {
   ) {
     throw new OperationsDomainError(
       "VALIDATION_FAILED",
-      "The simulated GPS coordinates are invalid.",
+      "The GPS coordinates are invalid.",
     );
   }
 }

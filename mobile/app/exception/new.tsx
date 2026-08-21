@@ -150,7 +150,7 @@ export default function NewExceptionScreen() {
 
         <View style={[styles.escalation, { backgroundColor: theme.dangerMuted, borderColor: theme.tint.danger.medium }]}>
           <Ionicons color={theme.danger} name="call-outline" size={ICON.md} />
-          <Text style={[styles.escalationText, { color: theme.textSecondary }]}>For an emergency or immediate safety risk, stop safely and call the appropriate emergency or dispatch contact. This prototype does not send alerts.</Text>
+          <Text style={[styles.escalationText, { color: theme.textSecondary }]}>For an emergency or immediate safety risk, stop safely and call the appropriate emergency or operations contact. This app does not place emergency calls.</Text>
         </View>
 
         {error ? <Text accessibilityRole="alert" style={[styles.errorText, { color: theme.danger }]}>{error.message}</Text> : null}

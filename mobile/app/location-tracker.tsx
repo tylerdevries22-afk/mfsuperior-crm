@@ -44,7 +44,7 @@ export default function LocationTrackerScreen() {
       <View style={[styles.fill, { backgroundColor: theme.background }]}>
         <Header centered onBack={() => router.back()} showBack title="GPS tracking" />
         <Screen safeEdges={["left", "right", "bottom"]}>
-          <EmptyState actionLabel="Return home" description="Switch to the Driver demo role to start optional foreground GPS tracking." onAction={() => router.replace("/(tabs)")} title="Driver role required" />
+          <EmptyState actionLabel="Return home" description="A linked Driver membership is required to start optional foreground GPS tracking." onAction={() => router.replace("/(tabs)")} title="Driver role required" />
         </Screen>
       </View>
     );
@@ -56,7 +56,7 @@ export default function LocationTrackerScreen() {
     try {
       const permission = await Location.requestForegroundPermissionsAsync();
       if (permission.status !== Location.PermissionStatus.GRANTED) {
-        setPermissionError("Foreground location permission was not granted. The seeded demo position remains available.");
+        setPermissionError("Foreground location permission was not granted. The last recorded position remains available.");
         return;
       }
       subscriptionRef.current?.remove();
@@ -75,7 +75,7 @@ export default function LocationTrackerScreen() {
       );
       setTracking(true);
     } catch {
-      setPermissionError("Location services could not be started. The seeded demo position remains available.");
+      setPermissionError("Location services could not be started. The last recorded position remains available.");
     } finally {
       setIsStarting(false);
     }
@@ -117,7 +117,7 @@ export default function LocationTrackerScreen() {
           <View style={styles.coordinateBlock}>
             <Text style={[styles.eyebrow, { color: theme.primaryLight }]}>LAST LOCAL POSITION</Text>
             <Text style={[styles.coordinates, { color: theme.text }]}>{position ? `${position.latitude.toFixed(5)}, ${position.longitude.toFixed(5)}` : "Position unavailable"}</Text>
-            <Text style={[styles.body, { color: theme.textSecondary }]}>{accuracy !== null ? `Device accuracy ±${Math.round(accuracy)} m` : `Seeded demo position · ${driver?.locationUpdatedAt ? new Date(driver.locationUpdatedAt).toLocaleString() : "not updated"}`}</Text>
+            <Text style={[styles.body, { color: theme.textSecondary }]}>{accuracy !== null ? `Device accuracy ±${Math.round(accuracy)} m` : `Last recorded position · ${driver?.locationUpdatedAt ? new Date(driver.locationUpdatedAt).toLocaleString() : "not updated"}`}</Text>
           </View>
         </Card>
 
@@ -137,8 +137,8 @@ export default function LocationTrackerScreen() {
         <Card padding="none">
           <KeyValueRow label="Scope" value="Foreground only" />
           <KeyValueRow label="Interval" value="30 seconds or 250 meters" />
-          <KeyValueRow label="Destination" value="Local prototype state" />
-          <KeyValueRow isLast label="Target connection" value="Not connected" />
+          <KeyValueRow label="Destination" value="Encrypted offline queue" />
+          <KeyValueRow isLast label="Operations sync" value="Session controlled" />
         </Card>
       </Screen>
     </View>

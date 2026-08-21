@@ -61,7 +61,7 @@ export default function LoadDetailScreen() {
       <View style={[styles.fill, { backgroundColor: theme.background }]}>
         <Header centered onBack={() => router.back()} showBack title="Load details" />
         <Screen safeEdges={["left", "right", "bottom"]}>
-          <EmptyState actionLabel="Open schedule" description="This load is unavailable for the current demo role." onAction={() => router.replace("/(tabs)/schedule")} title="Load not found" />
+          <EmptyState actionLabel="Open schedule" description="This load is unavailable for the current membership." onAction={() => router.replace("/(tabs)/schedule")} title="Load not found" />
         </Screen>
       </View>
     );
@@ -173,7 +173,7 @@ export default function LoadDetailScreen() {
 
         {role === "admin" && shipment.status === "tendered" ? (
           <Card title="Tender response">
-            <Text style={[styles.body, { color: theme.textSecondary }]}>Review the lane and rate before returning the simulated 990 response.</Text>
+            <Text style={[styles.body, { color: theme.textSecondary }]}>Review the lane and rate before returning the 990 response.</Text>
             <View style={styles.actionRow}>
               <Button
                 fullWidth
@@ -263,7 +263,7 @@ export default function LoadDetailScreen() {
           <KeyValueRow label="PRO number" value={shipment.proNumber} />
           <KeyValueRow label="Distance" value={`${shipment.distanceMiles.toLocaleString()} miles`} />
           <KeyValueRow label="Commodity" value={shipment.commodity} />
-          <KeyValueRow isLast label="Prototype charges" value={formatCurrency(chargeTotal)} />
+          <KeyValueRow isLast label="Total charges" value={formatCurrency(chargeTotal)} />
         </Card>
 
         <SectionHeader title="Special instructions" />
@@ -386,7 +386,7 @@ export default function LoadDetailScreen() {
         title="Decline this tender?"
         visible={declineVisible}
       >
-        <Text style={[styles.body, { color: theme.textSecondary }]}>This records a simulated 990 decline and removes the load from the active workflow.</Text>
+        <Text style={[styles.body, { color: theme.textSecondary }]}>This records a 990 decline and removes the load from the active workflow.</Text>
       </AppModal>
 
       <BottomSheet

@@ -53,7 +53,7 @@ export default function MessagesScreen() {
             </View>
             <View style={styles.grow}>
               <Text style={[styles.threadTitle, { color: theme.text }]}>{recipient?.displayName ?? "Operations support"}</Text>
-              <Text style={[styles.threadSubtitle, { color: theme.textSecondary }]}>{recipient?.title ?? "Local demo thread"}</Text>
+              <Text style={[styles.threadSubtitle, { color: theme.textSecondary }]}>{recipient?.title ?? "Operations thread"}</Text>
             </View>
             <Badge label="Local" showDot tone="success" />
           </View>
@@ -80,7 +80,7 @@ export default function MessagesScreen() {
               );
             })}
           </View>
-        ) : <EmptyState description="Send a local message to begin this demo thread." title="No messages yet" />}
+        ) : <EmptyState description="Send a message to begin this operations thread." title="No messages yet" />}
 
         <Card title="New message">
           <TextArea

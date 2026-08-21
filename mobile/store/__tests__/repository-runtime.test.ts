@@ -178,7 +178,7 @@ function bootstrapPayload(state: DemoOperationsState) {
     integrations: state.integrations.map((integration) => ({
       lastSucceededAt: integration.lastCheckedAt,
       provider: integration.name,
-      status: integration.status === "simulated" ? "not_configured" : integration.status,
+      status: integration.status,
     })),
     organization: { id: "organization-mf", name: account.companyName },
     referenceData: {

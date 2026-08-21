@@ -115,7 +115,7 @@ export default function WorkflowBuilderScreen() {
             <Ionicons color={theme.success} name="checkmark" size={ICON.xl} />
           </View>
           <Text style={[styles.modalTitle, { color: theme.text }]}>{enabledSteps.length} milestones configured</Text>
-          <Text style={[styles.modalCopy, { color: theme.textSecondary }]}>This prototype can demonstrate the workflow, but it does not create a production load or connect to Target.</Text>
+          <Text style={[styles.modalCopy, { color: theme.textSecondary }]}>The workflow is ready for review. Publishing requires an authorized production session.</Text>
         </View>
       </AppModal>
     </View>

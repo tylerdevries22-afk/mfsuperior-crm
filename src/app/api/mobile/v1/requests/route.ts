@@ -52,6 +52,7 @@ function requestResponse(row: typeof freightRequests.$inferSelect) {
 export async function GET(request: Request) {
   const authorization = await authorizeMobileRequest(request, {
     roles: ["admin", "customer"],
+    allowPendingCustomer: true,
   });
   if (!authorization.authorized) return authorization.response;
   const query = parseStrictQuery(
@@ -101,6 +102,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const authorization = await authorizeMobileRequest(request, {
     roles: ["admin", "customer"],
+    allowPendingCustomer: true,
     rateLimit: { scope: "mobile.requests.create", limit: 20, windowMs: 60_000 },
   });
   if (!authorization.authorized) return authorization.response;

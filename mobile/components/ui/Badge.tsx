@@ -93,7 +93,7 @@ export function Badge({ label, tone = "neutral", size = "sm", showDot = false, s
 }
 
 const SUCCESS_STATUSES = new Set(["active", "accepted", "connected", "delivered", "completed", "won"]);
-const WARNING_STATUSES = new Set(["simulated", "pending", "tendered", "not configured", "not_configured"]);
+const WARNING_STATUSES = new Set(["pending", "tendered", "not configured", "not_configured"]);
 const DANGER_STATUSES = new Set(["declined", "rejected", "exception", "degraded", "failed", "lost"]);
 const INFO_STATUSES = new Set(["assigned", "dispatched", "in transit", "in_transit", "arrived"]);
 
