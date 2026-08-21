@@ -31,6 +31,10 @@ const schema = z.object({
   WARMUP_DAILY_CAP: z.coerce.number().int().positive().default(5),
 
   CARRIER_DEMO_MODE: z.enum(["true", "false"]).optional(),
+  CUSTOMER_SELF_REGISTRATION_ORGANIZATION_SLUG: z
+    .string()
+    .regex(/^[a-z0-9](?:[a-z0-9-]{0,78}[a-z0-9])?$/)
+    .optional(),
 
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
 });

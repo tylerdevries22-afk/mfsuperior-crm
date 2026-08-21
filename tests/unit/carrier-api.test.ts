@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { PgDialect } from "drizzle-orm/pg-core";
 import { z } from "zod";
 import { readSupabasePublicConfig } from "@/lib/auth/supabase/config";
 import {
@@ -18,6 +19,10 @@ import {
   offlineMutationBatchSchema,
 } from "@/lib/mobile-api/contracts";
 import { fetchWithRetry } from "@/lib/mobile-api/external-fetch";
+import {
+  freightRequestAccessPredicate,
+  shipmentAccessPredicate,
+} from "@/lib/mobile-api/access";
 import {
   apiSuccess,
   parseStrictJson,
@@ -56,9 +61,22 @@ const membership: MembershipCandidate = {
   customerOrganizationId: null,
 };
 
+const pendingCustomerMembership: MembershipCandidate = {
+  ...membership,
+  email: "pending@example.com",
+  role: "customer",
+  membershipStatus: "pending",
+  isDefault: false,
+  driverId: null,
+  driverCarrierId: null,
+  customerAccountId: null,
+  customerOrganizationId: null,
+};
+
 function dependencies(
   candidate: MembershipCandidate = membership,
   credentialKind: "bearer" | "supabase-cookie" = "bearer",
+  assuranceLevel: "aal1" | "aal2" | null = "aal2",
 ): AuthorizeDependencies {
   return {
     verifyIdentity: async () => ({
@@ -66,6 +84,7 @@ function dependencies(
       userId: null,
       email: "ops@example.com",
       credentialKind,
+      assuranceLevel,
       responseHeaders: new Headers(),
     }),
     loadMemberships: async () => [candidate],
@@ -161,11 +180,118 @@ describe("membership-backed authorization", () => {
   it("uses carrier identity equality as a final BOLA guard", () => {
     const principal = {
       ...membership,
+      membershipStatus: "active" as const,
       credentialKind: "bearer" as const,
     } satisfies MobilePrincipal;
     expect(principalCanAccessCarrier(principal, carrierId)).toBe(true);
     expect(principalCanAccessCarrier(principal, null)).toBe(false);
     expect(principalCanAccessCarrier(principal, otherOrganizationId)).toBe(false);
+  });
+
+  it("allows a pending customer only when the endpoint opts in", async () => {
+    expect(() =>
+      selectMembershipCandidate([pendingCustomerMembership], null),
+    ).toThrow(/active organization membership/i);
+    expect(
+      selectMembershipCandidate([pendingCustomerMembership], null, {
+        allowPendingCustomer: true,
+      }).membershipStatus,
+    ).toBe("pending");
+
+    const request = new Request("https://crm.example/api/mobile/v1/requests", {
+      headers: { authorization: `Bearer ${"a".repeat(32)}` },
+    });
+    const denied = await authorizeMobileRequest(
+      request,
+      { roles: ["customer"] },
+      dependencies(pendingCustomerMembership),
+    );
+    expect(denied.authorized).toBe(false);
+
+    const allowed = await authorizeMobileRequest(
+      request,
+      { roles: ["customer"], allowPendingCustomer: true },
+      dependencies(pendingCustomerMembership),
+    );
+    expect(allowed.authorized).toBe(true);
+    if (allowed.authorized) {
+      expect(allowed.principal).toMatchObject({
+        role: "customer",
+        membershipStatus: "pending",
+        customerAccountId: null,
+      });
+    }
+  });
+
+  it("never promotes a pending admin/driver or grants pending shipment access", async () => {
+    expect(() =>
+      selectMembershipCandidate(
+        [{ ...pendingCustomerMembership, role: "admin" }],
+        null,
+        { allowPendingCustomer: true },
+      ),
+    ).toThrow(/active organization membership/i);
+    expect(() =>
+      selectMembershipCandidate(
+        [{ ...pendingCustomerMembership, role: "driver" }],
+        null,
+        { allowPendingCustomer: true },
+      ),
+    ).toThrow(/active organization membership/i);
+
+    const shipmentAuthorization = await authorizeMobileRequest(
+      new Request("https://crm.example/api/mobile/v1/shipments", {
+        headers: { authorization: `Bearer ${"a".repeat(32)}` },
+      }),
+      { roles: ["admin", "driver", "customer"], requireCarrier: true },
+      dependencies(pendingCustomerMembership),
+    );
+    expect(shipmentAuthorization.authorized).toBe(false);
+    if (!shipmentAuthorization.authorized) {
+      expect(shipmentAuthorization.response.status).toBe(403);
+    }
+  });
+
+  it("requires aal2 for customer-access administration", async () => {
+    const request = new Request(
+      "https://crm.example/api/mobile/v1/customer-access-requests",
+      { headers: { authorization: `Bearer ${"a".repeat(32)}` } },
+    );
+    const denied = await authorizeMobileRequest(
+      request,
+      { roles: ["admin"], requireMfa: true },
+      dependencies(membership, "bearer", "aal1"),
+    );
+    expect(denied.authorized).toBe(false);
+    if (!denied.authorized) {
+      expect(await denied.response.json()).toMatchObject({
+        error: { code: "MFA_REQUIRED" },
+      });
+    }
+
+    const allowed = await authorizeMobileRequest(
+      request,
+      { roles: ["admin"], requireMfa: true },
+      dependencies(membership, "bearer", "aal2"),
+    );
+    expect(allowed.authorized).toBe(true);
+  });
+
+  it("scopes pending request reads to the creator and shipment reads to false", () => {
+    const principal = {
+      ...pendingCustomerMembership,
+      membershipStatus: "pending" as const,
+      credentialKind: "bearer" as const,
+    } satisfies MobilePrincipal;
+    const dialect = new PgDialect();
+    const requestQuery = dialect.sqlToQuery(
+      freightRequestAccessPredicate(principal),
+    );
+    expect(requestQuery.sql).toContain("created_by_user_id");
+    expect(requestQuery.params).toEqual([organizationId, userId]);
+    expect(dialect.sqlToQuery(shipmentAccessPredicate(principal)).sql).toBe(
+      "false",
+    );
   });
 });
 

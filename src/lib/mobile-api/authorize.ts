@@ -371,13 +371,6 @@ export async function authorizeMobileRequest(
         "The request origin is not allowed.",
       );
     }
-    if (options.requireMfa && identity.assuranceLevel !== "aal2") {
-      throw new MobileApiError(
-        403,
-        "MFA_REQUIRED",
-        "Multi-factor authentication is required for this operation.",
-      );
-    }
     const selected = selectMembershipCandidate(
       await dependencies.loadMemberships(identity),
       selector,
@@ -388,6 +381,13 @@ export async function authorizeMobileRequest(
         403,
         "ROLE_REQUIRED",
         "Your role cannot perform this operation.",
+      );
+    }
+    if (options.requireMfa && identity.assuranceLevel !== "aal2") {
+      throw new MobileApiError(
+        403,
+        "MFA_REQUIRED",
+        "Multi-factor authentication is required for this operation.",
       );
     }
     if (options.requireCarrier && !selected.carrierId) {
