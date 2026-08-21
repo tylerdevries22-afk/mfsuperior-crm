@@ -1,12 +1,14 @@
 import { and, desc, eq, ilike, or, sql, type SQL } from "drizzle-orm";
 import { db } from "@/lib/db/client";
-import { auditLog, shipmentEvents, shipments } from "@/lib/db/schema";
+import { auditLog, drivers, shipmentEvents, shipments } from "@/lib/db/schema";
 import {
   databaseErrorResponse,
   parseJsonBody,
   parseQuery,
-  requireCarrierDispatcher,
+  errorResponse,
+  requireCarrierAdmin,
   successResponse,
+  withCarrierAuthHeaders,
 } from "../_lib/http";
 import {
   shipmentCreateSchema,
@@ -18,8 +20,8 @@ function searchPattern(query: string) {
   return `%${query.replace(/[%_\\]/g, "\\$&")}%`;
 }
 
-function shipmentFilters(query: ShipmentListQuery) {
-  const filters: SQL[] = [];
+function shipmentFilters(query: ShipmentListQuery, carrierId: string) {
+  const filters: SQL[] = [eq(shipments.carrierId, carrierId)];
   if (query.status) filters.push(eq(shipments.status, query.status));
   if (query.q) {
     const needle = searchPattern(query.q);
@@ -36,8 +38,8 @@ function shipmentFilters(query: ShipmentListQuery) {
   return filters.length ? and(...filters) : undefined;
 }
 
-async function listShipments(query: ShipmentListQuery) {
-  const where = shipmentFilters(query);
+async function listShipments(query: ShipmentListQuery, carrierId: string) {
+  const where = shipmentFilters(query, carrierId);
   const offset = (query.page - 1) * query.limit;
   const [rows, [totalRow]] = await Promise.all([
     db
@@ -83,35 +85,68 @@ async function listShipments(query: ShipmentListQuery) {
 }
 
 export async function GET(request: Request) {
-  const authorization = await requireCarrierDispatcher();
+  const authorization = await requireCarrierAdmin(request);
   if (!authorization.authorized) return authorization.response;
-  const query = parseQuery(request, shipmentListQuerySchema);
+  const query = parseQuery(
+    request,
+    shipmentListQuerySchema,
+    authorization.requestId,
+  );
   if (!query.success) return query.response;
 
   try {
-    const { rows, total } = await listShipments(query.data);
-    return successResponse(rows, {
-      page: query.data.page,
-      limit: query.data.limit,
-      total,
-      totalPages: Math.ceil(total / query.data.limit),
-    });
+    const { rows, total } = await listShipments(
+      query.data,
+      authorization.principal.carrierId,
+    );
+    return withCarrierAuthHeaders(
+      successResponse(rows, authorization.requestId, {
+        page: query.data.page,
+        limit: query.data.limit,
+        total,
+        totalPages: Math.ceil(total / query.data.limit),
+      }),
+      authorization,
+    );
   } catch (error) {
-    return databaseErrorResponse(error, "shipments.list");
+    return databaseErrorResponse(
+      error,
+      "shipments.list",
+      authorization.requestId,
+    );
   }
 }
 
 export async function POST(request: Request) {
-  const authorization = await requireCarrierDispatcher();
+  const authorization = await requireCarrierAdmin(request);
   if (!authorization.authorized) return authorization.response;
-  const body = await parseJsonBody(request, shipmentCreateSchema);
+  const body = await parseJsonBody(
+    request,
+    shipmentCreateSchema,
+    authorization.requestId,
+  );
   if (!body.success) return body.response;
 
   try {
     const shipment = await db.transaction(async (transaction) => {
+      if (body.data.driverId) {
+        const [driver] = await transaction
+          .select({ id: drivers.id })
+          .from(drivers)
+          .where(
+            and(
+              eq(drivers.id, body.data.driverId),
+              eq(drivers.carrierId, authorization.principal.carrierId),
+            ),
+          );
+        if (!driver) return null;
+      }
       const [created] = await transaction
         .insert(shipments)
-        .values(body.data)
+        .values({
+          ...body.data,
+          carrierId: authorization.principal.carrierId,
+        })
         .returning();
       await transaction.insert(shipmentEvents).values({
         shipmentId: created.id,
@@ -130,8 +165,25 @@ export async function POST(request: Request) {
       });
       return created;
     });
-    return successResponse(shipment, null, 201);
+    if (!shipment) {
+      return errorResponse(
+        404,
+        {
+          code: "NOT_FOUND",
+          message: "The selected driver was not found.",
+        },
+        authorization.requestId,
+      );
+    }
+    return withCarrierAuthHeaders(
+      successResponse(shipment, authorization.requestId, null, 201),
+      authorization,
+    );
   } catch (error) {
-    return databaseErrorResponse(error, "shipments.create");
+    return databaseErrorResponse(
+      error,
+      "shipments.create",
+      authorization.requestId,
+    );
   }
 }

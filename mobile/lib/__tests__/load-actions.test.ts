@@ -7,7 +7,7 @@ describe("loadLifecycleAction", () => {
 
   it("allows only dispatch to dispatch an accepted load", () => {
     expect(loadLifecycleAction("accepted", "driver")).toBeNull();
-    expect(loadLifecycleAction("accepted", "dispatcher")?.nextStatus).toBe("dispatched");
+    expect(loadLifecycleAction("accepted", "admin")?.nextStatus).toBe("dispatched");
   });
 
   it("maps driver milestones to the next valid status", () => {
@@ -17,7 +17,7 @@ describe("loadLifecycleAction", () => {
   });
 
   it("does not offer direct actions for terminal or exception states", () => {
-    expect(loadLifecycleAction("delivered", "dispatcher")).toBeNull();
-    expect(loadLifecycleAction("exception", "dispatcher")).toBeNull();
+    expect(loadLifecycleAction("delivered", "admin")).toBeNull();
+    expect(loadLifecycleAction("exception", "admin")).toBeNull();
   });
 });

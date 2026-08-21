@@ -2,7 +2,7 @@ import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
-import { ShipmentCard, SimulationBanner } from "@/components/operations";
+import { ShipmentCard } from "@/components/operations";
 import { EmptyState, Header, Screen, SearchField, SectionHeader, SegmentedControl, StatTile } from "@/components/ui";
 import type { Shipment } from "@/domain/types";
 import { useOperations } from "@/store";
@@ -26,7 +26,7 @@ function matchesQuery(shipment: Shipment, query: string): boolean {
   const normalized = query.trim().toLowerCase();
   if (!normalized) return true;
   const searchable = [
-    shipment.targetLoadId,
+    shipment.loadNumber,
     shipment.purchaseOrderNumber,
     shipment.proNumber,
     shipment.commodity,
@@ -90,7 +90,6 @@ export default function CustomerShipmentsScreen() {
       <Screen safeEdges={["left", "right", "bottom"]} scroll contentContainerStyle={styles.content}>
         <ShipmentsHero />
         <ShipmentStats openExceptions={openExceptions} shipments={customerShipments} />
-        <SimulationBanner message="Shipment locations, milestones, Target partner events, and delivery records are local demonstration data." />
         <SearchField label="Search shipments" onChangeText={setQuery} placeholder="Load, PO, PRO, city, or commodity" value={query} />
         <SegmentedControl accessibilityLabel="Filter customer shipments" onChange={setFilter} options={FILTER_OPTIONS} value={filter} />
         <ShipmentResults shipments={visibleShipments} onClear={() => { setQuery(""); setFilter("all"); }} />

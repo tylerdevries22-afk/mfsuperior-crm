@@ -1,11 +1,12 @@
 import { and, desc, eq, ilike, or, sql, type SQL } from "drizzle-orm";
 import { db } from "@/lib/db/client";
-import { ediTransactions } from "@/lib/db/schema";
+import { ediTransactions, shipments } from "@/lib/db/schema";
 import {
   databaseErrorResponse,
   parseQuery,
-  requireCarrierDispatcher,
+  requireCarrierAdmin,
   successResponse,
+  withCarrierAuthHeaders,
 } from "../_lib/http";
 import {
   ediListQuerySchema,
@@ -16,8 +17,8 @@ function searchPattern(query: string) {
   return `%${query.replace(/[%_\\]/g, "\\$&")}%`;
 }
 
-async function listTransactions(query: EdiListQuery) {
-  const filters: SQL[] = [];
+async function listTransactions(query: EdiListQuery, carrierId: string) {
+  const filters: SQL[] = [eq(shipments.carrierId, carrierId)];
   if (query.direction) filters.push(eq(ediTransactions.direction, query.direction));
   if (query.status) filters.push(eq(ediTransactions.status, query.status));
   if (query.transactionType) {
@@ -49,6 +50,7 @@ async function listTransactions(query: EdiListQuery) {
         createdAt: ediTransactions.createdAt,
       })
       .from(ediTransactions)
+      .innerJoin(shipments, eq(ediTransactions.shipmentId, shipments.id))
       .where(where)
       .orderBy(desc(ediTransactions.createdAt))
       .limit(query.limit)
@@ -56,31 +58,42 @@ async function listTransactions(query: EdiListQuery) {
     db
       .select({ count: sql<number>`count(*)::int` })
       .from(ediTransactions)
+      .innerJoin(shipments, eq(ediTransactions.shipmentId, shipments.id))
       .where(where),
   ]);
   return { rows, total: Number(totalRow.count) };
 }
 
 export async function GET(request: Request) {
-  const authorization = await requireCarrierDispatcher();
+  const authorization = await requireCarrierAdmin(request);
   if (!authorization.authorized) return authorization.response;
-  const query = parseQuery(request, ediListQuerySchema);
+  const query = parseQuery(
+    request,
+    ediListQuerySchema,
+    authorization.requestId,
+  );
   if (!query.success) return query.response;
 
   try {
-    const { rows, total } = await listTransactions(query.data);
+    const { rows, total } = await listTransactions(
+      query.data,
+      authorization.principal.carrierId,
+    );
     const safeRows = rows.map((row) => ({
       ...row,
       errorMessage:
         row.status === "error" ? "Processing error recorded" : null,
     }));
-    return successResponse(safeRows, {
-      page: query.data.page,
-      limit: query.data.limit,
-      total,
-      totalPages: Math.ceil(total / query.data.limit),
-    });
+    return withCarrierAuthHeaders(
+      successResponse(safeRows, authorization.requestId, {
+        page: query.data.page,
+        limit: query.data.limit,
+        total,
+        totalPages: Math.ceil(total / query.data.limit),
+      }),
+      authorization,
+    );
   } catch (error) {
-    return databaseErrorResponse(error, "edi.list");
+    return databaseErrorResponse(error, "edi.list", authorization.requestId);
   }
 }

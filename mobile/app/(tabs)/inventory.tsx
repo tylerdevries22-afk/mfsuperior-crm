@@ -3,7 +3,7 @@ import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
-import { SimulationBanner, WorkspaceGrid, type WorkspaceAction } from "@/components/operations";
+import { WorkspaceGrid, type WorkspaceAction } from "@/components/operations";
 import { Card, EmptyState, Header, ListRow, Screen, SectionHeader, SegmentedControl, StatTile, StatusBadge } from "@/components/ui";
 import type { AppRole, Equipment } from "@/domain/types";
 import { useOperations } from "@/store";
@@ -19,7 +19,7 @@ const ASSET_FILTERS = [
 ] as const;
 
 function roleCanSeeEquipment(equipment: Equipment, role: AppRole, driverId?: string): boolean {
-  if (role === "dispatcher") return true;
+  if (role === "admin") return true;
   const fieldSupply = !["tractor", "trailer", "reefer_unit", "maintenance_part"].includes(equipment.kind);
   return equipment.assignedDriverId === driverId || fieldSupply;
 }
@@ -52,7 +52,7 @@ function AssetList({ equipment }: { readonly equipment: readonly Equipment[] }) 
           key={asset.id}
           leading={<View style={[styles.assetIcon, { backgroundColor: theme.primaryMuted }]}><Ionicons color={theme.primaryLight} name={equipmentIcon(asset.kind)} size={ICON.md} /></View>}
           meta={`Qty ${asset.quantity}`}
-          onPress={() => router.push({ pathname: "/feature/[slug]", params: { slug: "equipment-models" } })}
+          onPress={() => router.push({ pathname: "/capacity/[id]", params: { id: asset.id } })}
           subtitle={`${asset.assetNumber} · ${asset.description}`}
           title={asset.name}
           trailing={<StatusBadge size="sm" status={asset.status} />}
@@ -62,22 +62,22 @@ function AssetList({ equipment }: { readonly equipment: readonly Equipment[] }) 
   );
 }
 
-function fleetWorkspaceActions(role: AppRole, open: (slug: string) => void): readonly WorkspaceAction[] {
+function fleetWorkspaceActions(role: AppRole, open: (route: string) => void): readonly WorkspaceAction[] {
   const shared: readonly WorkspaceAction[] = [
-    { key: "models", label: "Equipment models", detail: "Tractors and trailers", icon: "bus-outline", onPress: () => open("equipment-models") },
-    { key: "gear", label: "Driver equipment", detail: "PPE and securement", icon: "shield-checkmark-outline", tone: "success", onPress: () => open("driver-gear") },
-    { key: "scan", label: "Scan asset", detail: "Tags, seals, documents", icon: "scan-outline", tone: "info", onPress: () => open("asset-scan") },
-    { key: "transfers", label: "Asset transfers", detail: "Yard and truck stock", icon: "swap-horizontal-outline", tone: "warning", onPress: () => open("stock-transfers") },
+    { key: "models", label: "Equipment models", detail: "Tractors and trailers", icon: "bus-outline", onPress: () => open("/equipment") },
+    { key: "gear", label: "Driver equipment", detail: "PPE and securement", icon: "shield-checkmark-outline", tone: "success", onPress: () => open("/driver-toolbox") },
+    { key: "scan", label: "Scan asset", detail: "VIN, unit, or document", icon: "scan-outline", tone: "info", onPress: () => open("/capacity/scan") },
+    { key: "transfers", label: "Asset transfers", detail: "Driver, load, or terminal", icon: "swap-horizontal-outline", tone: "warning", onPress: () => open("/capacity/transfer") },
   ];
   if (role === "driver") return [...shared,
-    { key: "truck", label: "My truck", detail: "Assigned inventory", icon: "briefcase-outline", onPress: () => open("truck-inventory") },
-    { key: "roadside", label: "Fuel & roadside", detail: "Local demo services", icon: "trail-sign-outline", tone: "warning", onPress: () => open("fuel-roadside") },
+    { key: "truck", label: "My truck", detail: "Assigned equipment", icon: "briefcase-outline", onPress: () => open("/capacity/equipment") },
+    { key: "roadside", label: "Fuel & roadside", detail: "Safety and provider directory", icon: "trail-sign-outline", tone: "warning", onPress: () => open("/suppliers") },
   ];
   return [...shared,
-    { key: "parts", label: "Fleet parts", detail: "Approved catalog", icon: "cog-outline", onPress: () => open("fleet-parts") },
-    { key: "orders", label: "Fleet orders", detail: "Purchase and receive", icon: "receipt-outline", tone: "info", onPress: () => open("parts-orders") },
-    { key: "vendors", label: "Maintenance vendors", detail: "Local demo portal", icon: "storefront-outline", tone: "warning", onPress: () => open("maintenance-vendor") },
-    { key: "cost", label: "Fleet analytics", detail: "Cost per mile", icon: "bar-chart-outline", tone: "success", onPress: () => open("fleet-cost-analytics") },
+    { key: "parts", label: "Equipment market", detail: "Acquire or lease", icon: "cog-outline", onPress: () => open("/equipment-marketplace") },
+    { key: "orders", label: "Capacity orders", detail: "Purchase and receive", icon: "receipt-outline", tone: "info", onPress: () => open("/capacity/orders") },
+    { key: "vendors", label: "Suppliers", detail: "Provider-neutral directory", icon: "storefront-outline", tone: "warning", onPress: () => open("/suppliers") },
+    { key: "cost", label: "Utilization", detail: "Asset performance", icon: "bar-chart-outline", tone: "success", onPress: () => open("/capacity/analytics") },
   ];
 }
 
@@ -92,17 +92,17 @@ export default function InventoryScreen() {
     .filter((asset) => roleCanSeeEquipment(asset, role, driverId))
     .filter((asset) => matchesAssetFilter(asset, filter)), [driverId, filter, role, state.equipment]);
   const allRoleEquipment = state.equipment.filter((asset) => roleCanSeeEquipment(asset, role, driverId));
-  const open = (slug: string) => router.push({ pathname: "/feature/[slug]", params: { slug } });
+  const open = (route: string) => router.push(route as never);
   const actions = fleetWorkspaceActions(role, open);
 
   return (
     <View style={[styles.fill, { backgroundColor: theme.background }]}>
-      <Header subtitle={role === "driver" ? "Assigned assets and field supplies" : "Assets, stock, orders, and service"} title="Fleet" />
+      <Header subtitle={role === "driver" ? "Assigned assets and field supplies" : "Assets, bookings, readiness, and utilization"} title="Capacity" />
       <Screen safeEdges={["left", "right", "bottom"]} scroll contentContainerStyle={styles.content}>
         <View style={styles.hero}>
-          <Text style={[styles.eyebrow, { color: theme.primaryLight }]}>EQUIPMENT & INVENTORY</Text>
-          <Text style={[styles.title, { color: theme.text }]}>{role === "driver" ? "Everything riding with you" : "The fleet at a glance"}</Text>
-          <Text style={[styles.subtitle, { color: theme.textSecondary }]}>Review operating assets, field gear, service resources, and inventory workflows.</Text>
+          <Text style={[styles.eyebrow, { color: theme.primaryLight }]}>CAPACITY ASSETS</Text>
+          <Text style={[styles.title, { color: theme.text }]}>{role === "driver" ? "Everything riding with you" : "Capacity at a glance"}</Text>
+          <Text style={[styles.subtitle, { color: theme.textSecondary }]}>Review power, trailers, assigned units, field gear, bookings, and readiness.</Text>
         </View>
 
         <View style={styles.statGrid}>
@@ -110,8 +110,6 @@ export default function InventoryScreen() {
           <StatTile label="Assigned" value={String(allRoleEquipment.filter(({ status }) => status === "assigned").length)} />
           <StatTile label="Available units" value={String(allRoleEquipment.filter(({ status }) => status === "available").reduce((total, asset) => total + asset.quantity, 0))} />
         </View>
-
-        <SimulationBanner message="Vendor catalogs, service availability, scans, and orders are local prototype interactions." />
 
         <SectionHeader title="Workspaces" />
         <WorkspaceGrid actions={actions} />

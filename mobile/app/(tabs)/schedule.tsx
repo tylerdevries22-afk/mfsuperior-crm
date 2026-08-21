@@ -2,7 +2,7 @@ import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
-import { ShipmentCard, SimulationBanner } from "@/components/operations";
+import { ShipmentCard } from "@/components/operations";
 import {
   EmptyState,
   Header,
@@ -37,7 +37,7 @@ function useScheduleData() {
   const { currentAccount, effectiveRole, shipments, state } = useOperations();
   const [dateFilter, setDateFilter] = useState<ScheduleDateFilter>("today");
   const [statusFilter, setStatusFilter] = useState<ScheduleStatusFilter>("active");
-  const role: "driver" | "dispatcher" = effectiveRole === "driver" ? "driver" : "dispatcher";
+  const role: "driver" | "admin" = effectiveRole === "driver" ? "driver" : "admin";
 
   const visibleLoads = useMemo(() => filterScheduleShipments(shipments, {
     role,
@@ -61,7 +61,7 @@ function useScheduleData() {
   return { activeCount, dateFilter, doneCount, role, setDateFilter, setStatusFilter, statusFilter, tenderCount, visibleLoads };
 }
 
-function ScheduleHero({ role }: { readonly role: "driver" | "dispatcher" }) {
+function ScheduleHero({ role }: { readonly role: "driver" | "admin" }) {
   const theme = useTheme();
   return (
     <View style={styles.hero}>
@@ -119,7 +119,6 @@ export default function ScheduleScreen() {
           <StatTile label="Tenders" value={String(data.tenderCount)} />
           <StatTile label="Delivered" value={String(data.doneCount)} />
         </View>
-        <SimulationBanner />
         <ScheduleFilters date={data.dateFilter} onDate={data.setDateFilter} onStatus={data.setStatusFilter} status={data.statusFilter} />
         <ScheduleResults loads={data.visibleLoads} onReset={() => { data.setDateFilter("all"); data.setStatusFilter("all"); }} />
       </Screen>

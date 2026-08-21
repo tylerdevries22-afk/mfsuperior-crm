@@ -4,7 +4,6 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
 import { Image, StyleSheet, Text, View } from "react-native";
 
-import { SimulationBanner } from "@/components/operations";
 import { Button, Card, EmptyState, Header, Screen, TextArea, TextField } from "@/components/ui";
 import type { DeliveryAttachment } from "@/domain/types";
 import { useOperations } from "@/store";
@@ -31,7 +30,7 @@ export default function ProofOfDeliveryScreen() {
       <View style={[styles.fill, { backgroundColor: theme.background }]}>
         <Header centered onBack={() => router.back()} showBack title="Proof of delivery" />
         <Screen safeEdges={["left", "right", "bottom"]}>
-          <EmptyState description="Switch to the Driver or Dispatcher demo role to submit proof of delivery." title="Role access required" />
+          <EmptyState description="Switch to the Driver or Admin demo role to submit proof of delivery." title="Role access required" />
         </Screen>
       </View>
     );
@@ -89,9 +88,8 @@ export default function ProofOfDeliveryScreen() {
 
   return (
     <View style={[styles.fill, { backgroundColor: theme.background }]}>
-      <Header centered onBack={() => router.back()} showBack subtitle={shipment.targetLoadId} title="Proof of delivery" />
+      <Header centered onBack={() => router.back()} showBack subtitle={shipment.loadNumber} title="Proof of delivery" />
       <Screen keyboardAware safeEdges={["left", "right", "bottom"]} scroll contentContainerStyle={styles.content}>
-        <SimulationBanner message="POD stays in local prototype storage. Photos and signatures are not uploaded or sent to Target." />
 
         {existingProof ? (
           <Card>

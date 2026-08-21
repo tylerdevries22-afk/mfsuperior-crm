@@ -1,28 +1,27 @@
 {
   "expo": {
-    "name": "MF Superior",
-    "slug": "mfsuperior-mobile",
+    "name": "MF Superior Products",
+    "slug": "mfsuperior-products",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/brand/mf-logo-mark.png",
     "scheme": "mfsuperior",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "dark",
     "backgroundColor": "#0E0F0C",
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.mfsuperior.crm.demo"
+      "bundleIdentifier": "com.mfsuperior.products"
     },
     "android": {
+      "package": "com.mfsuperior.products",
       "adaptiveIcon": {
         "backgroundColor": "#111315",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "foregroundImage": "./assets/brand/mf-logo-mark.png"
       },
       "predictiveBackGestureEnabled": false
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/brand/mf-logo-mark.png"
     },
     "plugins": [
       "expo-router",
@@ -30,15 +29,22 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow MF Superior to attach a freight photo to this local demo.",
-          "cameraPermission": "Allow MF Superior to take a proof-of-delivery photo only when you choose to."
+          "photosPermission": "Allow MF Superior Products to attach freight photos.",
+          "cameraPermission": "Allow MF Superior Products to take proof-of-delivery photos when you choose to."
         }
       ],
       "expo-asset",
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Allow MF Superior to show foreground-only driver location updates in this local demo."
+          "locationWhenInUsePermission": "Allow MF Superior Products to send foreground-only driver location updates."
+        }
+      ],
+      [
+        "expo-secure-store",
+        {
+          "configureAndroidBackup": true,
+          "faceIDPermission": "Allow MF Superior Products to protect your signed-in session."
         }
       ]
     ],

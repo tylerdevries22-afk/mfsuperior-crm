@@ -19,6 +19,6 @@ export function loadLifecycleAction(status: ShipmentStatus, role: AppRole): Load
   if (role === "customer" || status === "tendered" || status === "exception") return null;
   const action = ACTIONS[status];
   if (!action) return null;
-  if (action.nextStatus === "dispatched" && role !== "dispatcher") return null;
+  if (action.nextStatus === "dispatched" && role !== "admin") return null;
   return action;
 }

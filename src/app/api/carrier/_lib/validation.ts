@@ -54,7 +54,6 @@ export const driverListQuerySchema = z
 
 export const driverCreateSchema = z
   .object({
-    carrierId: z.uuid(),
     firstName: z.string().trim().min(1).max(100),
     lastName: z.string().trim().min(1).max(100),
     email: z.email().max(320).nullable().optional(),
@@ -75,7 +74,6 @@ export const shipmentListQuerySchema = z
 
 export const shipmentCreateSchema = z
   .object({
-    carrierId: optionalUuid,
     driverId: optionalUuid,
     targetLoadId: optionalText(100),
     targetPoNumber: optionalText(100),

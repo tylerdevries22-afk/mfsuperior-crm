@@ -5,7 +5,6 @@ import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { Platform, StyleSheet, Text, View } from "react-native";
 
-import { SimulationBanner } from "@/components/operations";
 import { Badge, Button, Card, EmptyState, Header, KeyValueRow, Screen, SectionHeader } from "@/components/ui";
 import type { GeoPoint } from "@/domain/types";
 import { useOperations } from "@/store";
@@ -92,7 +91,6 @@ export default function LocationTrackerScreen() {
     <View style={[styles.fill, { backgroundColor: theme.background }]}>
       <Header centered onBack={() => router.back()} showBack subtitle="Foreground only" title="GPS tracking" />
       <Screen safeEdges={["left", "right", "bottom"]} scroll contentContainerStyle={styles.content}>
-        <SimulationBanner message="Location is never sent to Target. When enabled, the prototype stores coarse foreground updates only on this device." />
 
         <Card>
           <View style={styles.statusRow}>
@@ -114,7 +112,7 @@ export default function LocationTrackerScreen() {
                 <Ionicons color={theme.textInverse} name="navigate" size={ICON.lg} />
               </View>
             </View>
-            <Badge label={activeShipment?.targetLoadId ?? "No active load"} tone="info" style={styles.mapBadge} />
+            <Badge label={activeShipment?.loadNumber ?? "No active load"} tone="info" style={styles.mapBadge} />
           </View>
           <View style={styles.coordinateBlock}>
             <Text style={[styles.eyebrow, { color: theme.primaryLight }]}>LAST LOCAL POSITION</Text>

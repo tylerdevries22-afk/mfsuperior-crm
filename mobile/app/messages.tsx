@@ -3,7 +3,6 @@ import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
-import { SimulationBanner } from "@/components/operations";
 import { Badge, Button, Card, EmptyState, Header, Screen, TextArea } from "@/components/ui";
 import { useOperations } from "@/store";
 import { ICON, RADIUS, SPACE, TYPO, useTheme } from "@/theme";
@@ -15,16 +14,16 @@ export default function MessagesScreen() {
   const [draft, setDraft] = useState("");
   const [isSending, setIsSending] = useState(false);
   const shipment = activeShipment ?? shipments[0];
-  const dispatcher = accounts.find((account) => account.role === "dispatcher");
+  const admin = accounts.find((account) => account.role === "admin");
   const driver = accounts.find((account) => account.role === "driver");
   const customer = accounts.find((account) => account.role === "customer");
-  const recipient = currentAccount?.role === "dispatcher"
+  const recipient = currentAccount?.role === "admin"
     ? effectiveRole === "customer" ? customer : driver
-    : dispatcher;
+    : admin;
   const threadId = shipment ? `thread-${shipment.id}` : "thread-operations-support";
   const visibleMessages = useMemo(() => messages.filter((message) => {
     if (message.threadId !== threadId) return false;
-    if (currentAccount?.role === "dispatcher") return true;
+    if (currentAccount?.role === "admin") return true;
     return message.senderAccountId === currentAccount?.id || message.recipientAccountIds.includes(currentAccount?.id ?? "");
   }), [currentAccount?.id, currentAccount?.role, messages, threadId]);
 
@@ -44,14 +43,13 @@ export default function MessagesScreen() {
 
   return (
     <View style={[styles.fill, { backgroundColor: theme.background }]}>
-      <Header centered onBack={() => router.back()} showBack subtitle={shipment?.targetLoadId ?? "Operations support"} title="Messages" />
+      <Header centered onBack={() => router.back()} showBack subtitle={shipment?.loadNumber ?? "Operations support"} title="Messages" />
       <Screen keyboardAware safeEdges={["left", "right", "bottom"]} scroll contentContainerStyle={styles.content}>
-        <SimulationBanner message="Messages stay in local prototype storage and are not sent to Target, dispatch systems, email, or SMS." />
 
         <Card>
           <View style={styles.threadHeader}>
             <View style={[styles.avatar, { backgroundColor: theme.primaryMuted }]}>
-              <Ionicons color={theme.primaryLight} name={recipient?.role === "dispatcher" ? "headset-outline" : recipient?.role === "driver" ? "car-outline" : "business-outline"} size={ICON.lg} />
+              <Ionicons color={theme.primaryLight} name={recipient?.role === "admin" ? "headset-outline" : recipient?.role === "driver" ? "car-outline" : "business-outline"} size={ICON.lg} />
             </View>
             <View style={styles.grow}>
               <Text style={[styles.threadTitle, { color: theme.text }]}>{recipient?.displayName ?? "Operations support"}</Text>

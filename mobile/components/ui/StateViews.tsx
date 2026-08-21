@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { ActivityIndicator, Text, View, type StyleProp, type ViewStyle } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 
 import { ICON, makeStyles, RADIUS, SPACE, TYPO, useTheme } from "../../theme";
 import { Button } from "./Button";
@@ -69,7 +69,7 @@ export function EmptyState({
   style,
 }: EmptyStateProps) {
   const theme = useTheme();
-  const resolvedIcon = icon ?? <Ionicons name="file-tray-outline" size={36} color={theme.textMuted} />;
+  const resolvedIcon = icon ?? <Feather name="archive" size={36} color={theme.textMuted} />;
   const resolvedAction = action ?? (actionLabel && onAction ? <Button title={actionLabel} variant="secondary" onPress={onAction} /> : undefined);
   return <StateView action={resolvedAction} description={description} icon={resolvedIcon} message={message} style={style} title={title} />;
 }
@@ -84,7 +84,7 @@ export function ErrorState({
   style,
 }: ErrorStateProps) {
   const theme = useTheme();
-  const resolvedIcon = icon ?? <Ionicons name="alert-circle-outline" size={ICON.xl + 8} color={theme.danger} />;
+  const resolvedIcon = icon ?? <Feather name="alert-circle" size={ICON.xl + 8} color={theme.danger} />;
   const action = onRetry ? <Button title={retryLabel} variant="secondary" onPress={onRetry} /> : undefined;
   return (
     <View accessibilityRole="alert">

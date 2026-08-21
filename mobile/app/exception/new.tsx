@@ -4,7 +4,6 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
 import { Image, StyleSheet, Text, View } from "react-native";
 
-import { SimulationBanner } from "@/components/operations";
 import { BottomSheet, Button, Card, EmptyState, Header, ListRow, Screen, SegmentedControl, TextArea } from "@/components/ui";
 import type { ExceptionCategory, ExceptionSeverity } from "@/domain/types";
 import { formatStatus } from "@/lib/operations-format";
@@ -43,7 +42,7 @@ export default function NewExceptionScreen() {
       <View style={[styles.fill, { backgroundColor: theme.background }]}>
         <Header centered onBack={() => router.back()} showBack title="Report exception" />
         <Screen safeEdges={["left", "right", "bottom"]}>
-          <EmptyState actionLabel="Return home" description="An active driver or dispatcher load is required to report an exception." onAction={() => router.replace("/(tabs)")} title="No operable load" />
+          <EmptyState actionLabel="Return home" description="An active driver or admin load is required to report an exception." onAction={() => router.replace("/(tabs)")} title="No operable load" />
         </Screen>
       </View>
     );
@@ -92,9 +91,8 @@ export default function NewExceptionScreen() {
 
   return (
     <View style={[styles.fill, { backgroundColor: theme.background }]}>
-      <Header centered onBack={() => router.back()} showBack subtitle={shipment.targetLoadId} title="Report exception" />
+      <Header centered onBack={() => router.back()} showBack subtitle={shipment.loadNumber} title="Report exception" />
       <Screen keyboardAware safeEdges={["left", "right", "bottom"]} scroll contentContainerStyle={styles.content}>
-        <SimulationBanner message="Submitting creates a local exception and simulated 214 event. It does not notify Target or emergency services." />
 
         <Card title="Exception details">
           <View style={styles.form}>

@@ -9,7 +9,7 @@ export type ScheduleDateFilter = "today" | "upcoming" | "all";
 export type ScheduleStatusFilter = "active" | "tenders" | "completed" | "all";
 
 export interface ScheduleFilterOptions {
-  readonly role: Extract<AppRole, "driver" | "dispatcher">;
+  readonly role: Extract<AppRole, "driver" | "admin">;
   readonly driverId?: EntityId;
   readonly date: ScheduleDateFilter;
   readonly status: ScheduleStatusFilter;
@@ -67,7 +67,7 @@ export function filterScheduleShipments(
 ): readonly Shipment[] {
   return shipments
     .filter((shipment) => (
-      options.role === "dispatcher" || !options.driverId || shipment.assignedDriverId === options.driverId
+      options.role === "admin" || !options.driverId || shipment.assignedDriverId === options.driverId
     ))
     .filter((shipment) => matchesDate(shipment, options.date, options.now))
     .filter((shipment) => matchesStatus(shipment, options.status))
@@ -80,23 +80,23 @@ export function localAssistantReply(prompt: string, activeLoadId?: string): stri
   const normalized = prompt.trim().toLowerCase();
   const loadLabel = activeLoadId ? `Load ${activeLoadId}` : "The active load";
 
-  if (!normalized) return "Enter a freight question and I’ll use the local demo records to guide you.";
+  if (!normalized) return "Enter a freight question and I’ll use the available freight records to guide you.";
   if (/exception|damage|delay|late|temperature/.test(normalized)) {
-    return "Open Exception triage, document the condition and ETA, then notify dispatch. Demo actions stay on this device.";
+    return "Open Exception triage, document the condition and ETA, then notify operations. Offline actions remain queued until they sync.";
   }
   if (/hour|hos|clock|break|drive/.test(normalized)) {
-    return "Review Hours of service before changing duty status. This prototype is not an ELD and cannot verify compliance.";
+    return "Review Hours of service before changing duty status. This app is not an ELD and cannot verify compliance.";
   }
   if (/target|edi|204|990|214|210|997/.test(normalized)) {
-    return "Target partner transactions shown here are simulated. No production Target connection or credentials are configured.";
+    return "Target is portal-available and still requires EDI onboarding. No production Target transport or credentials are configured.";
   }
   if (/load|shipment|stop|route|eta|where/.test(normalized)) {
-    return `${loadLabel} is available in Schedule with its stop timeline, route plan, and simulated status history.`;
+    return `${loadLabel} is available in Schedule with its stop timeline, route plan, and status history.`;
   }
   if (/equipment|trailer|tractor|inventory|gear/.test(normalized)) {
-    return "Open Fleet to review assigned tractors, trailers, securement gear, and locally simulated service resources.";
+    return "Open Capacity to review assigned tractors, trailers, securement gear, and service resources.";
   }
-  return "I can help with loads, routes, HOS, exceptions, equipment, and the simulated Target EDI workflow using only local demo data.";
+  return "I can help with loads, routes, HOS, exceptions, equipment, and partner onboarding status.";
 }
 
 /** Validate and normalize the customer request form before it reaches the repository. */

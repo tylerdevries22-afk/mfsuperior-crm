@@ -115,8 +115,9 @@ function isAccount(value: Record<string, unknown>): boolean {
     roleSet.has(value.role) &&
     isNonEmptyString(value.displayName) &&
     isNonEmptyString(value.email) &&
-    typeof value.demoPin === "string" &&
-    /^\d{4}$/.test(value.demoPin)
+    (value.demoPin === undefined || (
+      typeof value.demoPin === "string" && /^\d{4}$/.test(value.demoPin)
+    ))
   );
 }
 
@@ -134,7 +135,7 @@ function isDriver(value: Record<string, unknown>): boolean {
 function isShipment(value: Record<string, unknown>): boolean {
   return (
     hasStringId(value) &&
-    isNonEmptyString(value.targetLoadId) &&
+    isNonEmptyString(value.loadNumber) &&
     typeof value.status === "string" &&
     shipmentStatusSet.has(value.status) &&
     Array.isArray(value.stops) &&
@@ -167,7 +168,7 @@ function isShipmentEvent(value: unknown): boolean {
     hasStringId(value) &&
     isNonEmptyString(value.shipmentId) &&
     isIsoDateTime(value.occurredAt) &&
-    value.isSimulated === true
+    typeof value.isSimulated === "boolean"
   );
 }
 
@@ -203,7 +204,7 @@ function hasValidSessionAccount(state: Record<string, unknown>): boolean {
     return false;
   }
 
-  return account.role === "dispatcher"
+  return account.role === "admin"
     ? typeof session.effectiveRole === "string" && roleSet.has(session.effectiveRole)
     : session.effectiveRole === account.role;
 }

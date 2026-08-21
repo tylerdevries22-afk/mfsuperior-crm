@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import type { ComponentProps } from "react";
 import type { PressableProps, StyleProp, ViewStyle } from "react-native";
 
@@ -6,7 +6,7 @@ import { ICON, makeStyles, RADIUS, SIZE, useTheme } from "../../theme";
 import { PressableSurface, type HapticStrength } from "./PressableSurface";
 
 export type IconButtonProps = Omit<PressableProps, "children" | "style"> & {
-  icon: ComponentProps<typeof Ionicons>["name"];
+  icon: ComponentProps<typeof Feather>["name"];
   label: string;
   size?: "sm" | "md";
   variant?: "ghost" | "surface" | "brand";
@@ -43,7 +43,7 @@ export function IconButton({
       haptic={haptic}
       style={[styles.button, styles[size], styles[variant], style]}
     >
-      <Ionicons name={icon} size={size === "sm" ? ICON.md : ICON.lg} color={color} />
+      <Feather name={icon} size={size === "sm" ? ICON.md : ICON.lg} color={color} />
     </PressableSurface>
   );
 }

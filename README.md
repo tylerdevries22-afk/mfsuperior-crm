@@ -59,13 +59,12 @@ deploy" bugs.
 
 `RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET`, `GMAIL_USER`, `DRIVE_FOLDER_ID`,
 `BUSINESS_MC`, `BUSINESS_USDOT`, `DAILY_SEND_CAP` (default 20), `WARMUP_DAYS`
-(default 7), `WARMUP_DAILY_CAP` (default 5), `CARRIER_DISPATCHER_EMAILS`, and
-`CARRIER_DEMO_MODE`.
+(default 7), `WARMUP_DAILY_CAP` (default 5), and `CARRIER_DEMO_MODE`.
 
-Carrier routes fail closed until `CARRIER_DISPATCHER_EMAILS` contains a
-comma-separated allowlist of Auth.js user emails. `CARRIER_DEMO_MODE=true`
-labels local EDI/GPS/geofence records as simulated; it never enables a live
-Target connection.
+Carrier routes resolve a verified Supabase subject to an active organization
+membership and fail closed when no scoped membership exists.
+`CARRIER_DEMO_MODE=true` labels synthetic EDI/GPS/geofence records as demo
+data; it never enables a live partner connection.
 
 ### Validate locally
 

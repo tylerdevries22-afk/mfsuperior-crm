@@ -8,6 +8,7 @@ export type TintBase =
   | "success"
   | "danger"
   | "warning"
+  | "orange"
   | "info"
   | "textMuted";
 
@@ -36,9 +37,14 @@ export type ThemePalette = {
   danger: string;
   dangerMuted: string;
   error: string;
+  orange: string;
   info: string;
   infoMuted: string;
   cardBg: string;
+  metallic: string;
+  metallicDark: string;
+  steel: string;
+  gradient: { start: string; end: string };
   shadow: { color: string; opacity: number };
   overlay: string;
   tint: Readonly<Record<TintBase, TintRamp>>;
@@ -53,6 +59,7 @@ function withTints(base: Omit<ThemePalette, "tint">): ThemePalette {
       success: ramp(base.success),
       danger: ramp(base.danger),
       warning: ramp(base.warning),
+      orange: ramp(base.orange),
       info: ramp(base.info),
       textMuted: ramp(base.textMuted),
     },
@@ -88,10 +95,15 @@ export const DARK_THEME: ThemePalette = withTints({
   danger: "#FF8A84",
   dangerMuted: "#3B1D1A",
   error: "#FF8A84",
+  orange: "#FFAE4A",
   info: "#94B2FF",
   infoMuted: "#1A2542",
 
   cardBg: "#171813",
+  metallic: "#B7BCAF",
+  metallicDark: "#747A6D",
+  steel: "#6E7651",
+  gradient: { start: "#0E0F0C", end: "#171813" },
   shadow: { color: "#000000", opacity: 0 },
   overlay: "rgba(14,15,12,0.78)",
 });
@@ -125,10 +137,15 @@ export const LIGHT_THEME: ThemePalette = withTints({
   danger: "#A61B1B",
   dangerMuted: "#FDE8E7",
   error: "#A61B1B",
+  orange: "#994900",
   info: "#1947A3",
   infoMuted: "#E7EEFF",
 
   cardBg: "#FFFFFF",
+  metallic: "#62685D",
+  metallicDark: "#50564B",
+  steel: "#657035",
+  gradient: { start: "#F7F7F2", end: "#ECEEE3" },
   shadow: { color: "#292B20", opacity: 0.08 },
   overlay: "rgba(23,24,19,0.32)",
 });

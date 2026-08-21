@@ -42,8 +42,10 @@ export const driverStatusEnum = pgEnum("driver_status", [
 
 export const shipmentSourceEnum = pgEnum("shipment_source", [
   "manual",
+  "demo",
   "simulated",
   "edi",
+  "api",
 ]);
 
 export const ediDirectionEnum = pgEnum("edi_direction", [
@@ -67,10 +69,43 @@ export const geofenceTypeEnum = pgEnum("geofence_type", [
   "other",
 ]);
 
+export const organizationStatusEnum = pgEnum("organization_status", [
+  "active",
+  "suspended",
+  "archived",
+]);
+
+/**
+ * Security boundary for every freight record. A carrier is the operational
+ * profile attached to an organization, while membership authorization is
+ * always evaluated against the organization itself.
+ */
+export const organizations = pgTable(
+  "organizations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    slug: varchar("slug", { length: 80 }).notNull().unique(),
+    name: varchar("name", { length: 200 }).notNull(),
+    status: organizationStatusEnum("status").notNull().default("active"),
+    metadata: jsonb("metadata").notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [index("organizations_status_idx").on(table.status)],
+);
+
 export const carriers = pgTable(
   "carriers",
   {
     id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id").references(
+      () => organizations.id,
+      { onDelete: "restrict" },
+    ),
     scac: varchar("scac", { length: 10 }).notNull().unique(),
     name: varchar("name", { length: 200 }).notNull(),
     dotNumber: varchar("dot_number", { length: 20 }),
@@ -88,7 +123,12 @@ export const carriers = pgTable(
       .defaultNow()
       .notNull(),
   },
-  (table) => [index("carriers_status_idx").on(table.status)],
+  (table) => [
+    index("carriers_status_idx").on(table.status),
+    uniqueIndex("carriers_organization_unique")
+      .on(table.organizationId)
+      .where(sql`${table.organizationId} is not null`),
+  ],
 );
 
 export const drivers = pgTable(
@@ -168,11 +208,44 @@ export const shipments = pgTable(
       .notNull(),
   },
   (table) => [
-    uniqueIndex("shipments_target_load_id_unique")
-      .on(table.targetLoadId)
-      .where(sql`${table.targetLoadId} is not null`),
     index("shipments_status_created_at_idx").on(table.status, table.createdAt),
     index("shipments_driver_status_idx").on(table.driverId, table.status),
+  ],
+);
+
+/**
+ * Provider-scoped identifiers are the canonical external identity boundary.
+ * Legacy Target columns remain temporarily for dual-read rollback only and
+ * must never be used as a cross-provider uniqueness constraint.
+ */
+export const shipmentExternalReferences = pgTable(
+  "shipment_external_references",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    shipmentId: uuid("shipment_id")
+      .notNull()
+      .references(() => shipments.id, { onDelete: "cascade" }),
+    provider: varchar("provider", { length: 80 }).notNull(),
+    referenceType: varchar("reference_type", { length: 80 }).notNull(),
+    externalId: varchar("external_id", { length: 160 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("shipment_external_references_provider_unique").on(
+      table.organizationId,
+      table.provider,
+      table.referenceType,
+      table.externalId,
+    ),
+    index("shipment_external_references_shipment_idx").on(
+      table.organizationId,
+      table.shipmentId,
+    ),
   ],
 );
 

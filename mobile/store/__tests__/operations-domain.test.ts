@@ -129,7 +129,7 @@ describe("unified demo operations domain", () => {
     const message = await repository.sendMessage({
       threadId: "thread-support",
       threadKind: "support",
-      recipientAccountIds: ["account-dispatcher"],
+      recipientAccountIds: ["account-admin"],
       body: "Can dispatch confirm the new pickup request?",
     });
     await expect(repository.switchDemoRole("driver")).rejects.toMatchObject({ code: "UNAUTHORIZED" });
@@ -148,7 +148,7 @@ describe("unified demo operations domain", () => {
   it("runs the Target-simulated tender, driver, exception, POD, GPS, and EDI flows", async () => {
     const repository = createRepository(new MemoryPersistenceAdapter());
     await repository.hydrate();
-    await repository.signIn("dispatcher@demo.mfsuperior.com", "3333");
+    await repository.signIn("admin@demo.mfsuperior.com", "3333");
     await repository.respondToTender("shipment-28492", "accepted");
     await expect(repository.assignShipment(
       "shipment-28492",
@@ -172,7 +172,7 @@ describe("unified demo operations domain", () => {
     await repository.switchDemoRole("driver");
     await repository.transitionDutyStatus("driving");
     await repository.simulateDriverLocation({ latitude: 44.95, longitude: -92.99 });
-    await repository.switchDemoRole("dispatcher");
+    await repository.switchDemoRole("admin");
     await repository.transitionShipment("shipment-28492", "at_pickup", "stop-28492-pickup");
     await repository.transitionShipment("shipment-28492", "loaded", "stop-28492-pickup");
     await repository.transitionShipment("shipment-28492", "in_transit");
@@ -193,7 +193,7 @@ describe("unified demo operations domain", () => {
       severity: "medium",
       description: "Carrier gate queue is delaying the scheduled check-in.",
     });
-    await repository.switchDemoRole("dispatcher");
+    await repository.switchDemoRole("admin");
     await repository.resolveException(exception.id, "Gate cleared and driver released.", "dispatched");
 
     const finalState = repository.getState();

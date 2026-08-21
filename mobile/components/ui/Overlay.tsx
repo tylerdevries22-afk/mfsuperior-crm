@@ -9,7 +9,7 @@ import {
   type StyleProp,
   type ViewStyle,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ICON, makeStyles, RADIUS, SPACE, TYPO, useReducedMotion, useTheme } from "../../theme";
@@ -87,7 +87,7 @@ function OverlayHeader({ title, dismissible, onClose }: Pick<OverlayCommonProps,
       {title ? <Text accessibilityRole="header" style={styles.title}>{title}</Text> : <View style={styles.title} />}
       {dismissible ? (
         <PressableSurface accessibilityLabel="Close" onPress={onClose} style={styles.close}>
-          <Ionicons name="close" size={ICON.lg} color={theme.text} />
+          <Feather name="x" size={ICON.lg} color={theme.text} />
         </PressableSurface>
       ) : null}
     </View>

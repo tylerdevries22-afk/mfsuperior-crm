@@ -1,6 +1,15 @@
 export { alpha, ramp, TINT, type TintRamp, type TintWeight } from "./alpha";
 export { AA_LARGE, AA_NORMAL, contrastRatio, parseHex, relativeLuminance, type RGB } from "./contrast";
 export { EASE_ENTER, EASE_EXIT } from "./easing";
+export {
+  ANIM,
+  CARD_SHADOW,
+  CARD_SHADOW_SM,
+  RADIUS_LEGACY,
+  SPACING,
+  THEME,
+  TYPO_LEGACY,
+} from "./legacy";
 export { makeStyles, makeThemed } from "./makeStyles";
 export {
   DARK_THEME,

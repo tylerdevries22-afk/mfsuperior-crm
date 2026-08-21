@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Text, View, type StyleProp, type ViewStyle } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 
 import { ICON, makeStyles, RADIUS, SIZE, SPACE, TYPO, useTheme } from "../../theme";
 import { PressableSurface } from "./PressableSurface";
@@ -101,7 +101,7 @@ export function ListRow({
         {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
       </View>
       <View style={styles.trailing}>
-        {trailing ?? (onPress ? <Ionicons name="chevron-forward" size={ICON.md} color={theme.textMuted} /> : null)}
+        {trailing ?? (onPress ? <Feather name="chevron-right" size={ICON.md} color={theme.textMuted} /> : null)}
       </View>
     </>
   );

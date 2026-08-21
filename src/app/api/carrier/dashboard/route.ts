@@ -1,10 +1,11 @@
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import { drivers, shipments } from "@/lib/db/schema";
 import {
   databaseErrorResponse,
-  requireCarrierDispatcher,
+  requireCarrierAdmin,
   successResponse,
+  withCarrierAuthHeaders,
 } from "../_lib/http";
 
 type IntegrationStatus =
@@ -30,7 +31,7 @@ function integrationHealth() {
   ] as const;
 }
 
-async function loadDashboard() {
+async function loadDashboard(carrierId: string) {
   const [[shipmentMetrics], [driverMetrics]] = await Promise.all([
     db
       .select({
@@ -62,14 +63,16 @@ async function loadDashboard() {
           and ${shipments.deliveredAt} >= ${shipments.pickedUpAt}
         )`,
       })
-      .from(shipments),
+      .from(shipments)
+      .where(eq(shipments.carrierId, carrierId)),
     db
       .select({
         activeDrivers: sql<number>`count(*) filter (
           where ${drivers.status} = 'on_duty'
         )::int`,
       })
-      .from(drivers),
+      .from(drivers)
+      .where(eq(drivers.carrierId, carrierId)),
   ]);
 
   const trackedDeliveries = Number(shipmentMetrics.trackedDeliveries);
@@ -94,13 +97,23 @@ async function loadDashboard() {
   };
 }
 
-export async function GET() {
-  const authorization = await requireCarrierDispatcher();
+export async function GET(request: Request) {
+  const authorization = await requireCarrierAdmin(request);
   if (!authorization.authorized) return authorization.response;
 
   try {
-    return successResponse(await loadDashboard());
+    return withCarrierAuthHeaders(
+      successResponse(
+        await loadDashboard(authorization.principal.carrierId),
+        authorization.requestId,
+      ),
+      authorization,
+    );
   } catch (error) {
-    return databaseErrorResponse(error, "dashboard.read");
+    return databaseErrorResponse(
+      error,
+      "dashboard.read",
+      authorization.requestId,
+    );
   }
 }

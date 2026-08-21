@@ -97,7 +97,3 @@ export function Card({
     </PressableSurface>
   );
 }
-
-export const WorkspaceCard = Card;
-export const GlassCard = Card;
-export const AnimatedCard = Card;

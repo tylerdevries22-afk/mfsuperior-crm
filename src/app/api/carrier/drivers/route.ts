@@ -5,8 +5,9 @@ import {
   databaseErrorResponse,
   parseJsonBody,
   parseQuery,
-  requireCarrierDispatcher,
+  requireCarrierAdmin,
   successResponse,
+  withCarrierAuthHeaders,
 } from "../_lib/http";
 import {
   driverCreateSchema,
@@ -18,8 +19,8 @@ function searchPattern(query: string) {
   return `%${query.replace(/[%_\\]/g, "\\$&")}%`;
 }
 
-async function listDrivers(query: DriverListQuery) {
-  const filters: SQL[] = [];
+async function listDrivers(query: DriverListQuery, carrierId: string) {
+  const filters: SQL[] = [eq(drivers.carrierId, carrierId)];
   if (query.status) filters.push(eq(drivers.status, query.status));
   if (query.q) {
     const needle = searchPattern(query.q);
@@ -65,34 +66,61 @@ async function listDrivers(query: DriverListQuery) {
 }
 
 export async function GET(request: Request) {
-  const authorization = await requireCarrierDispatcher();
+  const authorization = await requireCarrierAdmin(request);
   if (!authorization.authorized) return authorization.response;
-  const query = parseQuery(request, driverListQuerySchema);
+  const query = parseQuery(
+    request,
+    driverListQuerySchema,
+    authorization.requestId,
+  );
   if (!query.success) return query.response;
 
   try {
-    const { rows, total } = await listDrivers(query.data);
-    return successResponse(rows, {
-      page: query.data.page,
-      limit: query.data.limit,
-      total,
-      totalPages: Math.ceil(total / query.data.limit),
-    });
+    const { rows, total } = await listDrivers(
+      query.data,
+      authorization.principal.carrierId,
+    );
+    return withCarrierAuthHeaders(
+      successResponse(rows, authorization.requestId, {
+        page: query.data.page,
+        limit: query.data.limit,
+        total,
+        totalPages: Math.ceil(total / query.data.limit),
+      }),
+      authorization,
+    );
   } catch (error) {
-    return databaseErrorResponse(error, "drivers.list");
+    return databaseErrorResponse(error, "drivers.list", authorization.requestId);
   }
 }
 
 export async function POST(request: Request) {
-  const authorization = await requireCarrierDispatcher();
+  const authorization = await requireCarrierAdmin(request);
   if (!authorization.authorized) return authorization.response;
-  const body = await parseJsonBody(request, driverCreateSchema);
+  const body = await parseJsonBody(
+    request,
+    driverCreateSchema,
+    authorization.requestId,
+  );
   if (!body.success) return body.response;
 
   try {
-    const [driver] = await db.insert(drivers).values(body.data).returning();
-    return successResponse(driver, null, 201);
+    const [driver] = await db
+      .insert(drivers)
+      .values({
+        ...body.data,
+        carrierId: authorization.principal.carrierId,
+      })
+      .returning();
+    return withCarrierAuthHeaders(
+      successResponse(driver, authorization.requestId, null, 201),
+      authorization,
+    );
   } catch (error) {
-    return databaseErrorResponse(error, "drivers.create");
+    return databaseErrorResponse(
+      error,
+      "drivers.create",
+      authorization.requestId,
+    );
   }
 }

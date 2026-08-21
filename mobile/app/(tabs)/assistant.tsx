@@ -3,8 +3,8 @@ import { useRouter } from "expo-router";
 import { useRef, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
-import { SimulationBanner, WorkspaceGrid, type WorkspaceAction } from "@/components/operations";
-import { Badge, Button, Card, Header, PressableSurface, Screen, SectionHeader, TextField } from "@/components/ui";
+import { WorkspaceGrid, type WorkspaceAction } from "@/components/operations";
+import { Button, Card, Header, PressableSurface, Screen, SectionHeader, TextField } from "@/components/ui";
 import { localAssistantReply } from "@/lib/tab-workspaces";
 import { useOperations } from "@/store";
 import { ICON, RADIUS, SPACE, TYPO, useTheme } from "@/theme";
@@ -62,7 +62,7 @@ function useAssistantConversation(activeLoadId?: string) {
   const [messages, setMessages] = useState<readonly ChatMessage[]>([{
     id: 1,
     author: "assistant",
-    body: "I use only this prototype’s local freight records. Ask about a load, HOS, an exception, equipment, or simulated EDI.",
+    body: "I can help with freight records, HOS, exceptions, equipment, and EDI workflows. Critical actions still require your confirmation.",
   }]);
 
   function sendPrompt(value = prompt): void {
@@ -89,7 +89,7 @@ function AssistantIntro() {
         </View>
         <View style={styles.grow}>
           <Text style={[styles.title, { color: theme.text }]}>Operations copilot</Text>
-          <Text style={[styles.subtitle, { color: theme.textSecondary }]}>Fast, repeatable guidance for this clickable prototype.</Text>
+          <Text style={[styles.subtitle, { color: theme.textSecondary }]}>Fast, repeatable guidance for freight operations.</Text>
         </View>
       </View>
     </Card>
@@ -125,19 +125,18 @@ export default function AssistantScreen() {
   const router = useRouter();
   const theme = useTheme();
   const { activeShipment, effectiveRole } = useOperations();
-  const chat = useAssistantConversation(activeShipment?.targetLoadId);
+  const chat = useAssistantConversation(activeShipment?.loadNumber);
 
   const actions: readonly WorkspaceAction[] = [
-    { key: "triage", label: "Exception triage", detail: "Delay, damage, temperature", icon: "warning-outline", tone: "warning", onPress: () => router.push({ pathname: "/feature/[slug]", params: { slug: "exception-triage" } }) },
-    { key: "hos", label: "HOS guide", detail: "Local clock explanation", icon: "timer-outline", tone: "success", onPress: () => router.push({ pathname: "/feature/[slug]", params: { slug: "hours-of-service" } }) },
-    ...(effectiveRole === "dispatcher" ? [{ key: "edi", label: "EDI audit", detail: "Simulated 204 · 990 · 214", icon: "git-network-outline" as const, tone: "info" as const, onPress: () => router.push("/edi-audit") }] : []),
+    { key: "triage", label: "Exception triage", detail: "Delay, damage, temperature", icon: "warning-outline", tone: "warning", onPress: () => router.push("/exception-diagnostic") },
+    { key: "hos", label: "HOS guide", detail: "Duty-clock explanation", icon: "timer-outline", tone: "success", onPress: () => router.push("/hours-of-service") },
+    ...(effectiveRole === "admin" ? [{ key: "edi", label: "EDI audit", detail: "204 · 990 · 214 · 210 · 997", icon: "git-network-outline" as const, tone: "info" as const, onPress: () => router.push("/edi-audit") }] : []),
   ];
 
   return (
     <View style={[styles.fill, { backgroundColor: theme.background }]}>
-      <Header rightAction={<Badge label="Local only" showDot tone="success" />} subtitle="Deterministic demo guidance" title="Assistant" />
+      <Header subtitle="Freight guidance and guided triage" title="Assistant" />
       <Screen keyboardAware safeEdges={["left", "right", "bottom"]} scroll contentContainerStyle={styles.content}>
-        <SimulationBanner message="Replies are generated from fixed on-device rules. No prompt, record, or partner data is sent to a network service." />
         <AssistantIntro />
         <SuggestionRow onSelect={chat.sendPrompt} />
         <Conversation messages={chat.messages} />

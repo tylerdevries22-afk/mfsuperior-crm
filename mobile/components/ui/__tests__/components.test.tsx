@@ -26,6 +26,7 @@ jest.mock("@expo/vector-icons", () => {
   const mockReactNative = jest.requireActual<typeof import("react-native")>("react-native");
   return {
     Ionicons: ({ name }: { name: string }) => mockReact.createElement(mockReactNative.Text, null, name),
+    Feather: ({ name }: { name: string }) => mockReact.createElement(mockReactNative.Text, null, name),
   };
 });
 
@@ -81,7 +82,7 @@ describe("mobile UI primitives", () => {
           value="active"
         />
         <SectionHeader action="View all" onAction={onChange} title="Today" />
-        <IconButton icon="settings-outline" label="Settings" onPress={onChange} />
+        <IconButton icon="settings" label="Settings" onPress={onChange} />
         <FadeInView><AppText>Route ready</AppText></FadeInView>
         <Eyebrow>Operations</Eyebrow>
         <Title>Dispatch</Title>

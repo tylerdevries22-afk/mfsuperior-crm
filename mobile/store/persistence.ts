@@ -4,7 +4,7 @@ import AsyncStorage, {
 
 import { OperationsDomainError } from "../domain/errors";
 
-export const DEMO_STATE_STORAGE_KEY = "@mf-superior/demo-operations-state";
+export const DEMO_STATE_STORAGE_KEY = "@mf-superior-products/demo-operations-state";
 
 export interface PersistenceAdapter {
   read(): Promise<string | null>;

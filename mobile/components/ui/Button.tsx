@@ -105,6 +105,3 @@ export function Button({
     </PressableSurface>
   );
 }
-
-/** Compatibility alias for reference-app screens. */
-export const AnimatedButton = Button;

@@ -1,10 +1,10 @@
 import type { ReactNode } from "react";
-import { Pressable, type PressableProps, type StyleProp, type ViewStyle } from "react-native";
-import * as Haptics from "expo-haptics";
+import { type PressableProps, type StyleProp, type ViewStyle } from "react-native";
 
-import { MOTION, SIZE, useReducedMotion } from "../../theme";
+import { MOTION } from "../../theme";
+import { AnimatedPressable, type HapticStrength } from "./AnimatedPressable";
 
-export type HapticStrength = "none" | "selection" | "light" | "medium";
+export type { HapticStrength } from "./AnimatedPressable";
 
 export type PressableSurfaceProps = Omit<PressableProps, "children" | "style"> & {
   children: ReactNode;
@@ -15,17 +15,7 @@ export type PressableSurfaceProps = Omit<PressableProps, "children" | "style"> &
   ensureMinTarget?: boolean;
 };
 
-async function playHaptic(strength: HapticStrength): Promise<void> {
-  if (strength === "selection") {
-    await Haptics.selectionAsync();
-  } else if (strength === "light") {
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  } else if (strength === "medium") {
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-  }
-}
-
-/** Shared press feedback with haptics and an OS Reduce Motion fallback. */
+/** Freight-surface wrapper that keeps the legacy `PressableSurface` API. */
 export function PressableSurface({
   children,
   style,
@@ -35,38 +25,20 @@ export function PressableSurface({
   ensureMinTarget = true,
   disabled,
   onPress,
-  accessibilityRole,
-  accessibilityState,
   ...props
 }: PressableSurfaceProps) {
-  const reduceMotion = useReducedMotion();
-
   return (
-    <Pressable
+    <AnimatedPressable
       {...props}
-      accessibilityRole={accessibilityRole ?? "button"}
-      accessibilityState={{
-        ...accessibilityState,
-        disabled: Boolean(disabled || accessibilityState?.disabled),
-      }}
       disabled={disabled}
-      onPress={(event) => {
-        if (haptic !== "none") void playHaptic(haptic).catch(() => undefined);
-        onPress?.(event);
-      }}
-      style={({ pressed }) => [
-        ensureMinTarget && { minHeight: SIZE.hit, minWidth: SIZE.hit },
-        style,
-        pressed && {
-          opacity: pressedOpacity,
-          transform: reduceMotion ? undefined : [{ scale: scaleValue }],
-        },
-      ]}
+      ensureMinTarget={ensureMinTarget}
+      haptic={haptic}
+      onPress={onPress}
+      opacityValue={pressedOpacity}
+      scaleValue={scaleValue}
+      style={style}
     >
       {children}
-    </Pressable>
+    </AnimatedPressable>
   );
 }
-
-/** Compatibility alias for Appliance Diagnostic-derived screens. */
-export const AnimatedPressable = PressableSurface;

@@ -7,7 +7,7 @@ import {
   type TextInputProps,
   type ViewStyle,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 
 import { ICON, makeStyles, RADIUS, SIZE, SPACE, TYPO, useTheme } from "../../theme";
 
@@ -103,7 +103,7 @@ export function SearchField(props: SearchFieldProps) {
   return (
     <TextField
       accessibilityRole="search"
-      leading={<Ionicons name="search" size={ICON.md} color={theme.textMuted} />}
+      leading={<Feather name="search" size={ICON.md} color={theme.textMuted} />}
       returnKeyType="search"
       {...props}
     />

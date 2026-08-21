@@ -1,31 +1,83 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-
-vi.mock("@/lib/auth", () => ({ auth: vi.fn(async () => null) }));
-
-import { fetchCarrierData } from "@/app/(app)/carrier/_lib/api-client";
+import { readSupabasePublicConfig } from "@/lib/auth/supabase/config";
 import {
-  databaseErrorResponse,
-  parseJsonBody,
-  parseQuery,
-  requireCarrierDispatcher,
-  successResponse,
-} from "@/app/api/carrier/_lib/http";
+  authorizeMobileRequest,
+  principalCanAccessCarrier,
+  selectMembershipCandidate,
+  type AuthorizeDependencies,
+  type MembershipCandidate,
+  type MobilePrincipal,
+} from "@/lib/mobile-api/authorize";
 import {
-  canTransitionShipmentStatus,
   driverCreateSchema,
-  driverListQuerySchema,
   shipmentCreateSchema,
 } from "@/app/api/carrier/_lib/validation";
+import {
+  freightRequestCreateSchema,
+  offlineMutationBatchSchema,
+} from "@/lib/mobile-api/contracts";
+import { fetchWithRetry } from "@/lib/mobile-api/external-fetch";
+import {
+  apiSuccess,
+  parseStrictJson,
+  parseStrictQuery,
+} from "@/lib/mobile-api/http";
+import { canonicalRequestHash } from "@/lib/mobile-api/idempotency";
+import {
+  PersistentRateLimiter,
+  type RateLimitStore,
+} from "@/lib/mobile-api/rate-limit";
+import {
+  decodeSyncCursor,
+  encodeSyncCursor,
+} from "@/lib/mobile-api/sync-cursor";
+import { storagePathFor } from "@/lib/mobile-api/upload-signer";
 
-type ErrorEnvelope = {
-  data: null;
-  error: { code: string; message: string };
-  meta: null;
+const organizationId = "550e8400-e29b-41d4-a716-446655440000";
+const otherOrganizationId = "550e8400-e29b-41d4-a716-446655440001";
+const userId = "550e8400-e29b-41d4-a716-446655440002";
+const carrierId = "550e8400-e29b-41d4-a716-446655440003";
+
+const membership: MembershipCandidate = {
+  userId,
+  authSubject: "supabase-user",
+  email: "ops@example.com",
+  organizationId,
+  organizationSlug: "mf-superior",
+  organizationStatus: "active",
+  role: "admin",
+  membershipStatus: "active",
+  isDefault: true,
+  carrierId,
+  driverId: null,
+  driverCarrierId: null,
+  customerAccountId: null,
+  customerOrganizationId: null,
 };
 
-async function errorEnvelope(response: Response) {
-  return (await response.json()) as ErrorEnvelope;
+function dependencies(
+  candidate: MembershipCandidate = membership,
+  credentialKind: "bearer" | "supabase-cookie" = "bearer",
+): AuthorizeDependencies {
+  return {
+    verifyIdentity: async () => ({
+      subject: "supabase-user",
+      userId: null,
+      email: "ops@example.com",
+      credentialKind,
+      responseHeaders: new Headers(),
+    }),
+    loadMemberships: async () => [candidate],
+    rateLimiter: {
+      consume: async ({ limit }) => ({
+        allowed: true,
+        limit,
+        remaining: limit - 1,
+        resetAt: new Date(Date.now() + 60_000),
+      }),
+    },
+  };
 }
 
 afterEach(() => {
@@ -33,116 +85,129 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("carrier API boundaries", () => {
-  it("requires authentication and an explicitly allowlisted dispatcher", async () => {
-    const anonymous = await requireCarrierDispatcher(async () => null, "ops@example.com");
-    expect(anonymous.authorized).toBe(false);
-    if (!anonymous.authorized) {
-      expect(anonymous.response.status).toBe(401);
-      expect((await errorEnvelope(anonymous.response)).error.code).toBe(
-        "AUTHENTICATION_REQUIRED",
-      );
-    }
-
-    const session = async () => ({
-      user: { id: "operator-1", email: "OPS@example.com" },
+describe("membership-backed authorization", () => {
+  it("authorizes a mapped admin and rejects a disallowed runtime role", async () => {
+    const request = new Request("https://crm.example/api/carrier/dashboard", {
+      headers: { authorization: `Bearer ${"a".repeat(32)}` },
     });
-    const unconfigured = await requireCarrierDispatcher(session, "");
-    expect(unconfigured.authorized).toBe(false);
-    if (!unconfigured.authorized) expect(unconfigured.response.status).toBe(503);
-
-    const forbidden = await requireCarrierDispatcher(session, "other@example.com");
-    expect(forbidden.authorized).toBe(false);
-    if (!forbidden.authorized) expect(forbidden.response.status).toBe(403);
-
-    const allowed = await requireCarrierDispatcher(session, "ops@example.com");
-    expect(allowed).toMatchObject({
-      authorized: true,
-      principal: { userId: "operator-1", role: "dispatcher" },
-    });
-
-    vi.spyOn(console, "error").mockImplementation(() => undefined);
-    const unavailable = await requireCarrierDispatcher(
-      async () => { throw new Error("session store unavailable"); },
-      "ops@example.com",
+    const allowed = await authorizeMobileRequest(
+      request,
+      { roles: ["admin"], requireCarrier: true },
+      dependencies(),
     );
-    expect(unavailable.authorized).toBe(false);
-    if (!unavailable.authorized) {
-      expect(unavailable.response.status).toBe(503);
-      expect((await errorEnvelope(unavailable.response)).error.code).toBe("INTERNAL_ERROR");
+    expect(allowed.authorized).toBe(true);
+    if (allowed.authorized) {
+      expect(allowed.principal).toMatchObject({
+        organizationId,
+        carrierId,
+        role: "admin",
+      });
     }
+
+    const denied = await authorizeMobileRequest(
+      request,
+      { roles: ["driver"] },
+      dependencies(),
+    );
+    expect(denied.authorized).toBe(false);
+    if (!denied.authorized) expect(denied.response.status).toBe(403);
   });
 
-  it("bounds list queries and rejects unknown query parameters", async () => {
-    const valid = parseQuery(
-      new Request("https://crm.example/api/carrier/drivers?page=2&limit=100"),
-      driverListQuerySchema,
-    );
-    expect(valid).toEqual({
-      success: true,
-      data: { page: 2, limit: 100 },
-    });
+  it("rejects cross-tenant selection and mismatched driver bindings", () => {
+    expect(() =>
+      selectMembershipCandidate([membership], {
+        kind: "id",
+        value: otherOrganizationId,
+      }),
+    ).toThrow(/active organization membership/i);
 
-    const oversized = parseQuery(
-      new Request("https://crm.example/api/carrier/drivers?limit=101"),
-      driverListQuerySchema,
-    );
-    expect(oversized.success).toBe(false);
-    if (!oversized.success) expect(oversized.response.status).toBe(400);
-
-    const unknown = parseQuery(
-      new Request("https://crm.example/api/carrier/drivers?admin=true"),
-      driverListQuerySchema,
-    );
-    expect(unknown.success).toBe(false);
+    expect(() =>
+      selectMembershipCandidate(
+        [
+          {
+            ...membership,
+            role: "driver",
+            driverId: "550e8400-e29b-41d4-a716-446655440004",
+            driverCarrierId: "550e8400-e29b-41d4-a716-446655440005",
+          },
+        ],
+        null,
+      ),
+    ).toThrow(/not linked/i);
   });
 
-  it("rate limits an authenticated dispatcher within a fixed window", async () => {
-    const session = async () => ({
-      user: { id: "rate-operator", email: "rate@example.com" },
-    });
-    for (let requestNumber = 0; requestNumber < 60; requestNumber += 1) {
-      const result = await requireCarrierDispatcher(session, "rate@example.com");
-      expect(result.authorized).toBe(true);
-    }
-    const limited = await requireCarrierDispatcher(session, "rate@example.com");
-    expect(limited.authorized).toBe(false);
-    if (!limited.authorized) {
-      expect(limited.response.status).toBe(429);
-      expect((await errorEnvelope(limited.response)).error.code).toBe("RATE_LIMITED");
-    }
-  });
-
-  it("validates JSON media type, size, shape, and database conflicts", async () => {
-    const validRequest = new Request("https://crm.example/api/carrier/drivers", {
+  it("enforces origin checks for cookie mutations but not bearer mutations", async () => {
+    const cookieMutation = new Request("https://crm.example/api/carrier/drivers", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        carrierId: "550e8400-e29b-41d4-a716-446655440000",
-        firstName: "Brenna",
-        lastName: "Driver",
-      }),
+      body: "{}",
     });
-    const valid = await parseJsonBody(validRequest, driverCreateSchema);
-    expect(valid.success).toBe(true);
+    const denied = await authorizeMobileRequest(
+      cookieMutation,
+      { roles: ["admin"] },
+      dependencies(membership, "supabase-cookie"),
+    );
+    expect(denied.authorized).toBe(false);
+    if (!denied.authorized) expect(denied.response.status).toBe(403);
 
-    const unknownField = await parseJsonBody(
+    const bearer = await authorizeMobileRequest(
+      cookieMutation,
+      { roles: ["admin"] },
+      dependencies(),
+    );
+    expect(bearer.authorized).toBe(true);
+  });
+
+  it("uses carrier identity equality as a final BOLA guard", () => {
+    const principal = {
+      ...membership,
+      credentialKind: "bearer" as const,
+    } satisfies MobilePrincipal;
+    expect(principalCanAccessCarrier(principal, carrierId)).toBe(true);
+    expect(principalCanAccessCarrier(principal, null)).toBe(false);
+    expect(principalCanAccessCarrier(principal, otherOrganizationId)).toBe(false);
+  });
+});
+
+describe("strict API contracts", () => {
+  it("bounds queries and rejects unknown fields", () => {
+    const schema = z
+      .object({ limit: z.coerce.number().int().min(1).max(100).default(50) })
+      .strict();
+    expect(
+      parseStrictQuery(
+        new Request("https://crm.example/api?limit=100"),
+        schema,
+        "request-1234",
+      ),
+    ).toEqual({ success: true, data: { limit: 100 } });
+    expect(
+      parseStrictQuery(
+        new Request("https://crm.example/api?limit=101&admin=true"),
+        schema,
+        "request-1234",
+      ).success,
+    ).toBe(false);
+  });
+
+  it("rejects oversized or tenant-injecting JSON bodies", async () => {
+    const tenantInjection = await parseStrictJson(
       new Request("https://crm.example/api/carrier/drivers", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          carrierId: "550e8400-e29b-41d4-a716-446655440000",
+          carrierId: otherOrganizationId,
           firstName: "Brenna",
           lastName: "Driver",
-          isAdmin: true,
         }),
       }),
       driverCreateSchema,
+      "request-1234",
     );
-    expect(unknownField.success).toBe(false);
+    expect(tenantInjection.success).toBe(false);
 
-    const oversized = await parseJsonBody(
-      new Request("https://crm.example/api/carrier/drivers", {
+    const oversized = await parseStrictJson(
+      new Request("https://crm.example/api", {
         method: "POST",
         headers: {
           "content-type": "application/json",
@@ -151,64 +216,115 @@ describe("carrier API boundaries", () => {
         body: "{}",
       }),
       z.object({}).strict(),
+      "request-1234",
     );
     expect(oversized.success).toBe(false);
     if (!oversized.success) expect(oversized.response.status).toBe(413);
-
-    vi.spyOn(console, "error").mockImplementation(() => undefined);
-    const conflict = databaseErrorResponse({ code: "23505" }, "test.create");
-    expect(conflict.status).toBe(409);
   });
 
-  it("enforces shipment payload limits and lifecycle transitions", () => {
-    const baseShipment = {
+  it("validates shipment, request-window, and offline mutation boundaries", () => {
+    const shipment = {
       origin: { city: "Denver", state: "CO" },
       destination: { city: "Minneapolis", state: "MN" },
     };
-    expect(shipmentCreateSchema.safeParse(baseShipment).success).toBe(true);
+    expect(shipmentCreateSchema.safeParse(shipment).success).toBe(true);
     expect(
-      shipmentCreateSchema.safeParse({
-        ...baseShipment,
-        intermediateStops: Array.from({ length: 21 }, () => ({
+      shipmentCreateSchema.safeParse({ ...shipment, carrierId }).success,
+    ).toBe(false);
+    expect(
+      freightRequestCreateSchema.safeParse({
+        origin: {
+          addressLine1: "1 Main St",
           city: "Denver",
           state: "CO",
-        })),
+          postalCode: "80202",
+        },
+        destination: {
+          addressLine1: "2 Main St",
+          city: "Boulder",
+          state: "CO",
+          postalCode: "80301",
+        },
+        pickupWindowStart: "2026-08-22T15:00:00Z",
+        pickupWindowEnd: "2026-08-22T14:00:00Z",
       }).success,
     ).toBe(false);
-    expect(shipmentCreateSchema.safeParse({ ...baseShipment, status: "delivered" }).success).toBe(false);
-    expect(canTransitionShipmentStatus("tendered", "accepted")).toBe(true);
-    expect(canTransitionShipmentStatus("tendered", "delivered")).toBe(false);
-    expect(canTransitionShipmentStatus("delivered", "in_transit")).toBe(false);
+    expect(
+      offlineMutationBatchSchema.safeParse({ mutations: [] }).success,
+    ).toBe(false);
   });
 
-  it("uses the structured envelope and retries one transient client request", async () => {
-    const success = successResponse({ count: 2 }, { page: 1 });
-    expect(success.status).toBe(200);
-    expect(await success.json()).toEqual({
-      data: { count: 2 },
-      error: null,
+  it("always emits request metadata in the structured envelope", async () => {
+    const response = apiSuccess({ count: 2 }, "request-1234", {
       meta: { page: 1 },
     });
+    expect(await response.json()).toEqual({
+      data: { count: 2 },
+      error: null,
+      meta: { requestId: "request-1234", page: 1 },
+    });
+  });
+});
 
+describe("resilience and idempotency", () => {
+  it("retries one transient external response with a timeout policy", async () => {
     const fetchMock = vi
       .fn<typeof fetch>()
-      .mockResolvedValueOnce(
-        Response.json(
-          {
-            data: null,
-            error: { code: "INTERNAL_ERROR", message: "Try again." },
-            meta: null,
-          },
-          { status: 503 },
-        ),
-      )
-      .mockResolvedValueOnce(
-        Response.json({ data: { count: 3 }, error: null, meta: null }),
-      );
+      .mockResolvedValueOnce(new Response(null, { status: 503 }))
+      .mockResolvedValueOnce(Response.json({ ok: true }));
     vi.stubGlobal("fetch", fetchMock);
-
-    await expect(fetchCarrierData<{ count: number }>("/api/carrier/dashboard"))
-      .resolves.toEqual({ count: 3 });
+    const response = await fetchWithRetry("https://example.com", undefined, {
+      timeoutMs: 500,
+      retryDelayMs: 0,
+    });
+    expect(response.status).toBe(200);
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("hashes canonical request content for idempotency conflict detection", () => {
+    expect(canonicalRequestHash({ a: 1, b: [2, 3] })).toBe(
+      canonicalRequestHash({ b: [2, 3], a: 1 }),
+    );
+    expect(canonicalRequestHash({ a: 1 })).not.toBe(
+      canonicalRequestHash({ a: 2 }),
+    );
+  });
+
+  it("persists hashed limiter keys and rejects requests over the limit", async () => {
+    let count = 0;
+    let observedHash = "";
+    const store: RateLimitStore = {
+      increment: async (keyHash) => {
+        observedHash = keyHash;
+        count += 1;
+        return count;
+      },
+    };
+    const limiter = new PersistentRateLimiter(store);
+    const first = await limiter.consume({ key: "raw-user-id", limit: 1, windowMs: 60_000 });
+    const second = await limiter.consume({ key: "raw-user-id", limit: 1, windowMs: 60_000 });
+    expect(first.allowed).toBe(true);
+    expect(second.allowed).toBe(false);
+    expect(observedHash).toMatch(/^[a-f0-9]{64}$/);
+    expect(observedHash).not.toContain("raw-user-id");
+  });
+
+  it("round-trips opaque sync cursors and rejects tampering", () => {
+    const watermark = new Date("2026-08-21T18:00:00.000Z");
+    expect(decodeSyncCursor(encodeSyncCursor(watermark))).toEqual(watermark);
+    expect(() => decodeSyncCursor("v1.not-valid-json")).toThrow(/invalid/i);
+  });
+
+  it("fails closed without Supabase config and scopes storage paths", () => {
+    expect(readSupabasePublicConfig({})).toBeNull();
+    expect(
+      readSupabasePublicConfig({
+        NEXT_PUBLIC_SUPABASE_URL: "http://unsafe.example",
+        NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "x".repeat(40),
+      }),
+    ).toBeNull();
+    expect(
+      storagePathFor(organizationId, userId, "../../ Signed BOL (1).pdf"),
+    ).toBe(`${organizationId}/${userId}/..-..-Signed-BOL-1-.pdf`);
   });
 });

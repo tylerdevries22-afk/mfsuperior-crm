@@ -3,7 +3,7 @@ import { useRouter } from "expo-router";
 import { useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
-import { ProgressTrack, SimulationBanner } from "@/components/operations";
+import { ProgressTrack } from "@/components/operations";
 import { Button, Card, EmptyState, Header, ListRow, Screen, SectionHeader, StatusBadge } from "@/components/ui";
 import { HOS_DUTY_STATUSES, type HosDutyStatus } from "@/domain/types";
 import { HOS_LIMITS } from "@/domain/transitions";
@@ -51,7 +51,6 @@ export default function HoursOfServiceScreen() {
     <View style={[styles.fill, { backgroundColor: theme.background }]}>
       <Header centered onBack={() => router.back()} showBack subtitle="Driver demo" title="Hours of service" />
       <Screen safeEdges={["left", "right", "bottom"]} scroll contentContainerStyle={styles.content}>
-        <SimulationBanner message="This is a local educational HOS simulation—not an ELD, legal logbook, or compliance determination." />
 
         <Card>
           <View style={styles.statusHero}>

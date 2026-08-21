@@ -3,7 +3,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
-import { ProgressTrack, SimulationBanner, StopTimeline } from "@/components/operations";
+import { ProgressTrack, StopTimeline } from "@/components/operations";
 import {
   AppModal,
   Badge,
@@ -142,9 +142,8 @@ export default function LoadDetailScreen() {
 
   return (
     <View style={[styles.fill, { backgroundColor: theme.background }]}>
-      <Header centered onBack={() => router.back()} showBack subtitle={shipment.targetLoadId} title="Load details" />
+      <Header centered onBack={() => router.back()} showBack subtitle={shipment.loadNumber} title="Load details" />
       <Screen safeEdges={["left", "right", "bottom"]} scroll contentContainerStyle={styles.content}>
-        <SimulationBanner />
 
         {error ? (
           <View accessibilityRole="alert" style={[styles.errorBanner, { backgroundColor: theme.dangerMuted, borderColor: theme.tint.danger.medium }]}>
@@ -157,8 +156,8 @@ export default function LoadDetailScreen() {
         <Card>
           <View style={styles.loadHeader}>
             <View style={styles.grow}>
-              <Text style={[styles.eyebrow, { color: theme.primaryLight }]}>TARGET PARTNER LOAD · SIMULATED</Text>
-              <Text style={[styles.title, { color: theme.text }]}>{shipment.targetLoadId}</Text>
+              <Text style={[styles.eyebrow, { color: theme.primaryLight }]}>FREIGHT LOAD</Text>
+              <Text style={[styles.title, { color: theme.text }]}>{shipment.loadNumber}</Text>
               <Text style={[styles.route, { color: theme.textSecondary }]}>{shipmentRoute(shipment)}</Text>
             </View>
             <StatusBadge size="md" status={shipment.status} />
@@ -172,7 +171,7 @@ export default function LoadDetailScreen() {
           </View>
         </Card>
 
-        {role === "dispatcher" && shipment.status === "tendered" ? (
+        {role === "admin" && shipment.status === "tendered" ? (
           <Card title="Tender response">
             <Text style={[styles.body, { color: theme.textSecondary }]}>Review the lane and rate before returning the simulated 990 response.</Text>
             <View style={styles.actionRow}>
@@ -187,7 +186,7 @@ export default function LoadDetailScreen() {
           </Card>
         ) : null}
 
-        {role === "dispatcher" && (shipment.status === "accepted" || shipment.status === "dispatched") ? (
+        {role === "admin" && (shipment.status === "accepted" || shipment.status === "dispatched") ? (
           <Card title="Driver & equipment">
             <Text style={[styles.body, { color: theme.textSecondary }]}>Assign the people and assets before dispatching the load.</Text>
             <View style={[styles.assignmentList, { borderColor: theme.border }]}>
@@ -244,7 +243,7 @@ export default function LoadDetailScreen() {
                 <Text style={[styles.body, { color: theme.textSecondary }]}>{openException?.description ?? "Dispatch must review the open report before this shipment can resume."}</Text>
               </View>
             </View>
-            {role === "dispatcher" && openException ? (
+            {role === "admin" && openException ? (
               <Button fullWidth onPress={() => setResolutionVisible(true)} title={`Resolve and resume ${resumeStatus.replaceAll("_", " ")}`} variant="secondary" />
             ) : null}
           </Card>

@@ -2,7 +2,6 @@ import { useRouter } from "expo-router";
 import { useMemo } from "react";
 import { StyleSheet, View } from "react-native";
 
-import { SimulationBanner } from "@/components/operations";
 import { Card, EmptyState, Header, ListRow, Screen, SectionHeader, StatTile, StatusBadge } from "@/components/ui";
 import { formatStatus } from "@/lib/operations-format";
 import { useOperations } from "@/store";
@@ -23,7 +22,6 @@ export default function EdiAuditScreen() {
     <View style={[styles.fill, { backgroundColor: theme.background }]}>
       <Header centered onBack={() => router.back()} showBack subtitle="Local transaction history" title="Target EDI audit" />
       <Screen safeEdges={["left", "right", "bottom"]} scroll contentContainerStyle={styles.content}>
-        <SimulationBanner message="This audit reads the live local demo repository. No transaction is exchanged with Target or another EDI network." />
         <View style={styles.stats}>
           <StatTile label="Transactions" value={String(transactions.length)} />
           <StatTile label="Outbound" value={String(outboundCount)} />
@@ -40,7 +38,7 @@ export default function EdiAuditScreen() {
                   key={transaction.id}
                   meta={formatStatus(transaction.direction)}
                   subtitle={`${transaction.summary} · ${new Date(transaction.createdAt).toLocaleString()}`}
-                  title={`${transaction.transactionType} · ${shipment?.targetLoadId ?? "Unlinked"}`}
+                  title={`${transaction.transactionType} · ${shipment?.loadNumber ?? "Unlinked"}`}
                   trailing={<StatusBadge status={transaction.status} />}
                 />
               );

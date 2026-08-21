@@ -1,7 +1,6 @@
 import { useRouter } from "expo-router";
 import { StyleSheet, Text, View } from "react-native";
 
-import { SimulationBanner } from "@/components/operations";
 import { Card, Header, KeyValueRow, Screen, SectionHeader, StatTile, StatusBadge } from "@/components/ui";
 import { formatCurrency } from "@/lib/operations-format";
 import { useOperations } from "@/store";
@@ -31,7 +30,6 @@ export default function AnalyticsScreen() {
           <Text style={[styles.body, { color: theme.textSecondary }]}>Shipment, service, and integration indicators derived from the locally persistent prototype.</Text>
         </View>
 
-        <SimulationBanner message="These KPIs use seeded prototype records; they are not production performance or Target scorecard data." />
 
         <View style={styles.statGrid}>
           <StatTile label="Active loads" value={String(active.length)} />
@@ -48,7 +46,7 @@ export default function AnalyticsScreen() {
             <KeyValueRow
               isLast={index === visibleShipments.length - 1}
               key={shipment.id}
-              label={shipment.targetLoadId}
+              label={shipment.loadNumber}
               value={shipment.status.replaceAll("_", " ")}
             />
           ))}

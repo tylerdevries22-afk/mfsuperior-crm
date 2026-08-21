@@ -1,12 +1,13 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import { auditLog, drivers, shipmentEvents, shipments } from "@/lib/db/schema";
 import {
   databaseErrorResponse,
   errorResponse,
   parseJsonBody,
-  requireCarrierDispatcher,
+  requireCarrierAdmin,
   successResponse,
+  withCarrierAuthHeaders,
 } from "../../_lib/http";
 import {
   canTransitionShipmentStatus,
@@ -22,7 +23,7 @@ async function validatedShipmentId(context: ShipmentContext) {
   return shipmentIdSchema.safeParse(id);
 }
 
-async function loadShipment(id: string) {
+async function loadShipment(id: string, carrierId: string) {
   const [shipment] = await db
     .select({
       id: shipments.id,
@@ -55,7 +56,7 @@ async function loadShipment(id: string) {
       updatedAt: shipments.updatedAt,
     })
     .from(shipments)
-    .where(eq(shipments.id, id));
+    .where(and(eq(shipments.id, id), eq(shipments.carrierId, carrierId)));
   if (!shipment) return null;
 
   const events = await db
@@ -67,33 +68,49 @@ async function loadShipment(id: string) {
   return { ...shipment, events };
 }
 
-export async function GET(_request: Request, context: ShipmentContext) {
-  const authorization = await requireCarrierDispatcher();
+export async function GET(request: Request, context: ShipmentContext) {
+  const authorization = await requireCarrierAdmin(request);
   if (!authorization.authorized) return authorization.response;
   const id = await validatedShipmentId(context);
   if (!id.success) {
-    return errorResponse(400, {
-      code: "VALIDATION_ERROR",
-      message: "The shipment ID is invalid.",
-    });
+    return errorResponse(
+      400,
+      {
+        code: "VALIDATION_ERROR",
+        message: "The shipment ID is invalid.",
+      },
+      authorization.requestId,
+    );
   }
 
   try {
-    const shipment = await loadShipment(id.data);
+    const shipment = await loadShipment(
+      id.data,
+      authorization.principal.carrierId,
+    );
     if (!shipment) {
-      return errorResponse(404, {
-        code: "NOT_FOUND",
-        message: "Shipment not found.",
-      });
+      return errorResponse(
+        404,
+        { code: "NOT_FOUND", message: "Shipment not found." },
+        authorization.requestId,
+      );
     }
-    return successResponse(shipment);
+    return withCarrierAuthHeaders(
+      successResponse(shipment, authorization.requestId),
+      authorization,
+    );
   } catch (error) {
-    return databaseErrorResponse(error, "shipments.detail");
+    return databaseErrorResponse(
+      error,
+      "shipments.detail",
+      authorization.requestId,
+    );
   }
 }
 
 async function updateShipment(
   id: string,
+  carrierId: string,
   update: ShipmentUpdate,
   actorUserId: string,
 ) {
@@ -109,7 +126,7 @@ async function updateShipment(
         deliveredAt: shipments.deliveredAt,
       })
       .from(shipments)
-      .where(eq(shipments.id, id))
+      .where(and(eq(shipments.id, id), eq(shipments.carrierId, carrierId)))
       .for("update");
     if (!current) return { kind: "not_found" as const };
 
@@ -126,12 +143,13 @@ async function updateShipment(
       const [driver] = await transaction
         .select({ carrierId: drivers.carrierId })
         .from(drivers)
-        .where(eq(drivers.id, update.driverId));
+        .where(
+          and(
+            eq(drivers.id, update.driverId),
+            eq(drivers.carrierId, carrierId),
+          ),
+        );
       if (!driver) return { kind: "driver_not_found" as const };
-      if (current.carrierId && driver.carrierId !== current.carrierId) {
-        return { kind: "carrier_mismatch" as const };
-      }
-      if (!current.carrierId) columnUpdate.carrierId = driver.carrierId;
     }
     const now = new Date();
     if (
@@ -150,7 +168,7 @@ async function updateShipment(
     const [shipment] = await transaction
       .update(shipments)
       .set({ ...columnUpdate, updatedAt: now })
-      .where(eq(shipments.id, id))
+      .where(and(eq(shipments.id, id), eq(shipments.carrierId, carrierId)))
       .returning();
 
     if (update.status) {
@@ -179,50 +197,69 @@ async function updateShipment(
 }
 
 export async function PATCH(request: Request, context: ShipmentContext) {
-  const authorization = await requireCarrierDispatcher();
+  const authorization = await requireCarrierAdmin(request);
   if (!authorization.authorized) return authorization.response;
   const id = await validatedShipmentId(context);
   if (!id.success) {
-    return errorResponse(400, {
-      code: "VALIDATION_ERROR",
-      message: "The shipment ID is invalid.",
-    });
+    return errorResponse(
+      400,
+      {
+        code: "VALIDATION_ERROR",
+        message: "The shipment ID is invalid.",
+      },
+      authorization.requestId,
+    );
   }
-  const body = await parseJsonBody(request, shipmentUpdateSchema);
+  const body = await parseJsonBody(
+    request,
+    shipmentUpdateSchema,
+    authorization.requestId,
+  );
   if (!body.success) return body.response;
 
   try {
     const result = await updateShipment(
       id.data,
+      authorization.principal.carrierId,
       body.data,
       authorization.principal.userId,
     );
     if (result.kind === "not_found") {
-      return errorResponse(404, {
-        code: "NOT_FOUND",
-        message: "Shipment not found.",
-      });
+      return errorResponse(
+        404,
+        { code: "NOT_FOUND", message: "Shipment not found." },
+        authorization.requestId,
+      );
     }
     if (result.kind === "driver_not_found") {
-      return errorResponse(404, {
-        code: "NOT_FOUND",
-        message: "The selected driver was not found.",
-      });
-    }
-    if (result.kind === "carrier_mismatch") {
-      return errorResponse(409, {
-        code: "CONFLICT",
-        message: "The selected driver belongs to a different carrier.",
-      });
+      return errorResponse(
+        404,
+        {
+          code: "NOT_FOUND",
+          message: "The selected driver was not found.",
+        },
+        authorization.requestId,
+      );
     }
     if (result.kind === "invalid_transition") {
-      return errorResponse(409, {
-        code: "CONFLICT",
-        message: `Shipment cannot transition from ${result.current} to ${body.data.status}.`,
-      });
+      return errorResponse(
+        409,
+        {
+          code: "CONFLICT",
+          message: `Shipment cannot transition from ${result.current} to ${body.data.status}.`,
+        },
+        authorization.requestId,
+      );
     }
-    return successResponse(result.shipment);
+    return withCarrierAuthHeaders(
+      successResponse(result.shipment, authorization.requestId),
+      authorization,
+    );
   } catch (error) {
-    return databaseErrorResponse(error, "shipments.update");
+    return databaseErrorResponse(
+      error,
+      "shipments.update",
+      authorization.requestId,
+    );
   }
 }

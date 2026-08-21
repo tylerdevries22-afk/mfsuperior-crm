@@ -26,10 +26,11 @@ export interface HydrationResult {
 export type OperationsStateListener = (state: DemoOperationsState) => void;
 
 export interface OperationsRepository {
+  readonly mode: "demo" | "production" | "unconfigured";
   hydrate(): Promise<HydrationResult>;
   getState(): DemoOperationsState;
   subscribe(listener: OperationsStateListener): () => void;
-  signIn(email: string, pin: string): Promise<DemoOperationsState>;
+  signIn(email: string, credential: string): Promise<DemoOperationsState>;
   signOut(): Promise<DemoOperationsState>;
   switchDemoRole(role: AppRole): Promise<DemoOperationsState>;
   resetDemo(): Promise<DemoOperationsState>;

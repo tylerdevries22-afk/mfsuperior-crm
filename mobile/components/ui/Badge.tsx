@@ -1,6 +1,15 @@
 import { Text, View, type StyleProp, type ViewStyle } from "react-native";
 
-import { makeStyles, RADIUS, SPACE, TYPO, type ThemePalette } from "../../theme";
+import {
+  FONTS,
+  makeStyles,
+  RADIUS,
+  RADIUS_LEGACY,
+  SPACE,
+  TYPO,
+  useTheme,
+  type ThemePalette,
+} from "../../theme";
 
 export type BadgeTone = "neutral" | "brand" | "success" | "warning" | "danger" | "info";
 export type BadgeSize = "sm" | "md";
@@ -46,6 +55,23 @@ const useStyles = makeStyles((theme) => ({
   warning: toneColors(theme, "warning"),
   danger: toneColors(theme, "danger"),
   info: toneColors(theme, "info"),
+  statusBadge: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: RADIUS_LEGACY.sm,
+    gap: 5,
+  },
+  statusBadgeMd: { paddingHorizontal: 10, paddingVertical: 5 },
+  statusText: {
+    fontFamily: FONTS.semibold,
+    fontSize: 11,
+    letterSpacing: 0.3,
+    textTransform: "uppercase",
+  },
+  statusTextMd: { fontSize: 12 },
 }));
 
 /** Text-first status label; the optional dot never carries meaning alone. */
@@ -91,7 +117,29 @@ export type StatusBadgeProps = {
   showDot?: boolean;
 };
 
-/** Freight-aware status badge with an overridable semantic tone. */
+/**
+ * Freight-aware adaptation of the exact status-badge geometry at Appliance
+ * Diagnostic Systems commit 480991b7eb0036e4e85c37d3784b2de2ca97d10d.
+ */
 export function StatusBadge({ status, tone, size, showDot = true }: StatusBadgeProps) {
-  return <Badge label={statusLabel(status)} tone={tone ?? inferTone(status)} size={size} showDot={showDot} />;
+  const styles = useStyles();
+  const theme = useTheme();
+  const resolvedTone = tone ?? inferTone(status);
+  const colors = toneColors(theme, resolvedTone);
+  const medium = size === "md";
+  const label = statusLabel(status);
+  return (
+    <View
+      accessible
+      accessibilityLabel={label}
+      style={[
+        styles.statusBadge,
+        medium && styles.statusBadgeMd,
+        { backgroundColor: colors.backgroundColor },
+      ]}
+    >
+      {showDot ? <View style={[styles.dot, { backgroundColor: colors.color }]} /> : null}
+      <Text style={[styles.statusText, medium && styles.statusTextMd, { color: colors.color }]}>{label}</Text>
+    </View>
+  );
 }

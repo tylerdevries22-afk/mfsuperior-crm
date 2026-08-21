@@ -9,9 +9,9 @@ import type {
 import { DEMO_STATE_VERSION } from "./types";
 
 export const DEMO_ACCOUNT_CREDENTIALS = {
+  admin: { email: "admin@demo.mfsuperior.com", pin: "3333" },
   customer: { email: "customer@demo.mfsuperior.com", pin: "1111" },
   driver: { email: "driver@demo.mfsuperior.com", pin: "2222" },
-  dispatcher: { email: "dispatcher@demo.mfsuperior.com", pin: "3333" },
 } as const;
 
 const FIXTURE_NOW = "2026-08-20T13:00:00.000Z";
@@ -41,18 +41,18 @@ const accounts: readonly DemoAccount[] = [
     displayName: "Brenna Lewis",
     email: DEMO_ACCOUNT_CREDENTIALS.driver.email,
     demoPin: DEMO_ACCOUNT_CREDENTIALS.driver.pin,
-    companyName: "MF Superior Solutions",
+    companyName: "MF Superior Products",
     title: "Professional Driver",
     driverId: "driver-brenna",
   },
   {
-    id: "account-dispatcher",
-    role: "dispatcher",
+    id: "account-admin",
+    role: "admin",
     displayName: "Morgan Brooks",
-    email: DEMO_ACCOUNT_CREDENTIALS.dispatcher.email,
-    demoPin: DEMO_ACCOUNT_CREDENTIALS.dispatcher.pin,
-    companyName: "MF Superior Solutions",
-    title: "Dispatch Manager",
+    email: DEMO_ACCOUNT_CREDENTIALS.admin.email,
+    demoPin: DEMO_ACCOUNT_CREDENTIALS.admin.pin,
+    companyName: "MF Superior Products",
+    title: "Operations Administrator",
   },
 ];
 
@@ -144,7 +144,7 @@ const activeEvents: readonly ShipmentEvent[] = [
     "shipment-28471",
     "tender_accepted",
     "990",
-    "dispatcher",
+    "admin",
     "2026-08-19T14:22:00.000Z",
     "Load tender accepted",
     "accepted",
@@ -154,7 +154,7 @@ const activeEvents: readonly ShipmentEvent[] = [
     "shipment-28471",
     "dispatched",
     "AF",
-    "dispatcher",
+    "admin",
     "2026-08-20T11:45:00.000Z",
     "Brenna Lewis assigned and dispatched",
     "dispatched",
@@ -164,7 +164,7 @@ const activeEvents: readonly ShipmentEvent[] = [
 const shipments: readonly Shipment[] = [
   {
     id: "shipment-28471",
-    targetLoadId: "TGT-28471",
+    loadNumber: "MF-28471",
     purchaseOrderNumber: "PO-7831142",
     billOfLadingNumber: "BOL-28471-MSP",
     proNumber: "MFS-260820-01",
@@ -193,7 +193,7 @@ const shipments: readonly Shipment[] = [
   },
   {
     id: "shipment-28492",
-    targetLoadId: "TGT-28492",
+    loadNumber: "MF-28492",
     purchaseOrderNumber: "PO-7831299",
     billOfLadingNumber: "BOL-28492-MSP",
     proNumber: "MFS-260821-02",
@@ -272,7 +272,7 @@ const shipments: readonly Shipment[] = [
   },
   {
     id: "shipment-28395",
-    targetLoadId: "TGT-28395",
+    loadNumber: "MF-28395",
     purchaseOrderNumber: "PO-7829910",
     billOfLadingNumber: "BOL-28395-DEN",
     proNumber: "MFS-260818-04",
@@ -300,7 +300,7 @@ const shipments: readonly Shipment[] = [
         sequence: 1,
         type: "pickup",
         status: "completed",
-        facilityName: "MF Superior Crossdock",
+        facilityName: "MF Superior Products Crossdock",
         address: {
           line1: "4850 Colorado Boulevard",
           city: "Denver",
@@ -484,11 +484,11 @@ export function createDemoOperationsState(): DemoOperationsState {
         threadId: "thread-shipment-28471",
         threadKind: "shipment",
         shipmentId: "shipment-28471",
-        senderAccountId: "account-dispatcher",
+        senderAccountId: "account-admin",
         recipientAccountIds: ["account-driver"],
         body: "Trailer 531 is ready at the carrier lot. Seal number is in the load notes.",
         sentAt: "2026-08-20T11:48:00.000Z",
-        readByAccountIds: ["account-dispatcher", "account-driver"],
+        readByAccountIds: ["account-admin", "account-driver"],
       },
       {
         id: "message-2",
@@ -496,7 +496,7 @@ export function createDemoOperationsState(): DemoOperationsState {
         threadKind: "shipment",
         shipmentId: "shipment-28471",
         senderAccountId: "account-driver",
-        recipientAccountIds: ["account-dispatcher"],
+        recipientAccountIds: ["account-admin"],
         body: "Copy. Pre-trip is complete and I am heading to the DC gate.",
         sentAt: "2026-08-20T12:52:00.000Z",
         readByAccountIds: ["account-driver"],

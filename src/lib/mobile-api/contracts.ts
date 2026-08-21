@@ -1,0 +1,199 @@
+import { z } from "zod";
+
+export const mobilePageQuerySchema = z
+  .object({
+    page: z.coerce.number().int().min(1).max(10_000).default(1),
+    limit: z.coerce.number().int().min(1).max(100).default(50),
+    status: z.string().trim().min(1).max(40).optional(),
+  })
+  .strict();
+
+export const mobileShipmentQuerySchema = z
+  .object({
+    page: z.coerce.number().int().min(1).max(10_000).default(1),
+    limit: z.coerce.number().int().min(1).max(100).default(50),
+    status: z
+      .enum([
+        "tendered",
+        "accepted",
+        "dispatched",
+        "at_pickup",
+        "in_transit",
+        "at_delivery",
+        "delivered",
+        "cancelled",
+        "exception",
+      ])
+      .optional(),
+  })
+  .strict();
+
+export const mobileRequestQuerySchema = z
+  .object({
+    page: z.coerce.number().int().min(1).max(10_000).default(1),
+    limit: z.coerce.number().int().min(1).max(100).default(50),
+    status: z
+      .enum([
+        "draft",
+        "submitted",
+        "reviewing",
+        "quoted",
+        "booked",
+        "declined",
+        "cancelled",
+      ])
+      .optional(),
+  })
+  .strict();
+
+export const mobileSyncQuerySchema = z
+  .object({
+    deviceId: z.string().trim().min(8).max(120),
+    cursor: z.string().trim().min(10).max(200).optional(),
+  })
+  .strict();
+
+export const freightLocationInputSchema = z
+  .object({
+    name: z.string().trim().min(1).max(200).optional(),
+    addressLine1: z.string().trim().min(1).max(200),
+    addressLine2: z.string().trim().min(1).max(200).optional(),
+    city: z.string().trim().min(1).max(100),
+    state: z.string().trim().min(2).max(50),
+    postalCode: z.string().trim().min(3).max(20),
+    countryCode: z.string().trim().length(2).toUpperCase().default("US"),
+  })
+  .strict();
+
+const nullableDate = z.iso.datetime({ offset: true }).nullable().optional();
+
+export const freightRequestCreateSchema = z
+  .object({
+    referenceNumber: z.string().trim().min(1).max(120).nullable().optional(),
+    origin: freightLocationInputSchema,
+    destination: freightLocationInputSchema,
+    pickupWindowStart: nullableDate,
+    pickupWindowEnd: nullableDate,
+    deliveryWindowStart: nullableDate,
+    deliveryWindowEnd: nullableDate,
+    commodity: z.string().trim().min(1).max(200).nullable().optional(),
+    weightLbs: z.number().int().min(0).max(200_000).nullable().optional(),
+    palletCount: z.number().int().min(0).max(1_000).nullable().optional(),
+    equipmentType: z.string().trim().min(1).max(50).nullable().optional(),
+    notes: z.string().trim().min(1).max(2_000).nullable().optional(),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    const windows = [
+      [value.pickupWindowStart, value.pickupWindowEnd, "pickupWindowEnd"],
+      [value.deliveryWindowStart, value.deliveryWindowEnd, "deliveryWindowEnd"],
+    ] as const;
+    for (const [start, end, path] of windows) {
+      if (start && end && new Date(end) < new Date(start)) {
+        context.addIssue({
+          code: "custom",
+          path: [path],
+          message: "The window end must not precede its start.",
+        });
+      }
+    }
+  });
+
+export const uploadIntentSchema = z
+  .object({
+    fileName: z.string().trim().min(1).max(255),
+    contentType: z.enum([
+      "application/pdf",
+      "image/heic",
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+    ]),
+    byteSize: z.number().int().min(1).max(20 * 1024 * 1024),
+    kind: z.enum([
+      "bill_of_lading",
+      "proof_of_delivery",
+      "rate_confirmation",
+      "receipt",
+      "damage_photo",
+      "other",
+    ]),
+    shipmentId: z.uuid().nullable().optional(),
+    requestId: z.uuid().nullable().optional(),
+  })
+  .strict();
+
+const mutationBase = {
+  idempotencyKey: z.string().trim().min(16).max(120),
+  occurredAt: z.iso.datetime({ offset: true }),
+};
+
+const shipmentStatusMutationSchema = z
+  .object({
+    ...mutationBase,
+    operation: z.literal("shipment.status.update"),
+    payload: z
+      .object({
+        shipmentId: z.uuid(),
+        status: z.enum([
+          "at_pickup",
+          "in_transit",
+          "at_delivery",
+          "delivered",
+          "exception",
+        ]),
+        latitude: z.number().min(-90).max(90).nullable().optional(),
+        longitude: z.number().min(-180).max(180).nullable().optional(),
+        notes: z.string().trim().min(1).max(2_000).nullable().optional(),
+      })
+      .strict(),
+  })
+  .strict();
+
+const driverLocationMutationSchema = z
+  .object({
+    ...mutationBase,
+    operation: z.literal("driver.location.record"),
+    payload: z
+      .object({
+        shipmentId: z.uuid().nullable().optional(),
+        latitude: z.number().min(-90).max(90),
+        longitude: z.number().min(-180).max(180),
+        accuracy: z.number().int().min(0).max(10_000).nullable().optional(),
+        speed: z.number().int().min(0).max(400).nullable().optional(),
+        heading: z.number().int().min(0).max(359).nullable().optional(),
+        batteryLevel: z.number().int().min(0).max(100).nullable().optional(),
+      })
+      .strict(),
+  })
+  .strict();
+
+const requestCreateMutationSchema = z
+  .object({
+    ...mutationBase,
+    operation: z.literal("freight_request.create"),
+    payload: freightRequestCreateSchema,
+  })
+  .strict();
+
+export const offlineMutationBatchSchema = z
+  .object({
+    mutations: z
+      .array(
+        z.discriminatedUnion("operation", [
+          shipmentStatusMutationSchema,
+          driverLocationMutationSchema,
+          requestCreateMutationSchema,
+        ]),
+      )
+      .min(1)
+      .max(25),
+  })
+  .strict();
+
+export const idempotencyKeySchema = z.string().trim().min(16).max(120);
+
+export type FreightRequestCreate = z.output<typeof freightRequestCreateSchema>;
+export type OfflineMutation = z.output<
+  typeof offlineMutationBatchSchema
+>["mutations"][number];

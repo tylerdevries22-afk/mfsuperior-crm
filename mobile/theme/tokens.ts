@@ -101,7 +101,7 @@ export function shadowCard(theme: ThemePalette): ViewStyle {
         shadowOpacity: theme.shadow.opacity,
         shadowRadius: 24,
       },
-      android: { elevation: 3 },
+      android: { elevation: 5 },
       default: {},
     }) ?? {}
   );

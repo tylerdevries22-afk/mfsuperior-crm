@@ -29,6 +29,20 @@
       "when": 1787281716492,
       "tag": "0003_target_carrier",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1787338733717,
+      "tag": "0004_remarkable_khan",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1787342150711,
+      "tag": "0005_little_caretaker",
+      "breakpoints": true
     }
   ]
 }

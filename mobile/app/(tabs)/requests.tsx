@@ -2,7 +2,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 
-import { SimulationBanner } from "@/components/operations";
 import {
   Badge,
   BottomSheet,
@@ -39,7 +38,7 @@ function RelatedShipmentField({ shipments, value, onChange }: {
   const theme = useTheme();
   const options = [
     { label: "No load", value: "none" },
-    ...shipments.slice(0, 3).map((shipment) => ({ label: shipment.targetLoadId, value: shipment.id })),
+    ...shipments.slice(0, 3).map((shipment) => ({ label: shipment.loadNumber, value: shipment.id })),
   ];
   return (
     <View style={styles.fieldGroup}>
@@ -103,7 +102,7 @@ function RequestsHero() {
     <View style={styles.hero}>
       <Text style={[styles.eyebrow, { color: theme.primaryLight }]}>SERVICE DESK</Text>
       <Text style={[styles.title, { color: theme.text }]}>Tell us what needs to move</Text>
-      <Text style={[styles.subtitle, { color: theme.textSecondary }]}>Create a detailed freight request and follow its locally simulated review status.</Text>
+      <Text style={[styles.subtitle, { color: theme.textSecondary }]}>Create a detailed freight request and follow its review status from intake through scheduling.</Text>
     </View>
   );
 }
@@ -126,7 +125,7 @@ function SubmissionSuccess() {
         <Ionicons color={theme.success} name="checkmark-circle-outline" size={ICON.lg} />
         <View style={styles.grow}>
           <Text style={[styles.successTitle, { color: theme.text }]}>Request saved</Text>
-          <Text style={[styles.successCopy, { color: theme.textSecondary }]}>The local operations queue now includes your request.</Text>
+          <Text style={[styles.successCopy, { color: theme.textSecondary }]}>The operations queue now includes your request.</Text>
         </View>
         <Badge label="Submitted" tone="success" />
       </View>
@@ -170,7 +169,6 @@ export default function CustomerRequestsScreen() {
       <Screen safeEdges={["left", "right", "bottom"]} scroll contentContainerStyle={styles.content}>
         <RequestsHero />
         <RequestStats requests={requests} />
-        <SimulationBanner message="Submitting a request updates only this device. It does not contact MF Superior dispatch or Target." />
         {submitted ? <SubmissionSuccess /> : null}
         <Button
           fullWidth

@@ -1,26 +1,32 @@
-export const APP_ROLES = ["customer", "driver", "dispatcher"] as const;
+export const APP_ROLES = ["admin", "driver", "customer"] as const;
 
 export type AppRole = (typeof APP_ROLES)[number];
 
 export type EntityId = string;
 export type IsoDateTime = string;
 
-export interface DemoAccount {
+export interface OperationsAccount {
   readonly id: EntityId;
   readonly role: AppRole;
   readonly displayName: string;
   readonly email: string;
-  readonly demoPin: string;
   readonly companyName: string;
   readonly title: string;
   readonly customerId?: EntityId;
   readonly driverId?: EntityId;
+  readonly demoPin?: string;
 }
 
-export interface DemoSession {
+export interface DemoAccount extends OperationsAccount {
+  readonly demoPin: string;
+}
+
+export interface OperationsSession {
   readonly accountId: EntityId | null;
   readonly effectiveRole: AppRole | null;
 }
+
+export type DemoSession = OperationsSession;
 
 export interface GeoPoint {
   readonly latitude: number;
@@ -100,7 +106,7 @@ export type ShipmentEventType =
   | "exception_resolved"
   | "cancelled";
 
-export type ShipmentEventSource = "customer" | "driver" | "dispatcher" | "system";
+export type ShipmentEventSource = "admin" | "customer" | "driver" | "system";
 
 export interface ShipmentEvent {
   readonly id: EntityId;
@@ -113,7 +119,7 @@ export interface ShipmentEvent {
   readonly resultingStatus?: ShipmentStatus;
   readonly stopId?: EntityId;
   readonly coordinates?: GeoPoint;
-  readonly isSimulated: true;
+  readonly isSimulated: boolean;
 }
 
 export interface ShipmentCharges {
@@ -127,7 +133,8 @@ export type EquipmentType = "dry_van" | "reefer" | "flatbed";
 
 export interface Shipment {
   readonly id: EntityId;
-  readonly targetLoadId: string;
+  readonly entityVersion?: number;
+  readonly loadNumber: string;
   readonly purchaseOrderNumber: string;
   readonly billOfLadingNumber: string;
   readonly proNumber: string;
@@ -192,7 +199,7 @@ export interface HosLogEntry {
   readonly durationMinutes: number;
   readonly locationDescription: string;
   readonly note?: string;
-  readonly isSimulated: true;
+  readonly isSimulated: boolean;
 }
 
 export interface HosClock {
@@ -297,7 +304,7 @@ export interface EdiTransaction {
   readonly summary: string;
   readonly createdAt: IsoDateTime;
   readonly acknowledgedAt?: IsoDateTime;
-  readonly isSimulated: true;
+  readonly isSimulated: boolean;
 }
 
 export type EquipmentKind =
@@ -376,10 +383,10 @@ export interface IntegrationHealth {
 
 export const DEMO_STATE_VERSION = 1 as const;
 
-export interface DemoOperationsState {
+export interface OperationsState {
   readonly version: typeof DEMO_STATE_VERSION;
-  readonly session: DemoSession;
-  readonly accounts: readonly DemoAccount[];
+  readonly session: OperationsSession;
+  readonly accounts: readonly OperationsAccount[];
   readonly customers: readonly Customer[];
   readonly drivers: readonly Driver[];
   readonly shipments: readonly Shipment[];
@@ -394,6 +401,8 @@ export interface DemoOperationsState {
   readonly integrations: readonly IntegrationHealth[];
   readonly updatedAt: IsoDateTime;
 }
+
+export type DemoOperationsState = OperationsState;
 
 export interface ExceptionReportInput {
   readonly stopId?: EntityId;

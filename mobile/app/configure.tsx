@@ -3,7 +3,6 @@ import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
-import { SimulationBanner } from "@/components/operations";
 import { Badge, Button, Card, Header, PressableSurface, Screen, SectionHeader, TextArea, TextField } from "@/components/ui";
 import type { EquipmentType } from "@/domain/types";
 import { ICON, RADIUS, SPACE, TYPO, useTheme } from "@/theme";
@@ -33,7 +32,6 @@ export default function ConfigureScreen() {
           <Text style={[styles.title, { color: theme.text }]}>Define the move</Text>
           <Text style={[styles.body, { color: theme.textSecondary }]}>Choose equipment and add the core lane details before arranging workflow milestones.</Text>
         </View>
-        <SimulationBanner message="This builder creates a local preview only. It does not submit a tender or connect to Target." />
 
         <SectionHeader title="Equipment" />
         <View style={styles.equipmentGrid}>

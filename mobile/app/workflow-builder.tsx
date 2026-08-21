@@ -3,7 +3,6 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
-import { SimulationBanner } from "@/components/operations";
 import { AppModal, Badge, Button, Card, Header, PressableSurface, Screen, SectionHeader } from "@/components/ui";
 import { ICON, RADIUS, SPACE, TYPO, useTheme } from "@/theme";
 
@@ -51,7 +50,6 @@ export default function WorkflowBuilderScreen() {
           <Text style={[styles.title, { color: theme.text }]}>Arrange the handoffs</Text>
           <Text style={[styles.body, { color: theme.textSecondary }]}>Required freight milestones stay protected. Optional tracking and invoicing steps can be included in this preview.</Text>
         </View>
-        <SimulationBanner message="Saving this workflow keeps a local preview only and sends no EDI transactions." />
 
         <Card>
           <View style={styles.summaryRow}>

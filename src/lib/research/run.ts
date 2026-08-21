@@ -206,7 +206,7 @@ function ratingCountToTagProxy(n: number | undefined): number {
   return 4;
 }
 
-/* ── Discovery dispatchers ───────────────────────────────────────── */
+/* ── Discovery routers ───────────────────────────────────────────── */
 
 /* ── Curated → Business adapter ─────────────────────────────────── */
 
@@ -335,7 +335,7 @@ async function discoverPaid(args: {
   return out;
 }
 
-/* ── Email enrichment dispatchers ────────────────────────────────── */
+/* ── Email enrichment routers ────────────────────────────────────── */
 
 type EmailOutcome = {
   email: string | null;

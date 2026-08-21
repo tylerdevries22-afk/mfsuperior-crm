@@ -9,23 +9,6 @@ import { ICON, RADIUS, SPACE, TYPO, useTheme } from "@/theme";
 
 type IoniconName = ComponentProps<typeof Ionicons>["name"];
 
-export function SimulationBanner({
-  message = "Target partner activity is simulated locally and is not connected to Target systems.",
-}: {
-  readonly message?: string;
-}) {
-  const theme = useTheme();
-  return (
-    <View
-      accessibilityRole="summary"
-      style={[styles.banner, { backgroundColor: theme.warningMuted, borderColor: theme.tint.warning.medium }]}
-    >
-      <Ionicons color={theme.warning} name="information-circle-outline" size={ICON.md} />
-      <Text style={[styles.bannerText, { color: theme.textSecondary }]}>{message}</Text>
-    </View>
-  );
-}
-
 export function ProgressTrack({ value, tone = "brand" }: { readonly value: number; readonly tone?: "brand" | "success" | "warning" }) {
   const theme = useTheme();
   const progress = Math.max(0, Math.min(1, value));
@@ -55,7 +38,7 @@ export function ShipmentCard({
   const firstStop = shipment.stops[0];
   return (
     <Card
-      accessibilityLabel={`Load ${shipment.targetLoadId}, ${shipmentRoute(shipment)}, ${shipment.status.replaceAll("_", " ")}, ${Math.round(shipmentProgress(shipment.status) * 100)} percent complete`}
+      accessibilityLabel={`Load ${shipment.loadNumber}, ${shipmentRoute(shipment)}, ${shipment.status.replaceAll("_", " ")}, ${Math.round(shipmentProgress(shipment.status) * 100)} percent complete`}
       onPress={onPress}
     >
       <View style={styles.cardHeader}>
@@ -63,7 +46,7 @@ export function ShipmentCard({
           <Ionicons color={theme.primaryLight} name="cube-outline" size={ICON.md} />
         </View>
         <View style={styles.grow}>
-          <Text style={[styles.loadId, { color: theme.text }]}>{shipment.targetLoadId}</Text>
+          <Text style={[styles.loadId, { color: theme.text }]}>{shipment.loadNumber}</Text>
           <Text style={[styles.route, { color: theme.textSecondary }]}>{shipmentRoute(shipment)}</Text>
         </View>
         <StatusBadge status={shipment.status} />
@@ -162,8 +145,6 @@ export function StopTimeline({ stops, onStopPress }: { readonly stops: readonly 
 }
 
 const styles = StyleSheet.create({
-  banner: { alignItems: "flex-start", borderRadius: RADIUS.md, borderWidth: 1, flexDirection: "row", gap: SPACE.sm, padding: SPACE.md },
-  bannerText: { ...TYPO.caption, flex: 1, lineHeight: 19 },
   cardHeader: { alignItems: "center", flexDirection: "row", gap: SPACE.sm },
   grow: { flex: 1, gap: 2, minWidth: 0 },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: SPACE.sm },

@@ -1,14 +1,28 @@
 export { Badge, StatusBadge, type BadgeProps, type BadgeSize, type BadgeTone, type StatusBadgeProps } from "./Badge";
-export { AnimatedButton, Button, type ButtonProps, type ButtonSize, type ButtonVariant } from "./Button";
+export {
+  AnimatedButton,
+  type AnimatedButtonProps,
+  type AnimatedButtonSize,
+  type AnimatedButtonVariant,
+} from "./AnimatedButton";
+export { Button, type ButtonProps, type ButtonSize, type ButtonVariant } from "./Button";
 export {
   AnimatedCard,
+  type AnimatedCardProps,
+  type CardElevation,
+} from "./AnimatedCard";
+export {
   Card,
-  GlassCard,
-  WorkspaceCard,
   type CardPadding,
   type CardProps,
   type CardVariant,
 } from "./Card";
+export {
+  GlassCard,
+  type GlassCardProps,
+  type GlassCardVariant,
+} from "./GlassCard";
+export { WorkspaceCard, type WorkspaceCardProps } from "./WorkspaceCard";
 export {
   SegmentedControl,
   SwitchRow,
@@ -17,17 +31,23 @@ export {
   type SwitchRowProps,
 } from "./Controls";
 export { FadeInView, type FadeInViewProps } from "./FadeInView";
+export { Drawer, type DrawerProps } from "./Drawer";
 export { Header, type HeaderProps } from "./Header";
+export { HorizontalCarousel, type HorizontalCarouselProps } from "./HorizontalCarousel";
 export { IconButton, type IconButtonProps } from "./IconButton";
 export { KeyValueRow, List, ListRow, Row, type KeyValueRowProps, type ListProps, type ListRowProps } from "./List";
 export { AppModal, BottomSheet, type AppModalProps, type BottomSheetProps } from "./Overlay";
 export {
   AnimatedPressable,
-  PressableSurface,
+  type AnimatedPressableProps,
   type HapticStrength,
+} from "./AnimatedPressable";
+export {
+  PressableSurface,
   type PressableSurfaceProps,
 } from "./PressableSurface";
 export { Screen, type ScreenProps } from "./Screen";
+export { Sheet, type SheetProps } from "./Sheet";
 export { SectionHeader, type SectionHeaderProps } from "./SectionHeader";
 export { Skeleton, SkeletonCard, SkeletonList, type SkeletonCardProps, type SkeletonListProps, type SkeletonProps } from "./Skeleton";
 export { deltaPercent, StatTile, type StatTileProps } from "./StatTile";
@@ -40,6 +60,12 @@ export {
   type LoadingStateProps,
 } from "./StateViews";
 export { SearchField, TextArea, TextField, type SearchFieldProps, type TextFieldProps } from "./TextField";
+export {
+  Timeline,
+  type TimelineEntry,
+  type TimelineProps,
+  type TimelineTone,
+} from "./Timeline";
 export {
   AppText,
   Body,

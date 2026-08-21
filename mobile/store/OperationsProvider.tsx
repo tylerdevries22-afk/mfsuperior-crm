@@ -14,7 +14,6 @@ import type {
   AppRole,
   CreateCustomerRequestInput,
   CustomerRequest,
-  DemoAccount,
   DemoOperationsState,
   EdiTransaction,
   Equipment,
@@ -25,15 +24,17 @@ import type {
   HosDutyStatus,
   IntegrationHealth,
   OperationsMessage,
+  OperationsAccount,
   ProofOfDeliveryInput,
   SendMessageInput,
   Shipment,
   ShipmentStatus,
 } from "../domain/types";
-import { DemoOperationsRepository } from "./DemoOperationsRepository";
+import { createOperationsRepositoryFromEnvironment } from "./repositoryFactory";
 
 export interface OperationsActions {
   signIn(email: string, pin: string): Promise<boolean>;
+  restoreSession(): Promise<boolean>;
   signOut(): Promise<boolean>;
   switchDemoRole(role: AppRole): Promise<boolean>;
   resetDemo(): Promise<boolean>;
@@ -68,9 +69,9 @@ export interface OperationsActions {
 export interface OperationsContextValue {
   readonly state: DemoOperationsState;
   readonly isHydrated: boolean;
-  readonly currentAccount: DemoAccount | null;
+  readonly currentAccount: OperationsAccount | null;
   readonly effectiveRole: AppRole | null;
-  readonly accounts: readonly DemoAccount[];
+  readonly accounts: readonly OperationsAccount[];
   readonly shipments: readonly Shipment[];
   readonly activeShipment: Shipment | null;
   readonly hosClock: HosClock | null;
@@ -89,7 +90,7 @@ export interface OperationsProviderProps {
   readonly repository?: OperationsRepository;
 }
 
-const defaultRepository = new DemoOperationsRepository();
+const defaultRepository = createOperationsRepositoryFromEnvironment();
 const OperationsContext = createContext<OperationsContextValue | null>(null);
 
 export function OperationsProvider({
@@ -147,6 +148,7 @@ export function OperationsProvider({
 
     return {
       signIn: (email, pin) => runMutation(() => repository.signIn(email, pin)),
+      restoreSession: () => runMutation(() => repository.hydrate()),
       signOut: () => runMutation(() => repository.signOut()),
       switchDemoRole: (role) => runMutation(() => repository.switchDemoRole(role)),
       resetDemo: () => runMutation(() => repository.resetDemo()),
@@ -197,7 +199,7 @@ export function OperationsProvider({
     const driverId = effectiveRole === "driver"
       ? currentAccount?.driverId ?? state.drivers[0]?.id
       : undefined;
-    const shipments = effectiveRole === "dispatcher"
+    const shipments = effectiveRole === "admin"
       ? state.shipments
       : effectiveRole === "customer"
         ? state.shipments.filter((shipment) => shipment.customerId === customerId)
@@ -215,10 +217,10 @@ export function OperationsProvider({
     const hosClock = driverId
       ? state.hosClocks.find((clock) => clock.driverId === driverId) ?? null
       : null;
-    const customerRequests = effectiveRole === "dispatcher"
+    const customerRequests = effectiveRole === "admin"
       ? state.requests
       : state.requests.filter((request) => request.customerId === customerId);
-    const quotes = effectiveRole === "dispatcher"
+    const quotes = effectiveRole === "admin"
       ? state.quotes
       : state.quotes.filter((quote) => quote.customerId === customerId);
 

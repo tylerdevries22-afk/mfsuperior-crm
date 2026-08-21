@@ -1,6 +1,7 @@
 import { alpha, ramp } from "../alpha";
 import { AA_NORMAL, contrastRatio } from "../contrast";
 import { DARK_THEME, LIGHT_THEME, type ThemePalette } from "../palette";
+import { ANIM, CARD_SHADOW, CARD_SHADOW_SM, RADIUS_LEGACY, SPACING, THEME, TYPO_LEGACY } from "../legacy";
 import { RADIUS, SPACE, SIZE, TYPO } from "../tokens";
 
 function expectPaletteContrast(theme: ThemePalette): void {
@@ -24,6 +25,16 @@ describe("theme foundations", () => {
     expect(SIZE.button).toEqual({ sm: 44, md: 48, lg: 56 });
     expect(TYPO.screenTitle).toMatchObject({ fontSize: 38, lineHeight: 42 });
     expect(TYPO.body).toMatchObject({ fontSize: 15, lineHeight: 22 });
+  });
+
+  it("keeps the pinned reference compatibility surface intact", () => {
+    expect(SPACING).toEqual({ xs: 4, sm: 8, md: 12, lg: 16, xl: 20, xxl: 24, xxxl: 32 });
+    expect(RADIUS_LEGACY).toEqual({ xs: 4, sm: 6, md: 10, lg: 14, xl: 18, xxl: 22, full: 999 });
+    expect(TYPO_LEGACY.hero).toMatchObject({ fontSize: 28, lineHeight: 36 });
+    expect(ANIM).toMatchObject({ pressScale: 0.97, duration: { fast: 150, normal: 250, slow: 400 } });
+    expect(THEME).toHaveProperty("primary");
+    expect(CARD_SHADOW).toBeDefined();
+    expect(CARD_SHADOW_SM).toBeDefined();
   });
 
   it("builds clamped alpha ramps and rejects malformed tokens", () => {

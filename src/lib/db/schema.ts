@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   boolean,
+  check,
   index,
   integer,
   jsonb,
@@ -13,6 +14,11 @@ import {
   uuid,
   varchar,
 } from "drizzle-orm/pg-core";
+import {
+  drivers,
+  organizations,
+  shipments,
+} from "./target-carrier-schema";
 
 /* ───── Enums ─────────────────────────────────────────────────── */
 
@@ -56,10 +62,58 @@ export const suppressionReasonEnum = pgEnum("suppression_reason", [
   "replied",
 ]);
 
+export const appRoleEnum = pgEnum("app_role", [
+  "admin",
+  "driver",
+  "customer",
+]);
+
+export const membershipStatusEnum = pgEnum("membership_status", [
+  "invited",
+  "active",
+  "suspended",
+  "revoked",
+]);
+
+export const freightRequestStatusEnum = pgEnum("freight_request_status", [
+  "draft",
+  "submitted",
+  "reviewing",
+  "quoted",
+  "booked",
+  "declined",
+  "cancelled",
+]);
+
+export const integrationStatusEnum = pgEnum("integration_status", [
+  "not_configured",
+  "connected",
+  "degraded",
+  "disabled",
+]);
+
+export const outboxStatusEnum = pgEnum("outbox_status", [
+  "pending",
+  "processing",
+  "delivered",
+  "failed",
+]);
+
+export const documentStatusEnum = pgEnum("document_status", [
+  "pending_upload",
+  "uploaded",
+  "verified",
+  "rejected",
+  "deleted",
+]);
+
 /* ───── Auth (Auth.js Drizzle adapter shape) ─────────────────── */
 
 export const users = pgTable("users", {
   id: uuid("id").defaultRandom().primaryKey(),
+  /** Cryptographically verified Supabase JWT `sub`; never sourced from metadata. */
+  authSubject: text("auth_subject").unique(),
+  authProvider: varchar("auth_provider", { length: 40 }),
   name: text("name"),
   email: text("email").notNull().unique(),
   emailVerified: timestamp("email_verified", { withTimezone: true }),
@@ -68,6 +122,112 @@ export const users = pgTable("users", {
     .defaultNow()
     .notNull(),
 });
+
+/* ───── Multi-tenant identity + freight foundation ───────────── */
+
+export const customerAccounts = pgTable(
+  "customer_accounts",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    companyName: varchar("company_name", { length: 200 }).notNull(),
+    contactEmail: text("contact_email"),
+    contactPhone: varchar("contact_phone", { length: 50 }),
+    externalReference: varchar("external_reference", { length: 120 }),
+    metadata: jsonb("metadata").notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("customer_accounts_org_idx").on(table.organizationId),
+    uniqueIndex("customer_accounts_org_external_unique")
+      .on(table.organizationId, table.externalReference)
+      .where(sql`${table.externalReference} is not null`),
+  ],
+);
+
+export const organizationMemberships = pgTable(
+  "organization_memberships",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    role: appRoleEnum("role").notNull(),
+    status: membershipStatusEnum("status").notNull().default("active"),
+    driverId: uuid("driver_id").references(() => drivers.id, {
+      onDelete: "set null",
+    }),
+    customerAccountId: uuid("customer_account_id").references(
+      () => customerAccounts.id,
+      { onDelete: "set null" },
+    ),
+    isDefault: boolean("is_default").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("organization_memberships_org_user_unique").on(
+      table.organizationId,
+      table.userId,
+    ),
+    index("organization_memberships_user_status_idx").on(
+      table.userId,
+      table.status,
+    ),
+    uniqueIndex("organization_memberships_default_user_unique")
+      .on(table.userId)
+      .where(sql`${table.isDefault} = true and ${table.status} = 'active'`),
+  ],
+);
+
+export const organizationInvitations = pgTable(
+  "organization_invitations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    email: text("email").notNull(),
+    tokenHash: text("token_hash").notNull().unique(),
+    role: appRoleEnum("role").notNull(),
+    driverId: uuid("driver_id").references(() => drivers.id, {
+      onDelete: "set null",
+    }),
+    customerAccountId: uuid("customer_account_id").references(
+      () => customerAccounts.id,
+      { onDelete: "set null" },
+    ),
+    invitedByUserId: uuid("invited_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("organization_invitations_org_email_idx").on(
+      table.organizationId,
+      table.email,
+    ),
+  ],
+);
 
 export const accounts = pgTable(
   "accounts",
@@ -455,6 +615,378 @@ export const notifications = pgTable("notifications", {
   metadataJson: jsonb("metadata_json").default({}),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+/* ───── Tenant-scoped freight data + mobile synchronization ─── */
+
+export const freightLocations = pgTable(
+  "freight_locations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    externalReference: varchar("external_reference", { length: 120 }),
+    name: varchar("name", { length: 200 }).notNull(),
+    kind: varchar("kind", { length: 40 }).notNull().default("other"),
+    addressLine1: varchar("address_line_1", { length: 200 }).notNull(),
+    addressLine2: varchar("address_line_2", { length: 200 }),
+    city: varchar("city", { length: 100 }).notNull(),
+    state: varchar("state", { length: 50 }).notNull(),
+    postalCode: varchar("postal_code", { length: 20 }).notNull(),
+    countryCode: varchar("country_code", { length: 2 })
+      .notNull()
+      .default("US"),
+    latitude: varchar("latitude", { length: 30 }),
+    longitude: varchar("longitude", { length: 30 }),
+    metadata: jsonb("metadata").notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("freight_locations_org_name_idx").on(
+      table.organizationId,
+      table.name,
+    ),
+    uniqueIndex("freight_locations_org_external_unique")
+      .on(table.organizationId, table.externalReference)
+      .where(sql`${table.externalReference} is not null`),
+    check(
+      "freight_locations_kind_check",
+      sql`${table.kind} in ('pickup', 'delivery', 'terminal', 'customer', 'other')`,
+    ),
+  ],
+);
+
+export const freightRequests = pgTable(
+  "freight_requests",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    customerAccountId: uuid("customer_account_id").references(
+      () => customerAccounts.id,
+      { onDelete: "set null" },
+    ),
+    createdByUserId: uuid("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    shipmentId: uuid("shipment_id").references(() => shipments.id, {
+      onDelete: "set null",
+    }),
+    referenceNumber: varchar("reference_number", { length: 120 }),
+    status: freightRequestStatusEnum("status").notNull().default("submitted"),
+    origin: jsonb("origin").notNull(),
+    destination: jsonb("destination").notNull(),
+    pickupWindowStart: timestamp("pickup_window_start", { withTimezone: true }),
+    pickupWindowEnd: timestamp("pickup_window_end", { withTimezone: true }),
+    deliveryWindowStart: timestamp("delivery_window_start", {
+      withTimezone: true,
+    }),
+    deliveryWindowEnd: timestamp("delivery_window_end", {
+      withTimezone: true,
+    }),
+    commodity: varchar("commodity", { length: 200 }),
+    weightLbs: integer("weight_lbs"),
+    palletCount: integer("pallet_count"),
+    equipmentType: varchar("equipment_type", { length: 50 }),
+    notes: text("notes"),
+    metadata: jsonb("metadata").notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("freight_requests_org_status_created_idx").on(
+      table.organizationId,
+      table.status,
+      table.createdAt,
+    ),
+    index("freight_requests_customer_created_idx").on(
+      table.customerAccountId,
+      table.createdAt,
+    ),
+    uniqueIndex("freight_requests_org_reference_unique")
+      .on(table.organizationId, table.referenceNumber)
+      .where(sql`${table.referenceNumber} is not null`),
+    check(
+      "freight_requests_weight_check",
+      sql`${table.weightLbs} is null or ${table.weightLbs} between 0 and 200000`,
+    ),
+    check(
+      "freight_requests_pallet_check",
+      sql`${table.palletCount} is null or ${table.palletCount} between 0 and 1000`,
+    ),
+  ],
+);
+
+export const customerShipmentAccess = pgTable(
+  "customer_shipment_access",
+  {
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    customerAccountId: uuid("customer_account_id")
+      .notNull()
+      .references(() => customerAccounts.id, { onDelete: "cascade" }),
+    shipmentId: uuid("shipment_id")
+      .notNull()
+      .references(() => shipments.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.customerAccountId, table.shipmentId] }),
+    index("customer_shipment_access_org_idx").on(table.organizationId),
+  ],
+);
+
+export const freightDocuments = pgTable(
+  "freight_documents",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    shipmentId: uuid("shipment_id").references(() => shipments.id, {
+      onDelete: "set null",
+    }),
+    requestId: uuid("request_id").references(() => freightRequests.id, {
+      onDelete: "set null",
+    }),
+    uploadedByUserId: uuid("uploaded_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    kind: varchar("kind", { length: 50 }).notNull(),
+    status: documentStatusEnum("status").notNull().default("pending_upload"),
+    fileName: varchar("file_name", { length: 255 }).notNull(),
+    contentType: varchar("content_type", { length: 120 }).notNull(),
+    byteSize: integer("byte_size").notNull(),
+    storageBucket: varchar("storage_bucket", { length: 100 }).notNull(),
+    storagePath: text("storage_path").notNull().unique(),
+    checksumSha256: varchar("checksum_sha256", { length: 64 }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("freight_documents_org_created_idx").on(
+      table.organizationId,
+      table.createdAt,
+    ),
+    index("freight_documents_shipment_idx").on(table.shipmentId),
+    check(
+      "freight_documents_byte_size_check",
+      sql`${table.byteSize} between 1 and 20971520`,
+    ),
+  ],
+);
+
+export const integrationConnections = pgTable(
+  "integration_connections",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    provider: varchar("provider", { length: 80 }).notNull(),
+    status: integrationStatusEnum("status")
+      .notNull()
+      .default("not_configured"),
+    externalAccountId: varchar("external_account_id", { length: 200 }),
+    configuration: jsonb("configuration").notNull().default({}),
+    lastSucceededAt: timestamp("last_succeeded_at", { withTimezone: true }),
+    lastFailedAt: timestamp("last_failed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("integration_connections_org_provider_unique").on(
+      table.organizationId,
+      table.provider,
+    ),
+  ],
+);
+
+export const oauthConnections = pgTable(
+  "oauth_connections",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    provider: varchar("provider", { length: 80 }).notNull(),
+    externalAccountId: varchar("external_account_id", { length: 200 }),
+    encryptedAccessToken: text("encrypted_access_token"),
+    encryptedRefreshToken: text("encrypted_refresh_token"),
+    encryptionKeyVersion: varchar("encryption_key_version", { length: 40 })
+      .notNull(),
+    scopes: text("scopes").array().notNull().default([]),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("oauth_connections_org_provider_unique").on(
+      table.organizationId,
+      table.provider,
+    ),
+  ],
+);
+
+export const outboxEvents = pgTable(
+  "outbox_events",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    topic: varchar("topic", { length: 120 }).notNull(),
+    aggregateType: varchar("aggregate_type", { length: 80 }).notNull(),
+    aggregateId: text("aggregate_id").notNull(),
+    deduplicationKey: varchar("deduplication_key", { length: 160 }).notNull(),
+    payload: jsonb("payload").notNull(),
+    status: outboxStatusEnum("status").notNull().default("pending"),
+    attemptCount: integer("attempt_count").notNull().default(0),
+    nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    lastErrorCode: varchar("last_error_code", { length: 80 }),
+    deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("outbox_events_org_dedup_unique").on(
+      table.organizationId,
+      table.deduplicationKey,
+    ),
+    index("outbox_events_status_next_attempt_idx").on(
+      table.status,
+      table.nextAttemptAt,
+    ),
+  ],
+);
+
+export const mobileSyncStates = pgTable(
+  "mobile_sync_states",
+  {
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    deviceId: varchar("device_id", { length: 120 }).notNull(),
+    cursor: text("cursor"),
+    lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.organizationId, table.userId, table.deviceId] }),
+  ],
+);
+
+export const mobileMutationReceipts = pgTable(
+  "mobile_mutation_receipts",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    actorUserId: uuid("actor_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    idempotencyKey: varchar("idempotency_key", { length: 120 }).notNull(),
+    operation: varchar("operation", { length: 80 }).notNull(),
+    requestHash: varchar("request_hash", { length: 64 }).notNull(),
+    responseStatus: integer("response_status").notNull(),
+    responseBody: jsonb("response_body").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("mobile_mutation_receipts_actor_key_unique").on(
+      table.organizationId,
+      table.actorUserId,
+      table.idempotencyKey,
+    ),
+    index("mobile_mutation_receipts_created_idx").on(table.createdAt),
+  ],
+);
+
+export const documentUploadIntents = pgTable(
+  "document_upload_intents",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    documentId: uuid("document_id")
+      .notNull()
+      .references(() => freightDocuments.id, { onDelete: "cascade" }),
+    actorUserId: uuid("actor_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    idempotencyKey: varchar("idempotency_key", { length: 120 }).notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("document_upload_intents_actor_key_unique").on(
+      table.organizationId,
+      table.actorUserId,
+      table.idempotencyKey,
+    ),
+  ],
+);
+
+/** Persistent fixed-window counters; keys are SHA-256 digests, never raw IDs. */
+export const apiRateLimitBuckets = pgTable(
+  "api_rate_limit_buckets",
+  {
+    keyHash: varchar("key_hash", { length: 64 }).notNull(),
+    windowStartedAt: timestamp("window_started_at", { withTimezone: true })
+      .notNull(),
+    requestCount: integer("request_count").notNull().default(1),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.keyHash, table.windowStartedAt] }),
+    index("api_rate_limit_buckets_expires_idx").on(table.expiresAt),
+    check(
+      "api_rate_limit_buckets_count_check",
+      sql`${table.requestCount} > 0`,
+    ),
+  ],
+);
 
 /* ───── Target Carrier / Logistics ───────────────────────────── */
 export * from "./target-carrier-schema";

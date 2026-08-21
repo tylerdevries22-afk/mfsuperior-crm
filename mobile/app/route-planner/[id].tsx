@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { StyleSheet, Text, View } from "react-native";
 
-import { SimulationBanner, StopTimeline } from "@/components/operations";
+import { StopTimeline } from "@/components/operations";
 import { Badge, Button, Card, EmptyState, Header, KeyValueRow, Screen, SectionHeader } from "@/components/ui";
 import { formatMinutes, shipmentRoute } from "@/lib/operations-format";
 import { useOperations } from "@/store";
@@ -32,9 +32,8 @@ export default function RoutePlannerScreen() {
 
   return (
     <View style={[styles.fill, { backgroundColor: theme.background }]}>
-      <Header centered onBack={() => router.back()} showBack subtitle={shipment.targetLoadId} title="Route plan" />
+      <Header centered onBack={() => router.back()} showBack subtitle={shipment.loadNumber} title="Route plan" />
       <Screen safeEdges={["left", "right", "bottom"]} scroll contentContainerStyle={styles.content}>
-        <SimulationBanner message="Route, ETA, and Target location details are seeded demo data. No Target routing service is connected." />
 
         <Card padding="none" style={styles.mapCard}>
           <View style={[styles.mapCanvas, { backgroundColor: theme.surfaceElevated }]}>

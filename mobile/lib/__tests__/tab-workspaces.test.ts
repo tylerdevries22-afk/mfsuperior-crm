@@ -45,9 +45,9 @@ describe("tab workspace helpers", () => {
     ]);
   });
 
-  it("keeps future tenders visible to dispatchers", () => {
+  it("keeps future tenders visible to admins", () => {
     const filtered = filterScheduleShipments(loads, {
-      role: "dispatcher",
+      role: "admin",
       date: "upcoming",
       status: "tenders",
       now: new Date("2026-08-20T12:00:00.000Z"),
@@ -56,7 +56,7 @@ describe("tab workspace helpers", () => {
     expect(filtered.map(({ id }) => id)).toEqual(["tomorrow"]);
   });
 
-  it("keeps an already scoped driver list visible during dispatcher role preview", () => {
+  it("keeps an already scoped driver list visible during admin role preview", () => {
     const filtered = filterScheduleShipments([loads[1]], {
       role: "driver",
       date: "all",
@@ -67,9 +67,9 @@ describe("tab workspace helpers", () => {
     expect(filtered.map(({ id }) => id)).toEqual(["today"]);
   });
 
-  it("returns deterministic responses and identifies simulated Target activity", () => {
+  it("returns deterministic responses and identifies Target onboarding status", () => {
     expect(localAssistantReply("Where is my load?", "TGT-28471")).toContain("TGT-28471");
-    expect(localAssistantReply("Did Target send a 204?")).toContain("simulated");
+    expect(localAssistantReply("Did Target send a 204?")).toContain("requires EDI onboarding");
     expect(localAssistantReply("Do I need a break?")).toContain("not an ELD");
   });
 

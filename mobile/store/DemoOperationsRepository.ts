@@ -16,7 +16,6 @@ import type {
   AppRole,
   CreateCustomerRequestInput,
   CustomerRequest,
-  DemoAccount,
   DemoOperationsState,
   EdiTransaction,
   EdiTransactionType,
@@ -27,6 +26,7 @@ import type {
   GeoPoint,
   HosDutyStatus,
   OperationsMessage,
+  OperationsAccount,
   ProofOfDelivery,
   ProofOfDeliveryInput,
   SendMessageInput,
@@ -52,7 +52,7 @@ interface StateUpdate<Result> {
 }
 
 interface SessionContext {
-  readonly account: DemoAccount;
+  readonly account: OperationsAccount;
   readonly effectiveRole: AppRole;
   readonly customerId?: EntityId;
   readonly driverId?: EntityId;
@@ -72,6 +72,7 @@ const RESERVED_SHIPMENT_STATUSES = new Set<ShipmentStatus>([
 ]);
 
 export class DemoOperationsRepository implements OperationsRepository {
+  readonly mode = "demo" as const;
   private state: DemoOperationsState = createDemoOperationsState();
   private readonly persistence: PersistenceAdapter;
   private readonly clock: () => string;
@@ -173,10 +174,10 @@ export class DemoOperationsRepository implements OperationsRepository {
   switchDemoRole(role: AppRole): Promise<DemoOperationsState> {
     return this.commit((state, occurredAt) => {
       const context = getSessionContext(state);
-      if (context.account.role !== "dispatcher") {
+      if (context.account.role !== "admin") {
         throw new OperationsDomainError(
           "UNAUTHORIZED",
-          "Only the dispatcher demo account can switch roles.",
+          "Only the admin demo account can switch roles.",
         );
       }
 
@@ -206,12 +207,12 @@ export class DemoOperationsRepository implements OperationsRepository {
   ): Promise<Shipment> {
     return this.commit((state, occurredAt) => {
       const context = getSessionContext(state);
-      requireRole(context, "dispatcher", "Only dispatch can respond to a load tender.");
+      requireRole(context, "admin", "Only an admin can respond to a load tender.");
       const shipment = findShipment(state, shipmentId);
       const transitioned = transitionShipmentStatus(shipment, response, {
         eventId: this.nextId("event", occurredAt),
         occurredAt,
-        source: "dispatcher",
+        source: "admin",
       });
       let nextState = replaceShipment(state, transitioned, occurredAt);
       nextState = appendEdiTransaction(
@@ -237,7 +238,7 @@ export class DemoOperationsRepository implements OperationsRepository {
   ): Promise<Shipment> {
     return this.commit((state, occurredAt) => {
       const context = getSessionContext(state);
-      requireRole(context, "dispatcher", "Only dispatch can assign a shipment.");
+      requireRole(context, "admin", "Only an admin can assign a shipment.");
       const shipment = findShipment(state, shipmentId);
       if (shipment.status !== "accepted" && shipment.status !== "dispatched") {
         throw new OperationsDomainError(
@@ -314,10 +315,10 @@ export class DemoOperationsRepository implements OperationsRepository {
           "Use the exception report action to place a load in exception status.",
         );
       }
-      if ((nextStatus === "dispatched" || nextStatus === "cancelled") && context.effectiveRole !== "dispatcher") {
+      if ((nextStatus === "dispatched" || nextStatus === "cancelled") && context.effectiveRole !== "admin") {
         throw new OperationsDomainError(
           "UNAUTHORIZED",
-          "Only dispatch can dispatch or cancel a load.",
+          "Only an admin can dispatch or cancel a load.",
         );
       }
       if (nextStatus === "dispatched" && !shipment.assignedDriverId) {
@@ -573,7 +574,7 @@ export class DemoOperationsRepository implements OperationsRepository {
   ): Promise<ExceptionReport> {
     return this.commit((state, occurredAt) => {
       const context = getSessionContext(state);
-      requireRole(context, "dispatcher", "Only dispatch can resolve shipment exceptions.");
+      requireRole(context, "admin", "Only an admin can resolve shipment exceptions.");
       requireTrimmedText(resolutionNote, "Resolution note", 5, 1_000);
       const report = state.exceptions.find((candidate) => candidate.id === exceptionId);
       if (!report) {
@@ -587,7 +588,7 @@ export class DemoOperationsRepository implements OperationsRepository {
       const transitioned = transitionShipmentStatus(shipment, resumeStatus, {
         eventId: this.nextId("event", occurredAt),
         occurredAt,
-        source: "dispatcher",
+        source: "admin",
         description: resolutionNote.trim(),
         stopId: report.stopId,
       });
@@ -769,7 +770,7 @@ export class DemoOperationsRepository implements OperationsRepository {
       if (!message) {
         throw new OperationsDomainError("NOT_FOUND", "The message could not be found.");
       }
-      const canRead = context.effectiveRole === "dispatcher" ||
+      const canRead = context.effectiveRole === "admin" ||
         message.senderAccountId === context.account.id ||
         message.recipientAccountIds.includes(context.account.id);
       if (!canRead) {
@@ -874,7 +875,7 @@ function findShipment(state: DemoOperationsState, shipmentId: EntityId): Shipmen
 }
 
 function assertCanOperateShipment(context: SessionContext, shipment: Shipment): void {
-  if (context.effectiveRole === "dispatcher") {
+  if (context.effectiveRole === "admin") {
     return;
   }
   if (context.effectiveRole === "driver" && shipment.assignedDriverId === context.driverId) {
@@ -918,7 +919,7 @@ function assertDriverAssignable(
   if (conflict) {
     throw new OperationsDomainError(
       "VALIDATION_FAILED",
-      `The selected driver is already assigned to ${conflict.targetLoadId}.`,
+      `The selected driver is already assigned to ${conflict.loadNumber}.`,
       { shipmentId: conflict.id, driverId },
     );
   }
@@ -958,7 +959,7 @@ function assertEquipmentAssignable(
   if (conflict) {
     throw new OperationsDomainError(
       "VALIDATION_FAILED",
-      `The selected ${expectedKind} is already assigned to ${conflict.targetLoadId}.`,
+      `The selected ${expectedKind} is already assigned to ${conflict.loadNumber}.`,
       { shipmentId: conflict.id, equipmentId },
     );
   }
