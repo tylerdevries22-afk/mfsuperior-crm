@@ -135,3 +135,27 @@ git push origin codex/mobile-parity-v2
 ```
 
 Do not rewrite or force-push the branch. Stage explicit paths while another agent is editing the shared worktree, preserve unrelated user changes, and update this handoff after verification results or blockers change.
+
+## Copy/paste start for Claude Code or Kimi
+
+```text
+Continue the MF Superior Products parity rebuild in
+/Users/tylerdevries/Dev/mfsuperior-crm.
+
+1. Read AGENTS.md and HANDOFF_MOBILE_PARITY_V2.md completely.
+2. Stay on codex/mobile-parity-v2; run `git pull --ff-only` and confirm a clean tree.
+3. Keep the appliance reference pinned at 480991b7eb0036e4e85c37d3784b2de2ca97d10d.
+4. Start with Immediate next work item 1 (offline mutation contract alignment), unless Tyler changes priority.
+5. Run proportional tests, stage only verified files, commit each coherent slice, and push immediately. Never force-push.
+6. Do not claim native pixel parity: the canonical geometry conflict and missing current native captures remain open.
+7. Never claim any partner connection is live without credentials and successful UAT.
+```
+
+Fast health check before editing:
+
+```bash
+git status --short --branch
+git rev-parse HEAD
+cd mobile && npm run typecheck && npm run lint && npm test -- --watchman=false --forceExit
+cd .. && npm run typecheck && npm run lint && npm test
+```
