@@ -3,6 +3,7 @@
 Last updated: 2026-08-21  
 Working branch: `codex/mobile-parity-v2`  
 First durable checkpoint: `f8ec099`  
+Latest feature checkpoint at this update: `8d174e0`
 Remote: `origin` (`tylerdevries22-afk/mfsuperior-crm`)
 
 ## Objective and immutable baseline
@@ -12,9 +13,11 @@ Rebuild `mobile/` to match the Appliance Diagnostic Expo app screen-for-screen w
 - Repository: `/Users/tylerdevries/Dev/appliance-diagnostic-systems`
 - Mobile source: `/Users/tylerdevries/Dev/appliance-diagnostic-systems/artifacts/mobile`
 - Pinned commit: `480991b7eb0036e4e85c37d3784b2de2ca97d10d`
-- Canonical device: iPhone 16 Pro, 393×852 logical pixels, iOS 26, dark appearance, default text size, Expo Go
+- Requested canonical device: iPhone 16 Pro, 393×852 logical pixels, iOS 26, dark appearance, default text size, Expo Go
 
 Do not silently move the baseline to a later reference commit. Approved visual deviations are MF lime branding, freight terminology/data, original freight artwork, and semantic status colors.
+
+The native audit found an acceptance-contract conflict: Apple’s iPhone 16 Pro simulator on installed iOS 26.5 renders at 402×874 logical points (1206×2622 pixels), not 393×852. A future agent must get Tyler’s choice of physical device geometry before recording ±1-point/0.5% pixel acceptance; do not relabel a 402×874 capture as 393×852.
 
 ## Completed in the checkpoint
 
@@ -32,32 +35,50 @@ Do not silently move the baseline to a later reference commit. Approved visual d
 - Added seven honest partner capability contracts, a bounded X12 boundary for 204/990/214/210/997, safe adapter retry/idempotency rules, and file magic-byte/size validation.
 - Added `EXPO_PUBLIC_MOBILE_PARITY_V2=true` as a fail-closed production cutover gate.
 - Added machine-readable manifest and filesystem/partner/spec/detail contract tests.
+- Wired production bootstrap, shipment, and request hydration through `/api/mobile/v1` envelopes and the production state adapter; runtime role/identity is now derived from the server payload.
+- Neutralized Target-specific operational demo content and renamed mobile carrier fields/actions to provider-neutral freight names. Shipment detail responses now expose an explicit safe mobile projection rather than returning raw Target/EDI columns.
+- Switched Inter and icon imports to the exact used weights/families. The all-platform export now contains 74 assets/18 MB instead of 136 assets/35 MB.
+- Added verified-email customer self-registration as a `customer/pending` membership plus access request. Pending users can read/create only their own freight requests; MFA-authenticated admins can approve/reject idempotently, and approval links a same-tenant customer account before shipment access. Admins and drivers remain invitation-only.
 
 ## Verification already passing
 
 - Mobile TypeScript: `cd mobile && npm run typecheck`
 - Mobile ESLint: `cd mobile && npm run lint`
-- Focused mobile parity/network/adapter tests: 26/26
+- Complete mobile Jest suite: 16 suites, 77/77 assertions
 - Manifest and route contracts: 24/24 in the agent verification pass
+- Expo Doctor: 21/21 checks passed
+- Expo all-platform export: passed
+- iOS Hermes export: 3.9 MB; Android Hermes export: 4.2 MB; exported assets total: 18 MB
 - Backend partner/X12/security tests: 20/20
 - Backend TypeScript: passed with `npx tsc --noEmit --incremental false`
 - Backend focused authorization/API tests: 13/13
-- Earlier complete web test pass: 76 passed, 14 skipped
+- Complete web Vitest suite: 100 passed, 14 skipped
+- Web production build: `npx next build --webpack` passed, including TypeScript, static generation, and route collection
 - `git diff --check`: clean at checkpoint
 
 The Jest process can retain an Expo test handle after reporting success. Use `--watchman=false --forceExit` for the current suite and separately investigate with `--detectOpenHandles`; do not mistake the retained handle for a failing assertion.
 
+Known dependency-audit results: mobile has four high `image-size` findings through archived Metro tooling plus ten moderate Expo-tooling `uuid` findings; `npm audit fix --force` would incorrectly downgrade Expo to 46 and must not be used. Web has six moderate transitive advisories. Follow the approved vendor-guard/expiry-exception path if no compatible Expo/Metro patch is available.
+
+The default Turbopack production build panics in this Codex host while PostCSS tries to bind a helper port (`Operation not permitted`). The webpack production build succeeds, so this is currently classified as a host/Turbopack execution restriction rather than an application compile failure. Recheck the default build in CI/Vercel.
+
 ## Immediate next work, in order
 
-1. Finish wiring `mobile/store/ProductionOperationsRepository.ts` to the real `/api/mobile/v1` envelope and `productionStateAdapter.ts`. Current repository URLs and mutation shapes still reflect the earlier aggregate prototype.
-2. Align mobile offline queue kinds with backend versioned mutations for driver duty status, shipment status, location, exception, photo, signature, and POD. Preserve FIFO per shipment and conflict/idempotency semantics.
-3. Implement pending self-registered customer access: create a pending access request/membership through `/api/auth/sync`, allow request submission, and deny shipment visibility until an admin links a customer company.
-4. Make server-derived Neon membership role the UI role after sync. Supabase metadata must never authorize access.
-5. Remove the remaining legacy Target-shaped API response names from the mobile API; dual-read legacy DB columns may remain only for rollback migration.
-6. Finish tenant backfill/validation constraints for operational rows and seed the MF Superior organization plus the initial `info@mfsuperiorproducts.com` admin invitation.
-7. Run native reference/MF captures on iPhone 16 Pro and close measured typography/spacing/component diffs. Web screenshots are not a release substitute.
-8. Add Maestro journeys, screenshot masks/threshold checks, accessibility automation, Playwright staging coverage, mutation testing, health checks, and CI gates from the approved plan.
-9. Run the complete final suite: mobile lint/typecheck/Jest/Expo Doctor/export, web lint/typecheck/Vitest/build/Playwright, audits, secret scan, bundle and asset budgets.
+1. Align mobile offline queue kinds with the real backend endpoint (`v1/mutations`, not the prototype `v1/mobile/offline-mutations`) for driver duty status, shipment status, location, exception, photo, signature, and POD. Preserve FIFO per shipment and conflict/idempotency semantics.
+2. Wire the mobile auth callback/bootstrap to `/api/auth/sync` as its source of truth and render the new `pending_customer_approval` state. The backend pending-access policy is complete; Supabase metadata must never authorize UI or API access.
+3. Implement the production repository’s remaining online mutation/message routes. Bootstrap/list hydration is real, but several write URLs/shapes remain prototype-only and have no matching API route.
+4. Finish tenant backfill/validation constraints for operational rows and seed the MF Superior organization plus the initial `info@mfsuperiorproducts.com` admin invitation.
+5. Resolve the canonical simulator geometry, then capture both apps natively and close measured typography/spacing/component diffs. The current MF login sheet and monolithic role-home composition are source-inspection parity risks. Web screenshots are not a release substitute.
+6. Add Maestro journeys, screenshot masks/threshold checks, accessibility automation, Playwright staging coverage, mutation testing, health checks, and CI gates from the approved plan.
+7. Run the complete final suite after pending backend edits: mobile lint/typecheck/Jest/Expo Doctor/export, web lint/typecheck/Vitest/build/Playwright, audits, secret scan, bundle and asset budgets.
+
+## Native audit artifacts and reproducibility
+
+- Verified the pinned reference HEAD exactly and clean.
+- Repaired CoreSimulator/Watchman and created simulator `MF Parity iPhone 16 Pro` (`57C2A199-047B-4250-B159-62A113713DD7`), iOS 26.5, dark mode.
+- Reference Expo Go 54 cleared the native confirmation, then remained at 57.1% bundling for about 20 minutes and timed out. MF Expo Go 57 installation was bounded and stopped after 60 seconds, so there is no trustworthy current native MF baseline yet.
+- All Metro, Maestro, and installer processes started by the audit were stopped.
+- Local artifacts: `/tmp/mf-parity-simulator-home.png`, `/tmp/mf-parity-simulator-ready.png`, `/tmp/appliance-reference-launch.png`, `/tmp/appliance-reference-current.png`, `/tmp/mf-parity-final-runtime-state.png`, and `/tmp/mf-appliance-parity-contact-sheet.png`.
 
 ## External blockers requiring Tyler
 
@@ -74,6 +95,8 @@ npx vercel integration add supabase --name mf-superior-products-staging --plan f
 
 No Target private EDI companion guides, identifiers, transports, UAT package, or credentials are available. Target must remain labeled `Portal available · EDI onboarding required`. The other six surfaced partners remain `Credentials required` until successful UAT.
 
+The pending-customer migration/auth flow has compile and isolated test coverage but has not run against a real Supabase staging project plus Neon test branch because those services are not provisioned yet.
+
 ## Production environment contract
 
 Mobile public configuration:
@@ -89,14 +112,26 @@ Server configuration additionally needs Supabase server/storage credentials, `MO
 
 ## Git checkpoint protocol
 
+Durable pushed history for this rebuild:
+
+- `f8ec099` — initial freight parity V2 checkpoint
+- `d4a887e` — first resumable agent handoff
+- `a0e0bfe` — production mobile hydration
+- `d361870` — provider-neutral operational demo content
+- `b2a3287` — production driver-location action
+- `dc0e2f8` — Expo 57 worklets peer
+- `6966090` — safe provider-neutral shipment detail response
+- `6a18fef` — font/icon asset trimming
+- `8d174e0` — pending customer access policy and migration
+
 Continue on `codex/mobile-parity-v2`. After each coherent slice:
 
 ```bash
 git diff --check
 git status --short
-git add -A
+git add <verified-files-for-this-slice>
 git commit -m "feat: <specific parity slice>"
 git push origin codex/mobile-parity-v2
 ```
 
-Do not rewrite or force-push the branch. Preserve unrelated user changes. Update this handoff after verification results or blockers change.
+Do not rewrite or force-push the branch. Stage explicit paths while another agent is editing the shared worktree, preserve unrelated user changes, and update this handoff after verification results or blockers change.
