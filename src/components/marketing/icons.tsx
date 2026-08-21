@@ -1,11 +1,14 @@
+import Image from 'next/image';
 import React from 'react';
+import mfLogoMark from '../../../public/images/mf-logo-mark.png';
+import mfLogoText from '../../../public/images/mf-logo-text.png';
 
 type SVGProps = React.SVGProps<SVGSVGElement>;
 
 export function MFLogo({ className, width = 110, height = 66 }: { className?: string; width?: number; height?: number }) {
   return (
-    <img
-      src="/images/mf-logo-text.png?v=2"
+    <Image
+      src={mfLogoText}
       alt="MF Superior Products"
       width={width}
       height={height}
@@ -17,8 +20,8 @@ export function MFLogo({ className, width = 110, height = 66 }: { className?: st
 
 export function MFMark({ className, width = 60, height = 60 }: { className?: string; width?: number; height?: number }) {
   return (
-    <img
-      src="/images/mf-logo-mark.png?v=2"
+    <Image
+      src={mfLogoMark}
       alt="MF Superior Products"
       width={width}
       height={height}

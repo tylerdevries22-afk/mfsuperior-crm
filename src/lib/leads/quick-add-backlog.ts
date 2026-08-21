@@ -119,7 +119,7 @@ export async function refillBacklog(opts: {
 
   // 1. How many do we need?
   const existing = await backlogSize();
-  let toAdd = Math.max(0, opts.target - existing);
+  const toAdd = Math.max(0, opts.target - existing);
   if (toAdd === 0) {
     return { inserted: 0, viaWebsite: 0, viaHunter: 0, partial: false };
   }
@@ -250,8 +250,6 @@ export async function refillBacklog(opts: {
   await Promise.all(workers);
 
   const partial = accepted.length < toAdd && Date.now() - start >= deadline;
-  toAdd; // silence unused linter
-
   // 6. Bulk insert with conflict skip — race-safe in case another
   //    request also refilled while we were working.
   let inserted = 0;

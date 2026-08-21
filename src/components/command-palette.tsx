@@ -48,6 +48,12 @@ type SearchResults = {
   sequences: SequenceHit[];
 };
 
+const EMPTY_SEARCH_RESULTS: SearchResults = {
+  leads: [],
+  templates: [],
+  sequences: [],
+};
+
 type StaticItem = {
   kind: "route" | "action";
   label: string;
@@ -70,13 +76,16 @@ export function CommandPalette() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
-  const [results, setResults] = useState<SearchResults>({
-    leads: [],
-    templates: [],
-    sequences: [],
-  });
+  const [results, setResults] = useState<SearchResults>(EMPTY_SEARCH_RESULTS);
   const [activeIdx, setActiveIdx] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const openPalette = useCallback(() => {
+    setQ("");
+    setResults(EMPTY_SEARCH_RESULTS);
+    setActiveIdx(0);
+    setOpen(true);
+  }, []);
 
   // Open via ⌘K / Ctrl+K from anywhere. Close via Escape.
   useEffect(() => {
@@ -84,38 +93,34 @@ export function CommandPalette() {
       const cmd = e.metaKey || e.ctrlKey;
       if (cmd && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        setOpen((v) => !v);
+        if (open) setOpen(false);
+        else openPalette();
       } else if (e.key === "Escape" && open) {
         setOpen(false);
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [open]);
+  }, [open, openPalette]);
 
-  // Focus input on open + reset state.
+  // Focus the input after the modal mounts. State resets happen in the
+  // interaction that opens the palette, keeping this effect DOM-only.
   useEffect(() => {
-    if (open) {
-      setQ("");
-      setResults({ leads: [], templates: [], sequences: [] });
-      setActiveIdx(0);
-      // Wait for the modal to mount before focusing.
-      requestAnimationFrame(() => inputRef.current?.focus());
-    }
+    if (!open) return;
+    const frameId = requestAnimationFrame(() => inputRef.current?.focus());
+    return () => cancelAnimationFrame(frameId);
   }, [open]);
 
   // Debounced search. Skip the API for queries < 2 chars to avoid
   // pointless round-trips.
+  const trimmedQuery = q.trim();
   useEffect(() => {
-    if (q.trim().length < 2) {
-      setResults({ leads: [], templates: [], sequences: [] });
-      return;
-    }
+    if (trimmedQuery.length < 2) return;
     const ctrl = new AbortController();
     const t = setTimeout(async () => {
       try {
         const res = await fetch(
-          `/api/search?q=${encodeURIComponent(q.trim())}`,
+          `/api/search?q=${encodeURIComponent(trimmedQuery)}`,
           { signal: ctrl.signal },
         );
         if (!res.ok) return;
@@ -133,7 +138,7 @@ export function CommandPalette() {
       ctrl.abort();
       clearTimeout(t);
     };
-  }, [q]);
+  }, [trimmedQuery]);
 
   // Flatten everything into a single list for keyboard nav.
   type FlatItem =
@@ -143,7 +148,7 @@ export function CommandPalette() {
     | { kind: "sequence"; seq: SequenceHit };
 
   const flat: FlatItem[] = useMemo(() => {
-    const ql = q.trim().toLowerCase();
+    const ql = trimmedQuery.toLowerCase();
     const list: FlatItem[] = [];
     // Static routes filter to those whose label includes the query.
     for (const s of STATIC_ITEMS) {
@@ -151,11 +156,13 @@ export function CommandPalette() {
         list.push({ kind: "static", item: s });
       }
     }
-    for (const lead of results.leads) list.push({ kind: "lead", lead });
-    for (const tpl of results.templates) list.push({ kind: "template", tpl });
-    for (const seq of results.sequences) list.push({ kind: "sequence", seq });
+    if (ql.length >= 2) {
+      for (const lead of results.leads) list.push({ kind: "lead", lead });
+      for (const tpl of results.templates) list.push({ kind: "template", tpl });
+      for (const seq of results.sequences) list.push({ kind: "sequence", seq });
+    }
     return list;
-  }, [q, results]);
+  }, [results, trimmedQuery]);
 
   const onSelect = useCallback(
     (item: FlatItem) => {
@@ -191,7 +198,7 @@ export function CommandPalette() {
     return (
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={openPalette}
         aria-label="Open command palette"
         className="hidden md:inline-flex items-center gap-2 rounded-md border border-border bg-background px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-secondary/40"
       >

@@ -92,21 +92,25 @@ export function LeadDrawer({
   leadId: string | null;
   onClose: () => void;
 }) {
+  if (!leadId) return null;
+
+  return <LeadDrawerContent key={leadId} leadId={leadId} onClose={onClose} />;
+}
+
+function LeadDrawerContent({
+  leadId,
+  onClose,
+}: {
+  leadId: string;
+  onClose: () => void;
+}) {
   const [data, setData] = useState<Summary | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Refetch whenever the drawer is asked to display a different
-  // lead. Reset stale data on close so a quick open-close-open
-  // doesn't flash the previous lead.
+  // The keyed content remounts for each lead, so stale data cannot flash
+  // while the next summary request is in flight.
   useEffect(() => {
-    if (!leadId) {
-      setData(null);
-      setError(null);
-      return;
-    }
-    setLoading(true);
-    setError(null);
     const ctrl = new AbortController();
     fetch(`/api/leads/${leadId}/summary`, { signal: ctrl.signal })
       .then(async (res) => {
@@ -125,15 +129,12 @@ export function LeadDrawer({
 
   // Close on Escape from anywhere — matches Cmd-K palette ergonomics.
   useEffect(() => {
-    if (!leadId) return;
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [leadId, onClose]);
-
-  if (!leadId) return null;
 
   const lead = data?.lead ?? null;
   const fullName =

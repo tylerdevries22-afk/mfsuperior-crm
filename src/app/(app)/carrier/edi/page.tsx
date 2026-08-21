@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Card, CardContent } from "@/components/ui/card";
+import { ArrowDownLeft, ArrowUpRight, Radio, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Radio, Search, ArrowDownLeft, ArrowUpRight } from "lucide-react";
+import { fetchCarrierData } from "../_lib/api-client";
 
-interface EdiTx {
+interface EdiTransaction {
   id: string;
   transactionType: string;
   direction: string;
@@ -19,12 +20,15 @@ interface EdiTx {
   createdAt: string;
 }
 
-const statusColors: Record<string, string> = {
-  received: "bg-blue-500/20 text-blue-400 border-blue-500/30",
-  parsed: "bg-amber-500/20 text-amber-400 border-amber-500/30",
-  processed: "bg-green-500/20 text-green-400 border-green-500/30",
-  error: "bg-red-500/20 text-red-400 border-red-500/30",
-  acknowledged: "bg-cyan-500/20 text-cyan-400 border-cyan-500/30",
+const statusVariant: Record<
+  string,
+  "brand" | "warning" | "success" | "danger" | "neutral"
+> = {
+  received: "brand",
+  parsed: "warning",
+  processed: "success",
+  error: "danger",
+  acknowledged: "neutral",
 };
 
 const typeLabels: Record<string, string> = {
@@ -36,82 +40,123 @@ const typeLabels: Record<string, string> = {
 };
 
 export default function CarrierEdiPage() {
-  const [transactions, setTransactions] = useState<EdiTx[]>([]);
+  const [transactions, setTransactions] = useState<EdiTransaction[]>([]);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/carrier/edi")
-      .then((r) => r.json())
-      .then((d) => { setTransactions(Array.isArray(d) ? d : []); setLoading(false); })
-      .catch(() => setLoading(false));
+    let active = true;
+    fetchCarrierData<EdiTransaction[]>("/api/carrier/edi?limit=100")
+      .then((data) => {
+        if (active) setTransactions(data);
+      })
+      .catch((reason: unknown) => {
+        if (active) {
+          setError(
+            reason instanceof Error ? reason.message : "Unable to load EDI records.",
+          );
+        }
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
-  const filtered = transactions.filter((t) =>
-    (t.transactionType || "").includes(query) ||
-    (t.controlNumber || "").includes(query) ||
-    (t.senderId || "").toLowerCase().includes(query.toLowerCase())
+  const normalizedQuery = query.toLowerCase();
+  const filtered = transactions.filter(
+    (transaction) =>
+      transaction.transactionType.includes(query) ||
+      (transaction.controlNumber ?? "").includes(query) ||
+      (transaction.senderId ?? "").toLowerCase().includes(normalizedQuery),
   );
 
   return (
     <div className="space-y-6 p-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div>
-          <h1 className="text-2xl font-bold text-white">EDI Transaction Log</h1>
-          <p className="text-sm text-white/50">X12 inbound and outbound audit trail</p>
+          <h1 className="text-2xl font-bold text-white">EDI Audit Trail</h1>
+          <p className="text-sm text-white/50">
+            Recorded X12 workflow events; live Target EDI is not configured.
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <Search className="h-4 w-4 text-white/40" />
           <Input
-            placeholder="Search type, control #, sender..."
+            aria-label="Search EDI transactions"
+            placeholder="Search type, control #, sender…"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            className="w-64 bg-slate-900 border-slate-700 text-white placeholder:text-white/30"
+            onChange={(event) => setQuery(event.target.value)}
+            className="w-full border-slate-700 bg-slate-900 text-white sm:w-64"
           />
         </div>
       </div>
 
       {loading ? (
-        <p className="text-white/40 text-sm">Loading EDI transactions...</p>
-      ) : filtered.length === 0 ? (
-        <p className="text-white/40 text-sm">No EDI transactions found.</p>
-      ) : (
-        <div className="space-y-2">
-          {filtered.map((t) => {
-            const DirectionIcon = t.direction === "inbound" ? ArrowDownLeft : ArrowUpRight;
-            return (
-              <Card key={t.id} className="bg-slate-900 border-slate-800">
-                <CardContent className="p-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className={`p-1.5 rounded ${t.direction === "inbound" ? "bg-green-500/10" : "bg-blue-500/10"}`}>
-                        <DirectionIcon className={`h-4 w-4 ${t.direction === "inbound" ? "text-green-400" : "text-blue-400"}`} />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <Radio className="h-3 w-3 text-white/40" />
-                          <span className="text-sm font-medium text-white">{typeLabels[t.transactionType] || t.transactionType}</span>
-                          <Badge variant="outline" className={`text-xs ${statusColors[t.status] || "bg-slate-500/20 text-slate-400"}`}>
-                            {t.status}
-                          </Badge>
-                        </div>
-                        <p className="text-xs text-white/40">
-                          Control: {t.controlNumber || "—"} · Sender: {t.senderId || "—"} · Receiver: {t.receiverId || "—"}
-                          {t.shipmentId ? ` · Shipment #${t.shipmentId.slice(0, 8)}` : ""}
-                        </p>
-                      </div>
+        <p className="text-sm text-white/40">Loading EDI transactions…</p>
+      ) : null}
+      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      {!loading && !error && filtered.length === 0 ? (
+        <p className="text-sm text-white/40">No EDI transactions found.</p>
+      ) : null}
+
+      <div className="space-y-2">
+        {filtered.map((transaction) => {
+          const DirectionIcon =
+            transaction.direction === "inbound" ? ArrowDownLeft : ArrowUpRight;
+          return (
+            <Card
+              key={transaction.id}
+              className="border-slate-800 bg-slate-900"
+            >
+              <CardContent className="p-3">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="rounded bg-blue-500/10 p-1.5">
+                      <DirectionIcon className="h-4 w-4 text-blue-400" />
                     </div>
-                    <div className="text-right">
-                      <p className="text-xs text-white/30">{new Date(t.createdAt).toLocaleString()}</p>
-                      {t.errorMessage && <p className="text-xs text-red-400 mt-1">{t.errorMessage}</p>}
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Radio className="h-3 w-3 text-white/40" />
+                        <span className="text-sm font-medium text-white">
+                          {typeLabels[transaction.transactionType] ??
+                            transaction.transactionType}
+                        </span>
+                        <Badge
+                          variant={statusVariant[transaction.status] ?? "neutral"}
+                        >
+                          {transaction.status}
+                        </Badge>
+                      </div>
+                      <p className="truncate text-xs text-white/40">
+                        Control: {transaction.controlNumber ?? "—"} · Sender: {" "}
+                        {transaction.senderId ?? "—"} · Receiver: {" "}
+                        {transaction.receiverId ?? "—"}
+                        {transaction.shipmentId
+                          ? ` · Shipment #${transaction.shipmentId.slice(0, 8)}`
+                          : ""}
+                      </p>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      )}
+                  <div className="shrink-0 text-right">
+                    <p className="text-xs text-white/30">
+                      {new Date(transaction.createdAt).toLocaleString()}
+                    </p>
+                    {transaction.errorMessage ? (
+                      <p className="mt-1 text-xs text-destructive">
+                        {transaction.errorMessage}
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
     </div>
   );
 }

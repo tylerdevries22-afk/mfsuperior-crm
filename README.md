@@ -21,7 +21,7 @@ cp .env.example .env.local
 
 npm run env:check         # validates .env.local against src/lib/env.ts
 npm run db:generate
-npm run db:push
+npm run db:migrate
 npm run dev
 ```
 
@@ -59,7 +59,13 @@ deploy" bugs.
 
 `RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET`, `GMAIL_USER`, `DRIVE_FOLDER_ID`,
 `BUSINESS_MC`, `BUSINESS_USDOT`, `DAILY_SEND_CAP` (default 20), `WARMUP_DAYS`
-(default 7), `WARMUP_DAILY_CAP` (default 5).
+(default 7), `WARMUP_DAILY_CAP` (default 5), `CARRIER_DISPATCHER_EMAILS`, and
+`CARRIER_DEMO_MODE`.
+
+Carrier routes fail closed until `CARRIER_DISPATCHER_EMAILS` contains a
+comma-separated allowlist of Auth.js user emails. `CARRIER_DEMO_MODE=true`
+labels local EDI/GPS/geofence records as simulated; it never enables a live
+Target connection.
 
 ### Validate locally
 
@@ -135,6 +141,7 @@ Drive folder: open `drive.google.com`, create a folder for the CRM (e.g. "MFS CR
 | `npm run test:watch` | Vitest watch |
 | `npm run test:e2e` | Playwright E2E |
 | `npm run db:generate` | Drizzle migration SQL from schema |
+| `npm run db:migrate` | Apply committed Drizzle migrations to `DATABASE_URL` |
 | `npm run db:push` | Apply schema to `DATABASE_URL` (dev) |
 | `npm run db:studio` | Drizzle Studio |
 | `npm run env:check` | Validate `.env.local` against `src/lib/env.ts` |
@@ -246,4 +253,4 @@ Routes coming in subsequent build steps: `/leads`, `/leads/import`, `/sequences`
 
 ## Brand
 
-Visual identity matches the MF Superior Products logo: electric cobalt blue (`oklch(0.48 0.30 258)`, ~`#1747D6`) on near-black + white canvas. Tokens live in `src/app/globals.css`. Geist + Geist Mono throughout. No gradients, no chrome — daily-use CRM, not a marketing site.
+Visual identity matches the current MF Superior Products system: electric lime (`#D4E030`) on near-black and neutral canvases. Tokens live in `src/app/globals.css`. Geist + Geist Mono throughout. No gradients, no chrome — daily-use CRM, not a marketing site.

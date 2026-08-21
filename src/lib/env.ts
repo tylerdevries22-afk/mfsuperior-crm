@@ -30,6 +30,9 @@ const schema = z.object({
   WARMUP_DAYS: z.coerce.number().int().min(0).default(7),
   WARMUP_DAILY_CAP: z.coerce.number().int().positive().default(5),
 
+  CARRIER_DISPATCHER_EMAILS: z.string().min(1).optional(),
+  CARRIER_DEMO_MODE: z.enum(["true", "false"]).optional(),
+
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
 });
 

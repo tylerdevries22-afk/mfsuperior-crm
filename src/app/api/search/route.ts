@@ -1,4 +1,4 @@
-import { and, eq, ilike, isNull, or, sql } from "drizzle-orm";
+import { and, ilike, isNull, or, sql } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db/client";
 import { emailSequences, emailTemplates, leads } from "@/lib/db/schema";

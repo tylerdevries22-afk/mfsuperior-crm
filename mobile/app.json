@@ -1,0 +1,50 @@
+{
+  "expo": {
+    "name": "MF Superior",
+    "slug": "mfsuperior-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "mfsuperior",
+    "userInterfaceStyle": "automatic",
+    "backgroundColor": "#0E0F0C",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.mfsuperior.crm.demo"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#111315",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow MF Superior to attach a freight photo to this local demo.",
+          "cameraPermission": "Allow MF Superior to take a proof-of-delivery photo only when you choose to."
+        }
+      ],
+      "expo-asset",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow MF Superior to show foreground-only driver location updates in this local demo."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
+  }
+}

@@ -1,23 +1,106 @@
-import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { shipments, drivers } from "@/lib/db/schema";
-import { sql, and, gte, eq } from "drizzle-orm";
+import { sql } from "drizzle-orm";
+import { db } from "@/lib/db/client";
+import { drivers, shipments } from "@/lib/db/schema";
+import {
+  databaseErrorResponse,
+  requireCarrierDispatcher,
+  successResponse,
+} from "../_lib/http";
+
+type IntegrationStatus =
+  | "simulated"
+  | "not_configured"
+  | "connected"
+  | "degraded";
+
+function integrationHealth() {
+  // No live adapter exists in this repository. The only affirmative state we
+  // expose is an explicitly enabled local simulation; otherwise fail honest.
+  const status: IntegrationStatus =
+    process.env.CARRIER_DEMO_MODE === "true"
+      ? "simulated"
+      : "not_configured";
+
+  return [
+    { id: "edi_204", label: "Inbound X12 204 load tenders", status },
+    { id: "edi_214", label: "Shipment status events", status },
+    { id: "edi_990", label: "Outbound X12 990 responses", status },
+    { id: "driver_gps", label: "Driver GPS tracking", status },
+    { id: "geofences", label: "Geofence alerts", status },
+  ] as const;
+}
+
+async function loadDashboard() {
+  const [[shipmentMetrics], [driverMetrics]] = await Promise.all([
+    db
+      .select({
+        activeShipments: sql<number>`count(*) filter (
+          where ${shipments.status} not in ('delivered', 'cancelled')
+        )::int`,
+        todayDeliveries: sql<number>`count(*) filter (
+          where ${shipments.status} = 'delivered'
+          and (${shipments.deliveredAt} at time zone 'America/Denver')::date =
+            (now() at time zone 'America/Denver')::date
+        )::int`,
+        pendingTenders: sql<number>`count(*) filter (
+          where ${shipments.status} = 'tendered'
+        )::int`,
+        trackedDeliveries: sql<number>`count(*) filter (
+          where ${shipments.status} = 'delivered'
+          and ${shipments.deliveredAt} is not null
+          and ${shipments.estimatedDeliveryAt} is not null
+        )::int`,
+        onTimeDeliveries: sql<number>`count(*) filter (
+          where ${shipments.status} = 'delivered'
+          and ${shipments.deliveredAt} <= ${shipments.estimatedDeliveryAt}
+        )::int`,
+        avgTransitHours: sql<number | null>`avg(
+          extract(epoch from (${shipments.deliveredAt} - ${shipments.pickedUpAt})) / 3600
+        ) filter (
+          where ${shipments.deliveredAt} is not null
+          and ${shipments.pickedUpAt} is not null
+          and ${shipments.deliveredAt} >= ${shipments.pickedUpAt}
+        )`,
+      })
+      .from(shipments),
+    db
+      .select({
+        activeDrivers: sql<number>`count(*) filter (
+          where ${drivers.status} = 'on_duty'
+        )::int`,
+      })
+      .from(drivers),
+  ]);
+
+  const trackedDeliveries = Number(shipmentMetrics.trackedDeliveries);
+  const onTimeRate = trackedDeliveries
+    ? Math.round(
+        (Number(shipmentMetrics.onTimeDeliveries) / trackedDeliveries) * 1000,
+      ) / 10
+    : null;
+  const average = shipmentMetrics.avgTransitHours;
+
+  return {
+    metrics: {
+      activeShipments: Number(shipmentMetrics.activeShipments),
+      todayDeliveries: Number(shipmentMetrics.todayDeliveries),
+      activeDrivers: Number(driverMetrics.activeDrivers),
+      pendingTenders: Number(shipmentMetrics.pendingTenders),
+      onTimeRate,
+      avgTransitHours:
+        average === null ? null : Math.round(Number(average) * 10) / 10,
+    },
+    integrations: integrationHealth(),
+  };
+}
 
 export async function GET() {
-  const now = new Date();
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const authorization = await requireCarrierDispatcher();
+  if (!authorization.authorized) return authorization.response;
 
-  const [activeShipmentsRow] = await db.select({ count: sql<number>`count(*)` }).from(shipments).where(sql`${shipments.status} not in ('delivered','cancelled')`);
-  const [todayDeliveriesRow] = await db.select({ count: sql<number>`count(*)` }).from(shipments).where(and(eq(shipments.status, 'delivered'), gte(shipments.deliveredAt, todayStart)));
-  const [activeDriversRow] = await db.select({ count: sql<number>`count(*)` }).from(drivers).where(eq(drivers.status, 'on_duty'));
-  const [pendingTendersRow] = await db.select({ count: sql<number>`count(*)` }).from(shipments).where(eq(shipments.status, 'tendered'));
-
-  return NextResponse.json({
-    activeShipments: Number(activeShipmentsRow.count),
-    todayDeliveries: Number(todayDeliveriesRow.count),
-    onTimeRate: 0,
-    avgTransitHours: 0,
-    activeDrivers: Number(activeDriversRow.count),
-    pendingTenders: Number(pendingTendersRow.count),
-  });
+  try {
+    return successResponse(await loadDashboard());
+  } catch (error) {
+    return databaseErrorResponse(error, "dashboard.read");
+  }
 }

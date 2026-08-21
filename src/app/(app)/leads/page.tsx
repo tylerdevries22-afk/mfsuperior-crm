@@ -1,11 +1,9 @@
 import Link from "next/link";
 import { and, asc, desc, eq, ilike, inArray, isNotNull, isNull, or, sql, type SQL } from "drizzle-orm";
-import { Plus, Upload, Search, CheckCircle2, AlertTriangle, X as XIcon } from "lucide-react";
+import { Plus, Upload, Search } from "lucide-react";
 import { db } from "@/lib/db/client";
 import { emailSequences, leadSequenceEnrollments, leads } from "@/lib/db/schema";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { LeadsTable } from "@/components/leads/leads-table";
 import { FilterRail } from "@/components/leads/filter-rail";

@@ -43,6 +43,7 @@ yarn-error.log*
 # playwright artifacts
 /test-results/
 /playwright-report/
+/logs/
 
 # typescript
 *.tsbuildinfo

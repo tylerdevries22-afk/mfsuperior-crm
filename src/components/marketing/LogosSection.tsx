@@ -1,3 +1,5 @@
+import Image from 'next/image';
+
 interface Logo {
   src: string;
   alt: string;
@@ -110,20 +112,27 @@ export function LogosSection() {
                 borderRight: '1px solid #e5e5e5',
               }}
             >
-              <img
-                src={logo.src}
-                alt={logo.alt}
+              <span
                 style={{
-                  maxHeight: '36px',
-                  maxWidth: '110px',
-                  objectFit: 'contain',
-                  filter: 'grayscale(100%)',
-                  opacity: 0.6,
-                  width: 'auto',
-                  height: 'auto',
-                  transition: 'filter 0.3s, opacity 0.3s',
+                  position: 'relative',
+                  display: 'block',
+                  width: '110px',
+                  height: '36px',
                 }}
-              />
+              >
+                <Image
+                  src={logo.src}
+                  alt={logo.alt}
+                  fill
+                  sizes="110px"
+                  style={{
+                    objectFit: 'contain',
+                    filter: 'grayscale(100%)',
+                    opacity: 0.6,
+                    transition: 'filter 0.3s, opacity 0.3s',
+                  }}
+                />
+              </span>
             </div>
           ))}
         </div>

@@ -2,7 +2,6 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { and, isNull, sql } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import { leads, auditLog } from "@/lib/db/schema";
 import { auth } from "@/lib/auth";

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { RotateCw } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -29,17 +29,17 @@ export function InboxAutoRefresh() {
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date>(() => new Date());
+  const [currentTime, setCurrentTime] = useState<Date>(() => new Date());
   // Re-render every 5s so the "Xs ago" label stays current even when
   // the data underneath hasn't changed (otherwise the label freezes
   // until the next poll fires).
-  const [, setTick] = useState(0);
   const inFlightRef = useRef(false);
   const visibleRef = useRef(true);
 
   // Run a single refresh — guarded against overlap so a slow round-
   // trip doesn't pile up if the interval ticks again before it
   // returns.
-  const doRefresh = () => {
+  const doRefresh = useCallback(() => {
     if (inFlightRef.current) return;
     inFlightRef.current = true;
     setRefreshing(true);
@@ -51,9 +51,11 @@ export function InboxAutoRefresh() {
     setTimeout(() => {
       inFlightRef.current = false;
       setRefreshing(false);
-      setLastUpdated(new Date());
+      const refreshedAt = new Date();
+      setLastUpdated(refreshedAt);
+      setCurrentTime(refreshedAt);
     }, 700);
-  };
+  }, [router]);
 
   // Auto-poll loop. Skips ticks while the tab is hidden.
   useEffect(() => {
@@ -61,8 +63,7 @@ export function InboxAutoRefresh() {
       if (visibleRef.current) doRefresh();
     }, POLL_INTERVAL_MS);
     return () => window.clearInterval(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [doRefresh]);
 
   // Pause polling when the tab is hidden. Resume + refresh-once
   // when it becomes visible again so a returning operator sees
@@ -75,16 +76,15 @@ export function InboxAutoRefresh() {
     };
     document.addEventListener("visibilitychange", onVis);
     return () => document.removeEventListener("visibilitychange", onVis);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [doRefresh]);
 
   // Keep the "Xs ago" label fresh.
   useEffect(() => {
-    const id = window.setInterval(() => setTick((n) => n + 1), 5_000);
+    const id = window.setInterval(() => setCurrentTime(new Date()), 5_000);
     return () => window.clearInterval(id);
   }, []);
 
-  const ago = formatAgo(Date.now() - lastUpdated.getTime());
+  const ago = formatAgo(currentTime.getTime() - lastUpdated.getTime());
 
   return (
     <div className="flex items-center gap-2">

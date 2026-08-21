@@ -1,5 +1,6 @@
 import { desc, eq, sql } from "drizzle-orm";
 import { AlertTriangle, Mail, Wrench, Zap } from "lucide-react";
+import Link from "next/link";
 import { db } from "@/lib/db/client";
 import {
   auditLog,
@@ -34,8 +35,6 @@ export async function HealthTab({ sp }: { sp: AdminSearch }) {
   // shipped in the last 24h, grouped by metadataJson.provider.
   // Operators see "60 via Gmail, 0 via Resend" and know exactly
   // where to look in their dashboards.
-  const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
-
   const [
     [{ userCount }],
     suppressionRows,
@@ -70,7 +69,7 @@ export async function HealthTab({ sp }: { sp: AdminSearch }) {
                  COUNT(*)::int AS count
             FROM email_events
            WHERE event_type IN ('sent', 'draft_created')
-             AND occurred_at >= ${since24h}
+             AND occurred_at >= NOW() - INTERVAL '24 hours'
         GROUP BY metadata_json->>'provider'`,
     ),
   ]);
@@ -178,8 +177,8 @@ export async function HealthTab({ sp }: { sp: AdminSearch }) {
               No <span className="font-mono">RESEND_API_KEY</span> in
               env, so emails ship via the connected Gmail account.
               They <strong>will not appear</strong> in the Resend
-              dashboard — that's the most common "sent, but Resend
-              shows zero" symptom. Add{" "}
+              dashboard — that&apos;s the most common &quot;sent, but Resend
+              shows zero&quot; symptom. Add{" "}
               <span className="font-mono">RESEND_API_KEY</span> to{" "}
               <span className="font-mono">.env</span> + Vercel env if
               you want Resend to be the channel.
@@ -245,9 +244,9 @@ export async function HealthTab({ sp }: { sp: AdminSearch }) {
                 {Number(sp.bl_after ?? 0)}
               </span>{" "}
               rows.{" "}
-              <a href="/leads" className="underline">
+              <Link href="/leads" className="underline">
                 Open /leads to click Quick-add →
-              </a>
+              </Link>
             </p>
           ) : null}
         </CardContent>
@@ -300,9 +299,9 @@ export async function HealthTab({ sp }: { sp: AdminSearch }) {
                   : decodeURIComponent(sp.m_applied)}
               </span>
               .{" "}
-              <a href="/leads" className="underline">
+              <Link href="/leads" className="underline">
                 Open /leads to confirm.
-              </a>
+              </Link>
             </p>
           ) : null}
         </CardContent>

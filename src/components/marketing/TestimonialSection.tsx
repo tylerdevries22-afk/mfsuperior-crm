@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useEffect, useRef } from 'react';
 import { useMotionValue } from 'motion/react';
 import { CascadeText } from './CascadeText';
@@ -60,10 +61,13 @@ export function TestimonialSection() {
       }}
     >
       {/* Background photo — extra tall for parallax travel */}
-      <img
+      <Image
         ref={imgRef}
         src="/images/quote-image.jpg"
         alt="Winter forest with truck"
+        width={1970}
+        height={1314}
+        sizes="100vw"
         style={{
           position: 'absolute',
           top: '-10%',

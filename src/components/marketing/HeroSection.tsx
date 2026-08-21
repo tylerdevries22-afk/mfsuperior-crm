@@ -82,7 +82,6 @@ export function HeroSection() {
       // play() rejected (rare on muted video). Not fatal — the
       // rAF loop below still drives currentTime; the browser will
       // buffer on demand. Diagnostic only.
-      // eslint-disable-next-line no-console
       console.warn("[hero-scrub] play() prime rejected; proceeding with on-demand buffer.");
     });
 
