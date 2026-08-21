@@ -9,7 +9,7 @@ import {
   type StyleProp,
   type ViewStyle,
 } from "react-native";
-import { Feather } from "@expo/vector-icons";
+import Feather from "@expo/vector-icons/Feather";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ICON, makeStyles, RADIUS, SPACE, TYPO, useReducedMotion, useTheme } from "../../theme";

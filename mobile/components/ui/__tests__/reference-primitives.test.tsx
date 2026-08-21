@@ -17,12 +17,10 @@ import { Sheet } from "../Sheet";
 import { Timeline } from "../Timeline";
 import { WorkspaceCard } from "../WorkspaceCard";
 
-jest.mock("@expo/vector-icons", () => {
+jest.mock("@expo/vector-icons/Feather", () => {
   const mockReact = jest.requireActual<typeof import("react")>("react");
   const mockReactNative = jest.requireActual<typeof import("react-native")>("react-native");
-  return {
-    Feather: ({ name }: { name: string }) => mockReact.createElement(mockReactNative.Text, null, name),
-  };
+  return ({ name }: { name: string }) => mockReact.createElement(mockReactNative.Text, null, name);
 });
 
 const METRICS = {

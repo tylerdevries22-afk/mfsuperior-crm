@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { ActivityIndicator, Text, View, type StyleProp, type ViewStyle } from "react-native";
-import { Feather } from "@expo/vector-icons";
+import Feather from "@expo/vector-icons/Feather";
 
 import { ICON, makeStyles, RADIUS, SPACE, TYPO, useTheme } from "../../theme";
 import { Button } from "./Button";

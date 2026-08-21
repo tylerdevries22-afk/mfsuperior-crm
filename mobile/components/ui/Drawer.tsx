@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Feather } from "@expo/vector-icons";
+import Feather from "@expo/vector-icons/Feather";
 import {
   KeyboardAvoidingView,
   Modal,

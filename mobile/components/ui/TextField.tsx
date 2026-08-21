@@ -7,7 +7,7 @@ import {
   type TextInputProps,
   type ViewStyle,
 } from "react-native";
-import { Feather } from "@expo/vector-icons";
+import Feather from "@expo/vector-icons/Feather";
 
 import { ICON, makeStyles, RADIUS, SIZE, SPACE, TYPO, useTheme } from "../../theme";
 

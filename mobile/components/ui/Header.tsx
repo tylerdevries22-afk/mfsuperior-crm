@@ -1,5 +1,5 @@
 import type { ComponentProps, ReactNode } from "react";
-import { Feather } from "@expo/vector-icons";
+import Feather from "@expo/vector-icons/Feather";
 import {
   Image,
   Platform,

@@ -21,13 +21,16 @@ import { deltaPercent, StatTile } from "../StatTile";
 import { SearchField, TextArea, TextField } from "../TextField";
 import { AppText, Eyebrow, Heading, SectionTitle, Title } from "../Typography";
 
-jest.mock("@expo/vector-icons", () => {
+jest.mock("@expo/vector-icons/Feather", () => {
   const mockReact = jest.requireActual<typeof import("react")>("react");
   const mockReactNative = jest.requireActual<typeof import("react-native")>("react-native");
-  return {
-    Ionicons: ({ name }: { name: string }) => mockReact.createElement(mockReactNative.Text, null, name),
-    Feather: ({ name }: { name: string }) => mockReact.createElement(mockReactNative.Text, null, name),
-  };
+  return ({ name }: { name: string }) => mockReact.createElement(mockReactNative.Text, null, name);
+});
+
+jest.mock("@expo/vector-icons/Ionicons", () => {
+  const mockReact = jest.requireActual<typeof import("react")>("react");
+  const mockReactNative = jest.requireActual<typeof import("react-native")>("react-native");
+  return ({ name }: { name: string }) => mockReact.createElement(mockReactNative.Text, null, name);
 });
 
 const METRICS = {

@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import * as Battery from "expo-battery";
 import * as Location from "expo-location";
 import { useRouter } from "expo-router";
