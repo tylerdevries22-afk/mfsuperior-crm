@@ -34,6 +34,12 @@ import {
   type OfflineQueueHooks,
 } from "../lib/offline";
 import { isDemoOperationsState } from "./stateSchema";
+import {
+  buildProductionOperationsState,
+  type MobileBootstrapPayload,
+  type MobileFreightRequestRow,
+  type MobileShipmentRow,
+} from "./productionStateAdapter";
 
 export interface ProductionAuthGateway {
   getCurrentIdentity(): Promise<AuthIdentity | null>;
@@ -285,7 +291,19 @@ export class ProductionOperationsRepository implements OperationsRepository {
 
   private async refreshState(): Promise<void> {
     try {
-      const state = await this.apiClient.requestJson<DemoOperationsState>("/v1/mobile/operations");
+      const bootstrap = await this.apiClient.requestJson<MobileBootstrapPayload>("v1/bootstrap");
+      const [shipments, requests] = await Promise.all([
+        this.apiClient.requestJson<readonly MobileShipmentRow[]>("v1/shipments?limit=100"),
+        bootstrap.user.role === "driver"
+          ? Promise.resolve([])
+          : this.apiClient.requestJson<readonly MobileFreightRequestRow[]>("v1/requests?limit=100"),
+      ]);
+      const state = buildProductionOperationsState(
+        bootstrap,
+        shipments,
+        requests,
+        this.clock(),
+      );
       this.replaceState(requireProductionState(state, this.identity));
     } catch (error: unknown) {
       throw toDomainNetworkError(error);
@@ -397,8 +415,9 @@ function requireProductionState(
   if (!isDemoOperationsState(state) || state.accounts.some((account) => account.demoPin !== undefined)) {
     throw new OperationsDomainError("VALIDATION_FAILED", "The operations service returned invalid data.");
   }
-  if (!identity || state.session.effectiveRole !== identity.role) {
-    throw new OperationsDomainError("UNAUTHORIZED", "The operations role does not match this session.");
+  const account = state.accounts.find(({ id }) => id === state.session.accountId);
+  if (!identity || account?.email.trim().toLowerCase() !== identity.email.trim().toLowerCase()) {
+    throw new OperationsDomainError("UNAUTHORIZED", "The operations membership does not match this session.");
   }
   return state;
 }

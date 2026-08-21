@@ -81,7 +81,7 @@ describe("ProductionOperationsRepository", () => {
     expect(report.id).toMatch(/^id-/);
     expect(proof.status).toBe("submitted");
     expect(await queue.list()).toEqual([]);
-    expect(repository.getShipmentEdiTransactions("shipment-28471").length).toBeGreaterThan(0);
+    expect(repository.getShipmentEdiTransactions("shipment-28471")).toEqual([]);
     await repository.signOut();
     expect(repository.getState().session.accountId).toBeNull();
   });
@@ -149,7 +149,7 @@ function withoutDemoPin(account: OperationsAccount): OperationsAccount {
 
 function identityFor(role: "admin" | "driver", userId: string): AuthIdentity {
   return {
-    email: `${role}@example.com`,
+    email: `${role}@demo.mfsuperior.com`,
     mfa: { currentLevel: "aal2", factors: [], nextLevel: "aal2", status: "verified" },
     role,
     userId,
@@ -160,13 +160,91 @@ function createApiFetch(state: DemoOperationsState): typeof fetch {
   return async (input, init) => {
     const url = input.toString();
     if ((init?.method ?? "GET") === "GET") {
-      return jsonResponse(state);
+      if (url.includes("/v1/bootstrap")) return jsonResponse(envelope(bootstrapPayload(state)));
+      if (url.includes("/v1/shipments")) return jsonResponse(envelope(shipmentPayload(state)));
+      if (url.includes("/v1/requests")) return jsonResponse(envelope(requestPayload(state)));
     }
     if (url.endsWith("/offline-mutations")) {
       return jsonResponse({ accepted: true });
     }
     return jsonResponse({ result: resultForPath(state, url), state });
   };
+}
+
+function bootstrapPayload(state: DemoOperationsState) {
+  const account = state.accounts.find(({ id }) => id === state.session.accountId) ?? state.accounts[0];
+  if (!account) throw new Error("A test account is required.");
+  return {
+    integrations: state.integrations.map((integration) => ({
+      lastSucceededAt: integration.lastCheckedAt,
+      provider: integration.name,
+      status: integration.status === "simulated" ? "not_configured" : integration.status,
+    })),
+    organization: { id: "organization-mf", name: account.companyName },
+    referenceData: {
+      drivers: state.drivers.map((driver) => ({
+        currentLat: String(driver.currentLocation.latitude),
+        currentLng: String(driver.currentLocation.longitude),
+        email: driver.email,
+        firstName: driver.firstName,
+        id: driver.id,
+        lastName: driver.lastName,
+        licenseNumber: driver.licenseNumber,
+        licenseState: driver.licenseState,
+        locationUpdatedAt: driver.locationUpdatedAt,
+        phone: driver.phone,
+        status: driver.status,
+      })),
+    },
+    user: {
+      customerAccountId: account.customerId ?? null,
+      displayName: account.displayName,
+      driverId: account.driverId ?? null,
+      email: account.email,
+      id: account.id,
+      role: account.role,
+    },
+  };
+}
+
+function shipmentPayload(state: DemoOperationsState) {
+  return state.shipments.map((shipment) => ({
+    bolNumber: shipment.billOfLadingNumber,
+    commodity: shipment.commodity,
+    destination: shipment.stops.at(-1)?.address ?? {},
+    driverId: shipment.assignedDriverId ?? null,
+    equipmentType: shipment.equipmentType,
+    estimatedDeliveryAt: shipment.stops.at(-1)?.appointment.startsAt ?? null,
+    estimatedPickupAt: shipment.stops[0]?.appointment.startsAt ?? null,
+    id: shipment.id,
+    loadNumber: shipment.loadNumber,
+    origin: shipment.stops[0]?.address ?? {},
+    palletCount: shipment.palletCount,
+    proNumber: shipment.proNumber,
+    specialInstructions: shipment.specialInstructions,
+    status: shipment.status === "loaded" || shipment.status === "declined" ? "exception" : shipment.status,
+    updatedAt: shipment.updatedAt,
+    weightLbs: shipment.weightPounds,
+  }));
+}
+
+function requestPayload(state: DemoOperationsState) {
+  return state.requests.map((request) => ({
+    commodity: request.subject,
+    createdAt: request.requestedAt,
+    customerAccountId: request.customerId,
+    equipmentType: null,
+    id: request.id,
+    notes: request.details,
+    referenceNumber: request.subject,
+    shipmentId: request.shipmentId ?? null,
+    status: request.status === "scheduled" ? "booked" : request.status === "closed" ? "cancelled" : request.status,
+    updatedAt: request.updatedAt,
+  }));
+}
+
+function envelope(data: unknown) {
+  return { data, error: null, meta: { requestId: "server-request" } };
 }
 
 function resultForPath(state: DemoOperationsState, url: string): unknown {
