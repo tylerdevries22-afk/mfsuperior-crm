@@ -21,6 +21,7 @@ export { Header, type HeaderProps } from "./Header";
 export { IconButton, type IconButtonProps } from "./IconButton";
 export { KeyValueRow, List, ListRow, Row, type KeyValueRowProps, type ListProps, type ListRowProps } from "./List";
 export { AppModal, BottomSheet, type AppModalProps, type BottomSheetProps } from "./Overlay";
+export { PartnerLogo, type PartnerLogoProps, type PartnerLogoSize } from "./PartnerLogo";
 export {
   AnimatedPressable,
   PressableSurface,

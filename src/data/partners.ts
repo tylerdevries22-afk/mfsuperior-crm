@@ -186,6 +186,22 @@ export const PARTNERS: readonly Partner[] = [
     accent: "#012169",
   },
   {
+    slug: "north-park",
+    name: "North Park Transportation",
+    logo: "/partners/north-park.svg",
+    status: "target",
+    category: "ltl",
+    accent: "#123A6B",
+  },
+  {
+    slug: "warp",
+    name: "Warp",
+    logo: "/partners/warp.svg",
+    status: "target",
+    category: "broker",
+    accent: "#B8FF3C",
+  },
+  {
     slug: "dat",
     name: "DAT",
     logo: "/partners/dat.svg",
@@ -206,6 +222,38 @@ export const PARTNERS: readonly Partner[] = [
 /* ── Lookup helpers ───────────────────────────────────────────── */
 
 /**
+ * Ids other surfaces already use for a partner this directory names
+ * differently. The mobile connections list calls Target's program `target`
+ * where the directory calls it `target-carrier`; rather than force a rename on
+ * either side, `findPartner` resolves through here first.
+ *
+ * Keep this small — it exists for identifiers already in the wild, not as a
+ * general naming escape hatch.
+ */
+export const PARTNER_SLUG_ALIASES: Readonly<Record<string, string>> = {
+  target: "target-carrier",
+  "target-corporation": "target-carrier",
+  chrobinson: "ch-robinson",
+  "jb-hunt-360": "jb-hunt",
+  jbhunt: "jb-hunt",
+  uberfreight: "uber-freight",
+  "old-dominion-freight-line": "old-dominion",
+  odfl: "old-dominion",
+  "estes-express": "estes",
+  "estes-express-lines": "estes",
+  "home-depot-supply": "home-depot",
+  lowe: "lowes",
+  "truckstop-com": "truckstop",
+  nopk: "north-park",
+  "north-park-transportation": "north-park",
+};
+
+/** Canonical slug for an id that may be an alias. */
+export function canonicalPartnerSlug(slug: string): string {
+  return PARTNER_SLUG_ALIASES[slug] ?? slug;
+}
+
+/**
  * Resolve a slug against a partner list. Callers that render operator-editable
  * data pass the runtime list from `listPartners()`; callers that only need the
  * committed seed can omit it.
@@ -215,7 +263,11 @@ export function findPartner(
   partners: readonly Partner[] = PARTNERS,
 ): Partner | null {
   if (!slug) return null;
-  return partners.find((partner) => partner.slug === slug) ?? null;
+  const exact = partners.find((partner) => partner.slug === slug);
+  if (exact) return exact;
+  const canonical = canonicalPartnerSlug(slug);
+  if (canonical === slug) return null;
+  return partners.find((partner) => partner.slug === canonical) ?? null;
 }
 
 /** Brand colour for a partner, falling back to a neutral slate. */

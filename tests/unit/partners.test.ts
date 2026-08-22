@@ -48,11 +48,13 @@ describe("partner directory", () => {
         "home-depot",
         "jb-hunt",
         "lowes",
+        "north-park",
         "old-dominion",
         "roadie",
         "rxo",
         "truckstop",
         "uber-freight",
+        "warp",
         "xpo",
       ].sort(),
     );
@@ -125,6 +127,17 @@ describe("findPartner", () => {
     expect(findPartner("")).toBeNull();
     expect(findPartner(null)).toBeNull();
     expect(findPartner(undefined)).toBeNull();
+  });
+
+  it("resolves ids other surfaces already use, via the alias table", () => {
+    // The mobile connections list calls Target's program `target`.
+    expect(findPartner("target")?.slug).toBe("target-carrier");
+    expect(findPartner("odfl")?.slug).toBe("old-dominion");
+    expect(findPartner("nopk")?.slug).toBe("north-park");
+  });
+
+  it("prefers an exact slug over an alias of the same name", () => {
+    expect(findPartner("lowes")?.slug).toBe("lowes");
   });
 
   it("searches the supplied directory rather than the seed", () => {

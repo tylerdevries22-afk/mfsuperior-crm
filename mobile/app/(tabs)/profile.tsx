@@ -11,12 +11,14 @@ import {
   Header,
   KeyValueRow,
   ListRow,
+  PartnerLogo,
   Screen,
   SectionHeader,
   SegmentedControl,
   StatusBadge,
 } from "@/components/ui";
 import { toOperationsFailure } from "@/domain/errors";
+import { partnerForIntegration } from "@/domain/partners";
 import type { AppRole } from "@/domain/types";
 import { useOperations } from "@/store";
 import { ICON, RADIUS, SPACE, TYPO, useTheme } from "@/theme";
@@ -59,16 +61,28 @@ function IntegrationList() {
   const { state } = useOperations();
   return (
     <Card padding="none">
-      {state.integrations.map((integration, index) => (
-        <ListRow
-          isLast={index === state.integrations.length - 1}
-          key={integration.id}
-          leading={<Ionicons color={integration.isSimulation ? theme.warning : theme.textMuted} name={integration.isSimulation ? "flask-outline" : "unlink-outline"} size={ICON.md} />}
-          subtitle={integration.summary}
-          title={integration.name}
-          trailing={<StatusBadge size="sm" status={integration.status} />}
-        />
-      ))}
+      {state.integrations.map((integration, index) => {
+        // Connections that belong to a partner in the directory lead with that
+        // partner's logo; the rest (driver GPS, geofences) keep their icon,
+        // because a monogram tile there would imply a company that isn't one.
+        const partner = partnerForIntegration(integration.id, integration.name);
+        return (
+          <ListRow
+            isLast={index === state.integrations.length - 1}
+            key={integration.id}
+            leading={
+              partner ? (
+                <PartnerLogo partner={partner} size="md" slug={partner.slug} />
+              ) : (
+                <Ionicons color={integration.isSimulation ? theme.warning : theme.textMuted} name={integration.isSimulation ? "flask-outline" : "unlink-outline"} size={ICON.md} />
+              )
+            }
+            subtitle={integration.summary}
+            title={integration.name}
+            trailing={<StatusBadge size="sm" status={integration.status} />}
+          />
+        );
+      })}
     </Card>
   );
 }
