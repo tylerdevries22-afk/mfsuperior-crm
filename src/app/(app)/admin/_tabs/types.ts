@@ -100,6 +100,8 @@ export type AdminSearch = {
   g50_dur?: string;
   g50_sequence?: string;
   g50_error?: string;
+  // ── Partner directory (status toggle, logo upload) ───────────
+  partnerResult?: string;
   // ── Move all stage=new → /contacts ───────────────────────────
   moved_to_contacts?: string;
   mtc_count?: string;

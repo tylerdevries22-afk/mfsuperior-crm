@@ -6,6 +6,7 @@ import {
 import { HealthTab } from "./_tabs/health";
 import { ImportsTab } from "./_tabs/imports";
 import { OperationsTab } from "./_tabs/operations";
+import { PartnersTab } from "./_tabs/partners";
 import { SuppressionTab } from "./_tabs/suppression";
 import { TickTab } from "./_tabs/tick";
 import type { AdminSearch } from "./_tabs/types";
@@ -54,6 +55,8 @@ export default async function AdminPage({
                   "Bulk operations on leads — archive, restore, validate, fix.",
                 imports:
                   "Bring new candidates into the CRM via curated batches or live discovery.",
+                partners:
+                  "Brokers, retailer programs, and load boards — logos, status, and uploads.",
                 suppression:
                   "Email addresses the engine must never contact again.",
                 health: "Connection status, orphans, and the recent audit log.",
@@ -70,6 +73,7 @@ export default async function AdminPage({
       {active === "tick" && <TickTab sp={sp} />}
       {active === "operations" && <OperationsTab sp={sp} />}
       {active === "imports" && <ImportsTab sp={sp} />}
+      {active === "partners" && <PartnersTab sp={sp} />}
       {active === "suppression" && <SuppressionTab />}
       {active === "health" && <HealthTab sp={sp} />}
     </div>
