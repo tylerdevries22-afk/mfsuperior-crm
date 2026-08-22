@@ -1,4 +1,4 @@
-import { createDemoOperationsState } from "@/domain/fixtures";
+import { anchorDemoStateTo, createDemoOperationsState } from "@/domain/fixtures";
 import type { Shipment } from "@/domain/types";
 import {
   addDays,
@@ -94,5 +94,50 @@ describe("driver identity", () => {
     const assigned = getAssignedDrivers({ ...shipment, assignedDriverId: driverId }, state.drivers);
     expect(assigned.map((d) => d.id)).toEqual([driverId]);
     expect(getAssignedDrivers({ ...shipment, assignedDriverId: undefined }, state.drivers)).toEqual([]);
+  });
+});
+
+describe("demo timeline anchoring", () => {
+  it("moves the fixture timeline onto the current day without disturbing shape", () => {
+    const canonical = createDemoOperationsState();
+    const anchored = anchorDemoStateTo(canonical, new Date("2027-03-09T12:00:00.000Z"));
+
+    expect(anchored.shipments).toHaveLength(canonical.shipments.length);
+    const before = canonical.shipments[0].stops.map((s) => s.appointment.startsAt);
+    const after = anchored.shipments[0].stops.map((s) => s.appointment.startsAt);
+
+    // Whole-day shift: times of day and inter-stop gaps survive exactly.
+    const gapsBefore = before.slice(1).map((v, i) => Date.parse(v) - Date.parse(before[i]));
+    const gapsAfter = after.slice(1).map((v, i) => Date.parse(v) - Date.parse(after[i]));
+    expect(gapsAfter).toEqual(gapsBefore);
+    expect(new Date(after[0]).getUTCHours()).toBe(new Date(before[0]).getUTCHours());
+    expect(new Date(after[0]).getUTCMinutes()).toBe(new Date(before[0]).getUTCMinutes());
+
+    // The shift is by whole days only.
+    const deltaMs = Date.parse(after[0]) - Date.parse(before[0]);
+    expect(deltaMs % (24 * 60 * 60 * 1000)).toBe(0);
+    expect(deltaMs).toBeGreaterThan(0);
+  });
+
+  it("leaves non-timestamp strings alone", () => {
+    const anchored = anchorDemoStateTo(createDemoOperationsState(), new Date("2027-03-09T12:00:00.000Z"));
+    expect(anchored.drivers[0].id).toBe("driver-brenna");
+    expect(anchored.drivers[0].licenseNumber).toBe("CO-DMO-48271");
+    expect(anchored.shipments[0].loadNumber).toBe(createDemoOperationsState().shipments[0].loadNumber);
+  });
+
+  it("is a no-op when the clock already sits on the fixture anchor", () => {
+    const canonical = createDemoOperationsState();
+    expect(anchorDemoStateTo(canonical, new Date("2026-08-20T13:00:00.000Z"))).toBe(canonical);
+  });
+
+  it("puts at least one load on today for any current date", () => {
+    const anchored = anchorDemoStateTo(createDemoOperationsState(), new Date());
+    const todayKey = formatDateKey(new Date());
+    const startsToday = anchored.shipments.some((s) => {
+      const start = scheduledStart(s);
+      return start !== null && formatDateKey(new Date(start)) === todayKey;
+    });
+    expect(startsToday).toBe(true);
   });
 });

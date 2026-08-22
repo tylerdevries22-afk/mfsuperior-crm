@@ -2,7 +2,7 @@ import {
   OperationsDomainError,
   toOperationsFailure,
 } from "../domain/errors";
-import { createDemoOperationsState } from "../domain/fixtures";
+import { anchorDemoStateTo, createDemoOperationsState } from "../domain/fixtures";
 import type {
   HydrationResult,
   OperationsRepository,
@@ -73,7 +73,7 @@ const RESERVED_SHIPMENT_STATUSES = new Set<ShipmentStatus>([
 
 export class DemoOperationsRepository implements OperationsRepository {
   readonly mode = "demo" as const;
-  private state: DemoOperationsState = createDemoOperationsState();
+  private state: DemoOperationsState;
   private readonly persistence: PersistenceAdapter;
   private readonly clock: () => string;
   private readonly listeners = new Set<OperationsStateListener>();
@@ -83,6 +83,16 @@ export class DemoOperationsRepository implements OperationsRepository {
   constructor(options: DemoOperationsRepositoryOptions = {}) {
     this.persistence = options.persistence ?? new AsyncStoragePersistenceAdapter();
     this.clock = options.clock ?? (() => new Date().toISOString());
+    this.state = this.freshState();
+  }
+
+  /**
+   * The fixture timeline is anchored onto the current day so a long-lived demo
+   * never drifts entirely into the past. Anchoring reads the injected clock, so
+   * a test pinning the clock to the fixture anchor sees the canonical data.
+   */
+  private freshState(): DemoOperationsState {
+    return anchorDemoStateTo(createDemoOperationsState(), new Date(this.clock()));
   }
 
   hydrate(): Promise<HydrationResult> {
@@ -99,7 +109,7 @@ export class DemoOperationsRepository implements OperationsRepository {
         return { state: this.state, recoveryFailure: null };
       } catch (error: unknown) {
         const failure = toOperationsFailure(error);
-        const fallbackState = createDemoOperationsState();
+        const fallbackState = this.freshState();
 
         if (
           !(error instanceof OperationsDomainError) ||
@@ -192,7 +202,7 @@ export class DemoOperationsRepository implements OperationsRepository {
 
   resetDemo(): Promise<DemoOperationsState> {
     return this.enqueue(async () => {
-      const resetState = createDemoOperationsState();
+      const resetState = this.freshState();
       await this.persistence.write(serializeDemoOperationsState(resetState));
       this.state = resetState;
       this.idSequence = 0;

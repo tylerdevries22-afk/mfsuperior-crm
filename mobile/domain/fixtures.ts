@@ -796,3 +796,62 @@ function cloneShipment(shipment: Shipment): Shipment {
     })),
   };
 }
+
+/**
+ * The fixture timeline is anchored to a fixed date so tests stay deterministic.
+ * A running demo, though, should always look current: without this the schedule
+ * drifts further into the past every day until "Today" is permanently empty.
+ *
+ * The shift is a whole number of days, so every time-of-day and every gap
+ * between records is preserved exactly — only the calendar dates move, placing
+ * the fixture's "today" on the real today.
+ */
+const ISO_TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/;
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+/**
+ * Counted in **local** calendar days, because every screen groups by local
+ * date. Measuring in UTC days lands the fixture's "today" on tomorrow for any
+ * timezone behind UTC.
+ */
+export function demoDayOffset(now: Date, anchor: string = FIXTURE_NOW): number {
+  const localMidnight = (d: Date) =>
+    Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / MS_PER_DAY;
+  return localMidnight(now) - localMidnight(new Date(anchor));
+}
+
+function shiftIso(value: string, days: number): string {
+  return new Date(new Date(value).getTime() + days * MS_PER_DAY).toISOString();
+}
+
+function shiftDeep<T>(value: T, days: number): T {
+  if (typeof value === "string") {
+    return (ISO_TIMESTAMP.test(value) ? shiftIso(value, days) : value) as T;
+  }
+  if (Array.isArray(value)) {
+    return value.map((entry) => shiftDeep(entry, days)) as unknown as T;
+  }
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([key, entry]) => [
+        key,
+        shiftDeep(entry, days),
+      ]),
+    ) as T;
+  }
+  return value;
+}
+
+/**
+ * Returns the state with every fixture timestamp moved onto the current day.
+ * A zero offset returns the input untouched, so tests that pin the clock to the
+ * fixture anchor see exactly the canonical data.
+ */
+export function anchorDemoStateTo(
+  state: DemoOperationsState,
+  now: Date = new Date(),
+): DemoOperationsState {
+  const days = demoDayOffset(now);
+  if (days === 0) return state;
+  return shiftDeep(state, days);
+}
