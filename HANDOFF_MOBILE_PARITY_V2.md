@@ -3,7 +3,7 @@
 Last updated: 2026-08-21  
 Working branch: `codex/mobile-parity-v2`  
 First durable checkpoint: `f8ec099`  
-Latest feature checkpoint at this update: `2e8d680`
+Latest feature checkpoint at this update: `7c1a0d6`
 Remote: `origin` (`tylerdevries22-afk/mfsuperior-crm`)
 
 ## Objective and immutable baseline
@@ -46,6 +46,8 @@ The native audit found an acceptance-contract conflict: Apple’s iPhone 16 Pro 
 - Added tenant-scoped operational messaging (`operations_messages`, `operations_message_reads`) in additive migration `0008_operations_messages.sql`, plus a bootstrap contact directory scoped by role (admins see the active roster, drivers and customers see only admins).
 - Added `freight_requests.subject` and `freight_requests.request_type` in additive migration `0009_freight_request_intake.sql` so mobile request intake round-trips faithfully instead of overloading `reference_number`/`commodity`. The mobile request form now collects the pickup and delivery addresses the API requires.
 - Made the surfaces with no production backing fail closed instead of posting to URLs that do not exist: intermediate-stop advance and tractor/trailer assignment now raise structured domain errors.
+- Made the operational tenant boundary structural instead of application-only in additive migration `0010_tenant_backfill_constraints.sql`. `carriers.organization_id` and `shipments.carrier_id` are now non-null, `shipments` carries an `organization_id` tenant pin, and composite foreign keys make it impossible for a shipment to name another tenant's carrier, for a shipment to name another carrier's driver, or for `customer_shipment_access` / `freight_documents` / `shipment_external_references` to name a shipment outside their own organization. The backfill gives an orphan carrier its own **suspended** organization so the row survives without granting anyone access, and refuses to guess a tenant for a carrier-less shipment.
+- Added `scripts/seed-mf-superior.ts` (`npm run tenant:seed`): an idempotent seed for the MF Superior Products organization, its carrier profile, and the initial `info@mfsuperiorproducts.com` admin invitation. It mints an invitation rather than a membership, so admins stay invitation-only, prints the raw token exactly once because only the SHA-256 hash is stored, and refuses to rewrite an existing SCAC or reactivate a non-active organization.
 
 ## Verification already passing (re-run at this checkpoint)
 
@@ -56,8 +58,10 @@ Re-run and green at this checkpoint:
 - Complete mobile Jest suite: 17 suites, 87/87 assertions
 - Backend TypeScript: `npx tsc --noEmit --incremental false` — clean
 - Web ESLint: `npm run lint` — zero warnings
-- Complete web Vitest suite: 103 passed, 14 skipped (13 files, 2 skipped)
+- Complete web Vitest suite: 118 passed, 14 skipped (14 files, 2 skipped)
 - Backend mobile-API contract tests (`tests/unit/carrier-api.test.ts`): 20/20
+- Tenant provisioning and boundary tests (`tests/unit/tenant-provisioning.test.ts`): 15/15, covering the invitation token/TTL contract, the Drizzle-level tenant constraints, and migration `0010`'s backfill and constraint ordering
+- `drizzle-kit generate` reports no drift between `src/lib/db/*schema.ts` and the `0010` snapshot
 - `git diff --check`: clean at checkpoint
 
 Carried forward from the prior checkpoint and **not** re-run at this one:
@@ -76,12 +80,12 @@ The default Turbopack production build panics in this Codex host while PostCSS t
 
 ## Immediate next work, in order
 
-Items 1, 2, and 3 are complete and pushed. The remaining order is:
+Items 1 through 4 are complete and pushed. The remaining order is:
 
 1. **(Done)** Offline queue aligned with `v1/mutations`.
 2. **(Done)** `/api/auth/sync` is the mobile identity source of truth and `pending_customer_approval` renders.
 3. **(Done)** Production online mutation/message routes implemented; the only writes that still refuse are the two with no server-side model (intermediate stops, tractor/trailer assignment), and they now fail closed with structured errors instead of hitting missing URLs.
-4. Finish tenant backfill/validation constraints for operational rows and seed the MF Superior organization plus the initial `info@mfsuperiorproducts.com` admin invitation. Migrations `0008` and `0009` are generated but have not been applied to any database — no Neon/Supabase project is provisioned yet.
+4. **(Done, unapplied)** Tenant backfill/validation constraints landed as migration `0010_tenant_backfill_constraints.sql`, and `npm run tenant:seed` provisions the MF Superior organization, its carrier, and the first admin invitation. Migrations `0008`, `0009`, and `0010` are generated but have **not been applied to any database**, and the seed has **never been executed**, because no Neon/Supabase project is provisioned yet. The seed additionally needs the real `MF_SUPERIOR_SCAC` from Tyler.
 5. Resolve the canonical simulator geometry, then capture both apps natively and close measured typography/spacing/component diffs. The current MF login sheet and monolithic role-home composition are source-inspection parity risks. Web screenshots are not a release substitute.
 6. Add Maestro journeys, screenshot masks/threshold checks, accessibility automation, Playwright staging coverage, mutation testing, health checks, and CI gates from the approved plan.
 7. Run the complete final suite after pending backend edits: mobile lint/typecheck/Jest/Expo Doctor/export, web lint/typecheck/Vitest/build/Playwright, audits, secret scan, bundle and asset budgets.
@@ -92,6 +96,9 @@ Items 1, 2, and 3 are complete and pushed. The remaining order is:
 - `shipments.intermediate_stops` exists as JSONB but nothing writes it and the mobile projection only builds a pickup and a delivery stop, so `advanceIntermediateStop` fails closed rather than pretending.
 - There is no server-side equipment registry, so `assignShipment` refuses tractor/trailer ids rather than dropping them silently.
 - Messaging is tenant-scoped to sender plus listed recipients; admins deliberately do not get a blanket read over private threads.
+- `shipment_events`, `driver_locations`, and `driver_status_events` inherit tenancy transitively through non-null foreign keys to `shipments` and `drivers`, which are themselves tenant-pinned by migration `0010`. They carry no tenant column of their own, so a telemetry row naming a driver from one carrier and a shipment from another is still blocked only by the application check, not by a database constraint. Closing that would require either a denormalized `carrier_id` on each table or a trigger; neither is in place.
+- Migration `0010` gives an orphan carrier a **suspended** organization rather than an active one. That is deliberate — no one gains access from a backfill — but an operator must consciously activate such an organization before its carrier is usable.
+- `scripts/seed-mf-superior.ts` requires `MF_SUPERIOR_SCAC` and has no default. A placeholder SCAC would end up in EDI envelopes, so the script fails closed instead.
 
 ## Native audit artifacts and reproducibility
 
@@ -118,6 +125,17 @@ No Target private EDI companion guides, identifiers, transports, UAT package, or
 
 The pending-customer migration/auth flow has compile and isolated test coverage but has not run against a real Supabase staging project plus Neon test branch because those services are not provisioned yet.
 
+Tyler must also supply the real NMFTA-assigned Standard Carrier Alpha Code for MF Superior Products as `MF_SUPERIOR_SCAC` before `npm run tenant:seed` can run. The script deliberately has no default because the SCAC is stamped into EDI envelopes.
+
+Once the database exists, the first-tenant sequence is:
+
+```bash
+npm run db:migrate                                  # applies 0008, 0009, and 0010
+MF_SUPERIOR_SCAC=<real-scac> npm run tenant:seed    # prints the admin token once
+```
+
+The seed prints the raw invitation token exactly once, because only its SHA-256 hash is stored. Deliver it to `info@mfsuperiorproducts.com` over a channel they control; they redeem it by signing in and calling `POST /api/auth/sync` with `{ "invitationToken": "<token>" }`.
+
 ## Production environment contract
 
 Mobile public configuration:
@@ -130,6 +148,11 @@ EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=YOUR_PUBLISHABLE_KEY
 ```
 
 Server configuration additionally needs Supabase server/storage credentials, `MOBILE_ALLOWED_ORIGINS`, Resend SMTP settings, encryption key/version settings, Neon `DATABASE_URL`, and the private storage bucket. Never put a Supabase service-role key in Expo public variables.
+
+Tenant configuration:
+
+- `CUSTOMER_SELF_REGISTRATION_ORGANIZATION_SLUG` — optional; defaults to `mf-superior`, which is the slug `npm run tenant:seed` creates. Overriding it without seeding the matching organization strands every self-registered customer.
+- `MF_SUPERIOR_SCAC` — seed-script only, required, no default. Not read at runtime.
 
 ## Git checkpoint protocol
 
@@ -147,6 +170,7 @@ Durable pushed history for this rebuild:
 - `1530fab` — offline queue aligned with the `v1/mutations` contract
 - `1d08122` — mobile identity derived from `/api/auth/sync` plus the pending-customer surface
 - `2e8d680` — production online mutation and message routes
+- `7c1a0d6` — operational tenant constraints and first-organization seed
 
 Continue on `codex/mobile-parity-v2`. After each coherent slice:
 
@@ -178,7 +202,7 @@ Branch: codex/mobile-parity-v2  (never force-push, never rewrite history)
    Approved deviations: MF lime branding, freight terminology/data, original
    freight artwork, semantic status colors.
 4. Work "Immediate next work, in order" from the first item still marked open.
-   Items 1-3 are complete and pushed; start at item 4 unless Tyler says otherwise.
+   Items 1-4 are complete and pushed; start at item 5 unless Tyler says otherwise.
 5. Run proportional tests after each coherent change. Zero lint warnings is a
    hard gate, not a goal:
      cd mobile && npm run typecheck && npm run lint && npm test -- --watchman=false --forceExit
@@ -197,8 +221,11 @@ Branch: codex/mobile-parity-v2  (never force-push, never rewrite history)
    - Do not claim any partner connection is live without real credentials and a
      successful UAT. Target stays "Portal available - EDI onboarding required";
      the other six partners stay "Credentials required".
-   - Migrations 0008 and 0009 are generated but have never run against a real
-     database. Do not report them as applied.
+   - Migrations 0008, 0009, and 0010 are generated but have never run against
+     a real database, and `npm run tenant:seed` has never been executed. Do not
+     report them as applied, and do not report the MF Superior organization,
+     its carrier, or the info@mfsuperiorproducts.com admin invitation as
+     existing anywhere.
 9. Ask Tyler only when an external credential, service approval, production
    authorization, or unresolved product decision is genuinely required.
    The open external blockers are listed under "External blockers requiring Tyler".
@@ -213,10 +240,11 @@ Continue the MF Superior Products parity rebuild in
 1. Read AGENTS.md and HANDOFF_MOBILE_PARITY_V2.md completely.
 2. Stay on codex/mobile-parity-v2; run `git pull --ff-only` and confirm a clean tree.
 3. Keep the appliance reference pinned at 480991b7eb0036e4e85c37d3784b2de2ca97d10d.
-4. Start with Immediate next work item 1 (offline mutation contract alignment), unless Tyler changes priority.
+4. Start with Immediate next work item 5 (canonical simulator geometry), unless Tyler changes priority. Items 1-4 are complete and pushed.
 5. Run proportional tests, stage only verified files, commit each coherent slice, and push immediately. Never force-push.
 6. Do not claim native pixel parity: the canonical geometry conflict and missing current native captures remain open.
 7. Never claim any partner connection is live without credentials and successful UAT.
+8. Migrations 0008/0009/0010 and `npm run tenant:seed` have never touched a real database. Do not report them as applied.
 ```
 
 Fast health check before editing:
