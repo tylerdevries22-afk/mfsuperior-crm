@@ -16,6 +16,10 @@ function safeFileName(fileName: string): string {
     .replace(/[^A-Za-z0-9._-]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(-120);
+  // Path separators are already stripped above, but a name of "." or ".."
+  // would still be a relative path segment. Neither is a usable object key,
+  // so collapse them rather than reason about how storage normalizes them.
+  if (normalized === "." || normalized === "..") return "document";
   return normalized || "document";
 }
 

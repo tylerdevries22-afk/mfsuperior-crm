@@ -635,4 +635,21 @@ describe("resilience and idempotency", () => {
       storagePathFor(organizationId, userId, "../../ Signed BOL (1).pdf"),
     ).toBe(`${organizationId}/${userId}/..-..-Signed-BOL-1-.pdf`);
   });
+
+  it("keeps a hostile file name inside the tenant's storage prefix", () => {
+    const org = "550e8400-e29b-41d4-a716-446655440000";
+    const doc = "550e8400-e29b-41d4-a716-446655440009";
+    for (const [input, expected] of [
+      // Separators collapse to "-", so traversal becomes one flat segment.
+      ["../../etc/passwd", "..-..-etc-passwd"],
+      ["..", "document"],
+      [".", "document"],
+      ["", "document"],
+      ["a/b\\c.pdf", "a-b-c.pdf"],
+    ] as const) {
+      const path = storagePathFor(org, doc, input);
+      expect(path).toBe(`${org}/${doc}/${expected}`);
+      expect(path.split("/").slice(2)).not.toContain("..");
+    }
+  });
 });
