@@ -3,7 +3,7 @@
 Last updated: 2026-08-21  
 Working branch: `codex/mobile-parity-v2`  
 First durable checkpoint: `f8ec099`  
-Latest feature checkpoint at this update: `220ce0a`
+Latest feature checkpoint at this update: `170808e`
 Remote: `origin` (`tylerdevries22-afk/mfsuperior-crm`)
 
 ## Objective and immutable baseline
@@ -55,6 +55,7 @@ The native audit found an acceptance-contract conflict: Apple’s iPhone 16 Pro 
 - Closed a **critical** authentication oracle in `checkCronAuth`: the 401 body returned `common_prefix_length` and `expected_token_length`, which together let an unauthenticated caller recover the 32-character `CRON_SECRET` in roughly 512 requests. That secret gates the cron routes that send email to leads. Diagnostics are now one-sided and withheld in production, and the compare is constant-time.
 - Hardened the public `POST /api/contact`: it is unauthenticated and CORS-open by design but accepted unbounded fields, did not validate the address it then emailed, and had no rate limit. Fields are now strictly parsed and length-bounded, and the route is limited per client address and per submitted email.
 - Made the Resend webhook signature comparison constant-time.
+- Collapsed `.` and `..` upload file names to a literal object key. Path separators were already stripped, so this closes the remaining ambiguity rather than a traversal.
 - Created the `notifications` table in additive migration `0011_notifications_repair.sql`. It had been declared in `schema.ts` and present in the drizzle snapshot since `0004`, but no migration ever emitted the DDL, so every freshly migrated database was missing it.
 - Unified the "is this host reachable without TLS" rule. Three separate copies disagreed: auth config accepted only loopback, `ApiClient` had its own loopback-only copy, and the server required HTTPS outright. A physical device reaches the dev machine by LAN address, so the app passed configuration validation and then crashed inside the API client. One shared `mobile/lib/private-network.ts` now backs both mobile call sites, and the server mirrors it; loopback, RFC1918, link-local, and `.local` are allowed over plaintext and public hosts still fail closed.
 - Added `scripts/seed-mf-superior.ts` (`npm run tenant:seed`): an idempotent seed for the MF Superior Products organization, its carrier profile, and the initial `info@mfsuperiorproducts.com` admin invitation. It mints an invitation rather than a membership, so admins stay invitation-only, prints the raw token exactly once because only the SHA-256 hash is stored, and refuses to rewrite an existing SCAC or reactivate a non-active organization.
@@ -107,6 +108,35 @@ Expo Go must be the SDK 54 build (`54.0.7`). The simulator copy lives at
 with `xcrun simctl install <udid> <path>`; `npx expo start --ios` prompts for it
 but needs an interactive terminal.
 
+## Running the app without shared Wi-Fi
+
+A phone that cannot join this machine's network reaches Metro through an Expo
+tunnel: `npx expo start --tunnel` publishes `exp://<slug>.exp.direct`, which
+works over cellular.
+
+The tunnel only carries Metro. The backend and Supabase stay on localhost, so
+the app is run in **demo mode** for that scenario:
+`EXPO_PUBLIC_DEMO_AUTH_ENABLED=true` in `mobile/.env.local` selects
+`DemoOperationsRepository`, which holds all state on-device in AsyncStorage and
+needs no backend and no Supabase. `resolveAuthRuntimeConfig` checks the demo
+flag first, so the production variables can stay in the file, inert.
+
+Verified end to end: the manifest and the full 9.3 MB bundle both download over
+the public tunnel host, and the app renders the demo workspace on the simulator
+when opened at the tunnel URL.
+
+Demo mode is a UI-complete path, **not** the production path. Exercising the
+real backend from a phone off this network requires deploying the backend and
+Supabase to public HTTPS origins and pointing `EXPO_PUBLIC_API_BASE_URL` and
+`EXPO_PUBLIC_SUPABASE_URL` at them. Exposing the local Supabase through a public
+tunnel is not an acceptable substitute — it would put an auth service and its
+service-role surface on the open internet.
+
+Note on `simctl`: `xcrun simctl openurl` only lands reliably when Expo Go is
+**not** already running. Launching Expo Go and then opening the URL races, and
+the app silently stays on the Expo Go home screen. Terminate first, then
+`openurl` cold.
+
 ## Verification already passing (re-run at this checkpoint)
 
 Re-run and green at this checkpoint:
@@ -116,7 +146,7 @@ Re-run and green at this checkpoint:
 - Complete mobile Jest suite: 17 suites, 87/87 assertions
 - Backend TypeScript: `npx tsc --noEmit --incremental false` — clean
 - Web ESLint: `npm run lint` — zero warnings
-- Complete web Vitest suite: 122 passed, 14 skipped (15 files, 2 skipped)
+- Complete web Vitest suite: 123 passed, 14 skipped (15 files, 2 skipped)
 - Backend mobile-API contract tests (`tests/unit/carrier-api.test.ts`): 20/20
 - Cron authentication regression tests (`tests/unit/cron-auth.test.ts`): 4/4
 - Tenant provisioning and boundary tests (`tests/unit/tenant-provisioning.test.ts`): 15/15, covering the invitation token/TTL contract, the Drizzle-level tenant constraints, and migration `0010`'s backfill and constraint ordering
