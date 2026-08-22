@@ -3,7 +3,7 @@
 Last updated: 2026-08-21  
 Working branch: `codex/mobile-parity-v2`  
 First durable checkpoint: `f8ec099`  
-Latest feature checkpoint at this update: `e042222`
+Latest feature checkpoint at this update: `a292d96`
 Remote: `origin` (`tylerdevries22-afk/mfsuperior-crm`)
 
 ## Objective and immutable baseline
@@ -60,6 +60,9 @@ The native audit found an acceptance-contract conflict: Apple’s iPhone 16 Pro 
 - Unified the "is this host reachable without TLS" rule. Three separate copies disagreed: auth config accepted only loopback, `ApiClient` had its own loopback-only copy, and the server required HTTPS outright. A physical device reaches the dev machine by LAN address, so the app passed configuration validation and then crashed inside the API client. One shared `mobile/lib/private-network.ts` now backs both mobile call sites, and the server mirrors it; loopback, RFC1918, link-local, and `.local` are allowed over plaintext and public hosts still fail closed.
 - **Rebuilt the schedule on the reference components.** `mobile/route-support/schedule/` now mirrors the reference module at `route-support/(tabs)/schedule/`: `styles.ts` and `SegmentBar` are ported verbatim (only the token import differs), and `JobCard`, `DayTimeline`, `TechnicianFilter`, `useScheduleData`, and `useScheduleFilters` are ported with jobs mapped to loads and technicians to drivers. The screen is the reference composition — week strip, driver chips, list/day toggle, day-grouped cards, swipeable day timeline with now-line, calendar-view modal, floating Today button.
 - Added real driver avatars. The reference's `TechAvatar` renders a portrait and falls back to initials only when none exists; `DriverAvatar` resolves an API `avatarUrl`, then a bundled portrait, then initials. It is shared, so the schedule, the home driver strip, and the customer glance card all use it — the home strip previously keyed off `index === 0`, giving the first driver a generic stock image and everyone else initials. Portraits live in `mobile/assets/avatars/`, and per-type equipment artwork in `mobile/assets/freight/equipment-*.webp`.
+- **Rebuilt home, assistant, and the load detail on the reference composition.** The home tab is now a thin role switch over `AdminHome`, `DriverHome`, and `CustomerHome` exactly as the reference is, with `homeStyles.ts` ported verbatim; `PulseOrb`, `StatPill`, and `InlineError` come from the reference's home helpers. The assistant follows the reference diagnose screen — live "Thinking" header, welcome block over a quick-action rail, chat list, composer with suggested replies — with its stylesheet ported verbatim. Pressing a schedule card now lands on the reference's step rail (`LoadFlowBar`, ported from `JobFlowBar`) rather than a plain progress bar.
+- Anchored the demo timeline to the current day. It was pinned to fixed August dates, so the schedule drifted into the past until Today was permanently empty. The shift is a whole number of days, preserving every time-of-day and inter-record gap, and it reads the repository's injected clock so tests pinned to the fixture anchor still see canonical data.
+- Converted `PulseOrb` from Reanimated to React Native `Animated`. It was the only Reanimated call site and there is no babel config pinning the worklets plugin, so it rested on a transform nothing else in the app needed.
 - Added `scripts/seed-mf-superior.ts` (`npm run tenant:seed`): an idempotent seed for the MF Superior Products organization, its carrier profile, and the initial `info@mfsuperiorproducts.com` admin invitation. It mints an invitation rather than a membership, so admins stay invitation-only, prints the raw token exactly once because only the SHA-256 hash is stored, and refuses to rewrite an existing SCAC or reactivate a non-active organization.
 
 ## Local Docker stack (running, verified end to end)
@@ -145,7 +148,7 @@ Re-run and green at this checkpoint:
 
 - Mobile TypeScript: `cd mobile && npm run typecheck` — clean
 - Mobile ESLint: `cd mobile && npm run lint` — zero warnings
-- Complete mobile Jest suite: 18 suites, 96/96 assertions
+- Complete mobile Jest suite: 19 suites, 106/106 assertions
 - Backend TypeScript: `npx tsc --noEmit --incremental false` — clean
 - Web ESLint: `npm run lint` — zero warnings
 - Complete web Vitest suite: 123 passed, 14 skipped (15 files, 2 skipped)
@@ -187,7 +190,8 @@ Items 1 through 4 are complete and pushed. The remaining order is:
 - `shipments.intermediate_stops` exists as JSONB but nothing writes it and the mobile projection only builds a pickup and a delivery stop, so `advanceIntermediateStop` fails closed rather than pretending.
 - There is no server-side equipment registry, so `assignShipment` refuses tractor/trailer ids rather than dropping them silently.
 - The schedule departs from the reference in three functional places, each commented at the site: the week strip derives its scroll pitch from the real cell geometry (44 + 2 gap) rather than the reference's hard-coded 52, which drifts ~6pt per cell; day blocks are clamped to the 6am-10pm grid because freight runs outside those hours and an unclamped block carries its label out of view; and driver colours are hashed from the driver id because freight drivers carry no provider-assigned colour field.
-- The demo fixtures use fixed 2026-08-18/20/21 dates, so as real time moves on the schedule will increasingly show only past loads. Making the demo data relative to "now" is not done.
+- A demo admin previewing the driver role sees an empty driver home and schedule, because driver scoping keys off the signed-in account's `driverId` and the admin account has none. That is the security model working as intended — a driver only ever sees their own loads — but it makes the role preview look empty. Signing in with the driver demo account shows populated data.
+- The reference's job detail is a large module built on appliance-service concepts with no freight analogue (diagnosis workflow, invoices, part orders). Only its chrome was ported: the step rail. The rest of the load detail remains MF's own freight composition.
 - Messaging is tenant-scoped to sender plus listed recipients; admins deliberately do not get a blanket read over private threads.
 - `shipment_events`, `driver_locations`, and `driver_status_events` inherit tenancy transitively through non-null foreign keys to `shipments` and `drivers`, which are themselves tenant-pinned by migration `0010`. They carry no tenant column of their own, so a telemetry row naming a driver from one carrier and a shipment from another is still blocked only by the application check, not by a database constraint. Closing that would require either a denormalized `carrier_id` on each table or a trigger; neither is in place.
 - Migration `0010` gives an orphan carrier a **suspended** organization rather than an active one. That is deliberate — no one gains access from a backfill — but an operator must consciously activate such an organization before its carrier is usable.
