@@ -29,11 +29,15 @@ function BootstrapFallback({ label }: { readonly label: string }) {
 
 function RootNavigator() {
   const theme = useTheme();
-  const { currentAccount, isHydrated } = useOperations();
+  const { accessState, currentAccount, isHydrated } = useOperations();
 
   if (!isHydrated) {
     return <BootstrapFallback label="Restoring your session" />;
   }
+
+  // A `customer/pending` membership is refused by every operational endpoint,
+  // so it never reaches the tab navigator.
+  const isPending = currentAccount !== null && accessState === "pending_customer_approval";
 
   return (
     <>
@@ -49,7 +53,10 @@ function RootNavigator() {
         <Stack.Protected guard={currentAccount === null}>
           <Stack.Screen name="(auth)" />
         </Stack.Protected>
-        <Stack.Protected guard={currentAccount !== null}>
+        <Stack.Protected guard={isPending}>
+          <Stack.Screen name="pending-approval" />
+        </Stack.Protected>
+        <Stack.Protected guard={currentAccount !== null && !isPending}>
           <ProtectedScreens />
         </Stack.Protected>
       </Stack>

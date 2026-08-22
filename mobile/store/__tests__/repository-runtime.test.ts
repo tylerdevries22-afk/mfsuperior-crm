@@ -153,6 +153,57 @@ describe("ProductionOperationsRepository", () => {
     await expect(repository.switchDemoRole("driver")).rejects.toMatchObject({ code: "UNAUTHORIZED" });
     await expect(repository.resetDemo()).rejects.toMatchObject({ code: "UNAUTHORIZED" });
   });
+
+  it("hydrates a pending customer from freight requests only, never from bootstrap", async () => {
+    const state = productionState("admin");
+    const identity: AuthIdentity = {
+      accessState: "pending_customer_approval",
+      carrierId: null,
+      customerAccountId: null,
+      driverId: null,
+      email: "pending@northline.example.com",
+      mfa: { currentLevel: "aal1", factors: [], nextLevel: "aal1", status: "unenrolled" },
+      organizationId: "organization-mf",
+      organizationSlug: "mf-superior",
+      role: "customer",
+      userId: "user-pending",
+    };
+    const requestedPaths: string[] = [];
+    const fetchImplementation: typeof fetch = async (input, init) => {
+      requestedPaths.push(new URL(input.toString()).pathname);
+      return createApiFetch(state)(input, init);
+    };
+    const repository = new ProductionOperationsRepository({
+      apiClient: new ApiClient({
+        baseUrl: "https://api.example.com",
+        fetchImplementation,
+        getAccessToken: async () => "access-token",
+        requestIdFactory: createIdFactory(),
+        sleep: async () => undefined,
+      }),
+      auth: {
+        getCurrentIdentity: async () => identity,
+        signIn: async () => identity,
+        signOut: async () => undefined,
+      },
+      clock: () => "2026-08-21T13:00:00.000Z",
+      idFactory: createIdFactory(),
+      offlineQueue: new OfflineMutationQueue({
+        idempotencyKeyFactory: createIdFactory(),
+        storage: new MemoryOfflineQueueStorage(),
+      }),
+    });
+
+    const hydrated = await repository.hydrate();
+    expect(hydrated.state.session.accessState).toBe("pending_customer_approval");
+    expect(hydrated.state.session.effectiveRole).toBe("customer");
+    expect(hydrated.state.shipments).toEqual([]);
+    expect(hydrated.state.drivers).toEqual([]);
+    expect(hydrated.state.requests.length).toBeGreaterThan(0);
+    expect(requestedPaths.some((path) => path.includes("/v1/bootstrap"))).toBe(false);
+    expect(requestedPaths.some((path) => path.includes("/v1/shipments"))).toBe(false);
+    expect(requestedPaths.filter((path) => path.includes("/v1/requests")).length).toBe(1);
+  });
 });
 
 function productionState(role: "admin" | "driver"): DemoOperationsState {
@@ -180,8 +231,14 @@ function withoutDemoPin(account: OperationsAccount): OperationsAccount {
 
 function identityFor(role: "admin" | "driver", userId: string): AuthIdentity {
   return {
+    accessState: "active",
+    carrierId: "carrier-1",
+    customerAccountId: null,
+    driverId: role === "driver" ? "driver-brenna" : null,
     email: `${role}@demo.mfsuperior.com`,
     mfa: { currentLevel: "aal2", factors: [], nextLevel: "aal2", status: "verified" },
+    organizationId: "organization-1",
+    organizationSlug: "mf-superior",
     role,
     userId,
   };

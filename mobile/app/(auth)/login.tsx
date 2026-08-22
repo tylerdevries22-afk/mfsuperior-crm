@@ -76,7 +76,8 @@ function AuthSheet(props: AuthSheetProps) {
         if (!succeeded) throw new Error("The email or password is incorrect.");
         const service = getProductionAuthService();
         const identity = service ? await service.getCurrentIdentity() : null;
-        if (identity?.role === "admin" && identity.mfa.status !== "verified") router.replace("/mfa");
+        if (identity?.accessState === "pending_customer_approval") router.replace("/pending-approval");
+        else if (identity?.role === "admin" && identity.mfa.status !== "verified") router.replace("/mfa");
       }
     } catch (caught: unknown) {
       props.onError(toAuthFailure(caught).message);
@@ -112,7 +113,14 @@ async function signUpCustomer(props: AuthSheetProps): Promise<void> {
   if (!service) throw new Error("Customer registration requires configured Supabase authentication.");
   if (!props.fullName.trim()) throw new Error("Enter your full name.");
   const result = await service.signUp(props.email, props.password);
-  props.onSetCompletion(result.emailConfirmationRequired ? "verify-email" : "pending-approval");
+  if (result.emailConfirmationRequired) {
+    // The pending membership is created by /api/auth/sync once the emailed
+    // link is opened; unverified accounts are refused on purpose.
+    props.onSetCompletion("verify-email");
+    return;
+  }
+  await service.requestCustomerAccess();
+  props.onSetCompletion("pending-approval");
 }
 
 function CompletionState({ completion, email }: { readonly completion: Exclude<Completion, null>; readonly email: string }) {

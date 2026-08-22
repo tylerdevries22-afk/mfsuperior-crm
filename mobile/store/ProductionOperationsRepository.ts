@@ -43,6 +43,7 @@ import {
 } from "../lib/offline";
 import { isDemoOperationsState } from "./stateSchema";
 import {
+  buildPendingCustomerOperationsState,
   buildProductionOperationsState,
   type MobileBootstrapPayload,
   type MobileFreightRequestRow,
@@ -319,6 +320,11 @@ export class ProductionOperationsRepository implements OperationsRepository {
   }
 
   private async refreshState(): Promise<void> {
+    const identity = this.identity;
+    if (identity?.accessState === "pending_customer_approval") {
+      await this.refreshPendingCustomerState(identity);
+      return;
+    }
     try {
       const bootstrap = await this.apiClient.requestJson<MobileBootstrapPayload>("v1/bootstrap");
       const [shipments, requests] = await Promise.all([
@@ -334,6 +340,26 @@ export class ProductionOperationsRepository implements OperationsRepository {
         this.clock(),
       );
       this.replaceState(requireProductionState(state, this.identity));
+    } catch (error: unknown) {
+      throw toDomainNetworkError(error);
+    }
+  }
+
+  /**
+   * Pending customers are refused by bootstrap/shipments on purpose. Only the
+   * freight requests they own are readable until an admin links their account.
+   */
+  private async refreshPendingCustomerState(identity: AuthIdentity): Promise<void> {
+    try {
+      const requests = await this.apiClient.requestJson<readonly MobileFreightRequestRow[]>(
+        "v1/requests?limit=100",
+      );
+      this.replaceState(
+        requireProductionState(
+          buildPendingCustomerOperationsState(identity, requests, this.clock()),
+          identity,
+        ),
+      );
     } catch (error: unknown) {
       throw toDomainNetworkError(error);
     }

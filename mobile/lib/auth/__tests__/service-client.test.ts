@@ -4,8 +4,14 @@ import type { Session, SupabaseClient, User } from "@supabase/supabase-js";
 
 import { createSupabaseAuthClient, registerAuthAutoRefresh } from "../client";
 import { AuthRuntimeError, toAuthFailure } from "../errors";
+import {
+  parseMembershipSnapshot,
+  type MembershipSnapshot,
+  type MembershipSyncGateway,
+  type MembershipSyncInput,
+} from "../membership";
 import type { AuthSessionStorage } from "../secureStore";
-import { resolveAppRole, SupabaseAuthService } from "../service";
+import { SupabaseAuthService } from "../service";
 
 const USER = {
   app_metadata: { role: "admin" },
@@ -13,6 +19,31 @@ const USER = {
   id: "user-admin",
   user_metadata: { role: "customer" },
 } as unknown as User;
+
+const ADMIN_MEMBERSHIP: MembershipSnapshot = {
+  accessState: "active",
+  carrierId: "carrier-1",
+  customerAccountId: null,
+  driverId: null,
+  membershipStatus: "active",
+  organizationId: "organization-1",
+  organizationSlug: "mf-superior",
+  role: "admin",
+  userId: "user-admin",
+};
+
+function createMembershipSync(
+  snapshot: MembershipSnapshot = ADMIN_MEMBERSHIP,
+): MembershipSyncGateway & { calls: MembershipSyncInput[] } {
+  const calls: MembershipSyncInput[] = [];
+  return {
+    calls,
+    sync: async (input: MembershipSyncInput = {}) => {
+      calls.push(input);
+      return snapshot;
+    },
+  };
+}
 
 const SESSION = {
   access_token: "access-token",
@@ -59,7 +90,8 @@ describe("SupabaseAuthService", () => {
   it("supports credentials, enrollment, recovery, callback, MFA, session, and logout", async () => {
     const client = createClientMock();
     const purgeForLogout = jest.fn(async () => undefined);
-    const service = new SupabaseAuthService(client, { purgeForLogout });
+    const membershipSync = createMembershipSync();
+    const service = new SupabaseAuthService(client, { purgeForLogout }, membershipSync);
 
     const identity = await service.signIn(" ADMIN@EXAMPLE.COM ", "correct horse battery staple");
     expect(identity.role).toBe("admin");
@@ -83,12 +115,50 @@ describe("SupabaseAuthService", () => {
     expect((await service.verifyMfa("factor-1", "challenge-1", "123456")).role).toBe("admin");
     await service.signOut();
     expect(purgeForLogout).toHaveBeenCalledWith("user-admin");
+    expect(membershipSync.calls.length).toBeGreaterThan(0);
   });
 
-  it("never authorizes from user metadata and returns structured safe failures", async () => {
-    expect(resolveAppRole(USER)).toBe("admin");
-    expect(resolveAppRole({ app_metadata: {} } as Pick<User, "app_metadata">)).toBeNull();
-    const service = new SupabaseAuthService(createClientMock());
+  it("derives role and access state from the server, never from Supabase metadata", async () => {
+    const pendingSync = createMembershipSync({
+      accessState: "pending_customer_approval",
+      carrierId: null,
+      customerAccountId: null,
+      driverId: null,
+      membershipStatus: "pending",
+      organizationId: "organization-1",
+      organizationSlug: "mf-superior",
+      role: "customer",
+      userId: "user-admin",
+    });
+    // The Supabase user carries app_metadata.role === "admin"; it must be ignored.
+    const service = new SupabaseAuthService(createClientMock(), null, pendingSync);
+    const identity = await service.signIn("admin@example.com", "correct horse battery staple");
+    expect(identity.role).toBe("customer");
+    expect(identity.accessState).toBe("pending_customer_approval");
+
+    await service.requestCustomerAccess(" Northline Freight ");
+    expect(pendingSync.calls.at(-1)).toEqual({ customerCompanyName: "Northline Freight" });
+    await service.redeemInvitation("invitation-token");
+    expect(pendingSync.calls.at(-1)).toEqual({ invitationToken: "invitation-token" });
+  });
+
+  it("refuses membership payloads that do not agree with themselves", () => {
+    expect(() => parseMembershipSnapshot({ ...ADMIN_MEMBERSHIP, role: "operator" })).toThrow(
+      AuthRuntimeError,
+    );
+    expect(() => parseMembershipSnapshot({ ...ADMIN_MEMBERSHIP, membershipStatus: "pending" })).toThrow(
+      AuthRuntimeError,
+    );
+    expect(() => parseMembershipSnapshot({
+      ...ADMIN_MEMBERSHIP,
+      accessState: "pending_customer_approval",
+      membershipStatus: "pending",
+    })).toThrow(AuthRuntimeError);
+    expect(parseMembershipSnapshot(ADMIN_MEMBERSHIP)).toEqual(ADMIN_MEMBERSHIP);
+  });
+
+  it("returns structured safe failures", async () => {
+    const service = new SupabaseAuthService(createClientMock(), null, createMembershipSync());
     await expect(service.signIn("invalid", "short")).rejects.toBeInstanceOf(AuthRuntimeError);
     expect(toAuthFailure(new Error("secret provider detail"))).toEqual({
       code: "AUTH_PROVIDER_FAILED",
@@ -107,7 +177,8 @@ describe("Supabase auth client lifecycle", () => {
       setItem: async (key, value) => { values.set(key, value); },
     };
     const client = createSupabaseAuthClient({
-      apiBaseUrl: "https://api.example.com",
+      apiBaseUrl: "https://api.example.com/api/mobile",
+      authApiBaseUrl: "https://api.example.com/api/auth",
       redirectScheme: "mfsuperior",
       supabasePublishableKey: "sb_publishable_test",
       supabaseUrl: "https://project.supabase.co",

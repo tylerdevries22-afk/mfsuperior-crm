@@ -5,12 +5,14 @@ import type {
   Driver,
   EquipmentType,
   IntegrationHealth,
+  OperationsAccount,
   PostalAddress,
   Shipment,
   ShipmentStatus,
   ShipmentStop,
 } from "../domain/types";
 import { DEMO_STATE_VERSION, SHIPMENT_STATUSES } from "../domain/types";
+import type { AuthIdentity } from "../lib/auth";
 
 export interface MobileBootstrapPayload {
   readonly integrations: readonly {
@@ -120,8 +122,52 @@ export function buildProductionOperationsState(
     proofsOfDelivery: [],
     quotes: [],
     requests: requestRows.map((request) => toCustomerRequest(request, customerId)),
-    session: { accountId: account.id, effectiveRole: account.role },
+    session: { accessState: "active", accountId: account.id, effectiveRole: account.role },
     shipments: shipmentRows.map((shipment) => toShipment(shipment, customerId)),
+    updatedAt: now,
+    version: DEMO_STATE_VERSION,
+  };
+}
+
+/**
+ * Build the state a `customer/pending` membership is allowed to see. Bootstrap,
+ * shipments, drivers, and reference data stay empty because the server refuses
+ * them until an admin links the customer account.
+ */
+export function buildPendingCustomerOperationsState(
+  identity: AuthIdentity,
+  requestRows: readonly MobileFreightRequestRow[],
+  now: string,
+): DemoOperationsState {
+  const customerId = identity.customerAccountId ?? `pending:${identity.userId}`;
+  const account: OperationsAccount = {
+    companyName: "MF Superior Products",
+    customerId,
+    displayName: identity.email.split("@")[0],
+    email: identity.email,
+    id: identity.userId,
+    role: "customer",
+    title: titleForRole("customer"),
+  };
+  return {
+    accounts: [account],
+    customers: [],
+    drivers: [],
+    ediTransactions: [],
+    equipment: [],
+    exceptions: [],
+    hosClocks: [],
+    integrations: [],
+    messages: [],
+    proofsOfDelivery: [],
+    quotes: [],
+    requests: requestRows.map((request) => toCustomerRequest(request, customerId)),
+    session: {
+      accessState: "pending_customer_approval",
+      accountId: account.id,
+      effectiveRole: "customer",
+    },
+    shipments: [],
     updatedAt: now,
     version: DEMO_STATE_VERSION,
   };

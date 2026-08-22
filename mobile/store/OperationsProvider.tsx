@@ -11,6 +11,7 @@ import { toOperationsFailure, type OperationsFailure } from "../domain/errors";
 import { createDemoOperationsState } from "../domain/fixtures";
 import type { OperationsRepository } from "../domain/repository";
 import type {
+  AccessState,
   AppRole,
   CreateCustomerRequestInput,
   CustomerRequest,
@@ -71,6 +72,7 @@ export interface OperationsContextValue {
   readonly isHydrated: boolean;
   readonly currentAccount: OperationsAccount | null;
   readonly effectiveRole: AppRole | null;
+  readonly accessState: AccessState;
   readonly accounts: readonly OperationsAccount[];
   readonly shipments: readonly Shipment[];
   readonly activeShipment: Shipment | null;
@@ -229,6 +231,7 @@ export function OperationsProvider({
       isHydrated,
       currentAccount,
       effectiveRole,
+      accessState: state.session.accessState ?? "active",
       accounts: state.accounts,
       shipments,
       activeShipment,

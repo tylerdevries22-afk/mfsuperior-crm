@@ -1,13 +1,28 @@
-import type { Session, SupabaseClient, User } from "@supabase/supabase-js";
+import type { Session, SupabaseClient } from "@supabase/supabase-js";
 
-import { APP_ROLES, type AppRole } from "../../domain/types";
+import type { AccessState, AppRole } from "../../domain/types";
 import { exchangeAuthCallback, type AuthCallbackKind } from "./callback";
 import { AuthRuntimeError } from "./errors";
+import type {
+  MembershipSnapshot,
+  MembershipSyncGateway,
+  MembershipSyncInput,
+} from "./membership";
 import { loadMfaState, type MfaState } from "./mfa";
 
+/**
+ * The runtime identity is derived from `/api/auth/sync`, never from Supabase
+ * user or app metadata, so the client cannot widen its own authorization.
+ */
 export interface AuthIdentity {
+  readonly accessState: AccessState;
+  readonly carrierId: string | null;
+  readonly customerAccountId: string | null;
+  readonly driverId: string | null;
   readonly email: string;
   readonly mfa: MfaState;
+  readonly organizationId: string;
+  readonly organizationSlug: string;
   readonly role: AppRole;
   readonly userId: string;
 }
@@ -38,9 +53,13 @@ export interface LogoutQueuePurger {
 }
 
 export class SupabaseAuthService {
+  /** Offline queue ownership keys on the server user id, so logout must too. */
+  private lastServerUserId: string | null = null;
+
   constructor(
     private readonly client: SupabaseClient,
     private readonly queuePurger: LogoutQueuePurger | null = null,
+    private readonly membershipSync: MembershipSyncGateway | null = null,
   ) {}
 
   async signIn(email: string, password: string): Promise<AuthIdentity> {
@@ -50,6 +69,17 @@ export class SupabaseAuthService {
       throw invalidCredentialsError();
     }
     return this.identityFromSession(data.session);
+  }
+
+  /** Redeems an organization invitation, then returns the server identity. */
+  async redeemInvitation(invitationToken: string): Promise<AuthIdentity> {
+    return this.requireCurrentIdentity({ invitationToken });
+  }
+
+  /** Requests pending customer access for the signed-in verified account. */
+  async requestCustomerAccess(customerCompanyName?: string): Promise<AuthIdentity> {
+    const normalized = customerCompanyName?.trim();
+    return this.requireCurrentIdentity(normalized ? { customerCompanyName: normalized } : {});
   }
 
   async signUp(email: string, password: string): Promise<AuthEnrollmentResult> {
@@ -95,6 +125,14 @@ export class SupabaseAuthService {
       throw providerError("Your session could not be restored. Please sign in again.");
     }
     return data.session ? this.identityFromSession(data.session) : null;
+  }
+
+  private async requireCurrentIdentity(input: MembershipSyncInput): Promise<AuthIdentity> {
+    const { data, error } = await this.client.auth.getSession();
+    if (error || !data.session) {
+      throw providerError("Your session could not be restored. Please sign in again.");
+    }
+    return this.identityFromSession(data.session, input);
   }
 
   async getAccessToken(): Promise<string | null> {
@@ -156,33 +194,61 @@ export class SupabaseAuthService {
   }
 
   async signOut(): Promise<void> {
-    const currentUserId = (await this.client.auth.getSession()).data.session?.user.id ?? null;
+    const currentUserId = this.lastServerUserId;
     const { error } = await this.client.auth.signOut();
+    this.lastServerUserId = null;
     await this.queuePurger?.purgeForLogout(currentUserId);
     if (error) {
       throw providerError("Sign out could not be completed. Please try again.");
     }
   }
 
-  private async identityFromSession(session: Session): Promise<AuthIdentity> {
-    const role = resolveAppRole(session.user);
-    const email = session.user.email?.trim();
-    if (!role || !email) {
+  private async identityFromSession(
+    session: Session,
+    syncInput: MembershipSyncInput = {},
+  ): Promise<AuthIdentity> {
+    const email = session.user.email?.trim().toLowerCase();
+    if (!email) {
+      throw unassignedIdentityError();
+    }
+    if (!this.membershipSync) {
       throw new AuthRuntimeError({
-        code: "ROLE_UNAUTHORIZED",
-        message: "This account is not assigned to an MF Superior Products role.",
+        code: "AUTH_PROVIDER_FAILED",
+        message: "Workspace membership verification is not configured.",
         retryable: false,
       });
     }
-    return { email, mfa: await loadMfaState(this.client), role, userId: session.user.id };
+    const membership = await this.membershipSync.sync(syncInput);
+    this.lastServerUserId = membership.userId;
+    return toAuthIdentity(membership, email, await loadMfaState(this.client));
   }
 }
 
-export function resolveAppRole(user: Pick<User, "app_metadata">): AppRole | null {
-  const role = user.app_metadata.role;
-  return typeof role === "string" && APP_ROLES.some((candidate) => candidate === role)
-    ? role as AppRole
-    : null;
+function toAuthIdentity(
+  membership: MembershipSnapshot,
+  email: string,
+  mfa: MfaState,
+): AuthIdentity {
+  return {
+    accessState: membership.accessState,
+    carrierId: membership.carrierId,
+    customerAccountId: membership.customerAccountId,
+    driverId: membership.driverId,
+    email,
+    mfa,
+    organizationId: membership.organizationId,
+    organizationSlug: membership.organizationSlug,
+    role: membership.role,
+    userId: membership.userId,
+  };
+}
+
+function unassignedIdentityError(): AuthRuntimeError {
+  return new AuthRuntimeError({
+    code: "ROLE_UNAUTHORIZED",
+    message: "This account is not assigned to an MF Superior Products role.",
+    retryable: false,
+  });
 }
 
 function validateCredentials(email: string, password: string): { email: string; password: string } {

@@ -2,6 +2,14 @@ export const APP_ROLES = ["admin", "driver", "customer"] as const;
 
 export type AppRole = (typeof APP_ROLES)[number];
 
+/**
+ * Server-derived workspace access. `pending_customer_approval` mirrors a
+ * `customer/pending` membership: freight requests only, never shipment data.
+ */
+export const ACCESS_STATES = ["active", "pending_customer_approval"] as const;
+
+export type AccessState = (typeof ACCESS_STATES)[number];
+
 export type EntityId = string;
 export type IsoDateTime = string;
 
@@ -24,6 +32,8 @@ export interface DemoAccount extends OperationsAccount {
 export interface OperationsSession {
   readonly accountId: EntityId | null;
   readonly effectiveRole: AppRole | null;
+  /** Absent in demo/persisted state, where access is always active. */
+  readonly accessState?: AccessState;
 }
 
 export type DemoSession = OperationsSession;

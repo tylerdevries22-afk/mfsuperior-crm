@@ -1,5 +1,7 @@
 export interface ProductionAuthConfig {
   readonly apiBaseUrl: string;
+  /** Origin-scoped base for the server membership endpoints (`/api/auth/`). */
+  readonly authApiBaseUrl: string;
   readonly redirectScheme: "mfsuperior";
   readonly supabasePublishableKey: string;
   readonly supabaseUrl: string;
@@ -44,12 +46,23 @@ export function resolveAuthRuntimeConfig(
   return {
     config: {
       apiBaseUrl,
+      authApiBaseUrl: authApiBaseUrlFor(apiBaseUrl),
       redirectScheme: "mfsuperior",
       supabasePublishableKey,
       supabaseUrl,
     },
     mode: "production",
   };
+}
+
+/**
+ * `/api/auth/sync` is the membership source of truth and lives outside the
+ * `/api/mobile` prefix, so it is derived from the validated API origin.
+ */
+function authApiBaseUrlFor(apiBaseUrl: string): string {
+  const url = new URL(apiBaseUrl);
+  url.pathname = "/api/auth/";
+  return url.toString().replace(/\/$/, "");
 }
 
 function requireSecurePublicUrl(value: string | undefined): string | null {

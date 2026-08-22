@@ -1,4 +1,21 @@
-import { buildProductionOperationsState } from "../productionStateAdapter";
+import type { AuthIdentity } from "../../lib/auth";
+import {
+  buildPendingCustomerOperationsState,
+  buildProductionOperationsState,
+} from "../productionStateAdapter";
+
+const PENDING_IDENTITY: AuthIdentity = {
+  accessState: "pending_customer_approval",
+  carrierId: null,
+  customerAccountId: null,
+  driverId: null,
+  email: "pending@northline.example.com",
+  mfa: { currentLevel: "aal1", factors: [], nextLevel: "aal1", status: "unenrolled" },
+  organizationId: "org-1",
+  organizationSlug: "mf-superior",
+  role: "customer",
+  userId: "user-3",
+};
 
 describe("production state adapter", () => {
   it("maps tenant-scoped mobile API data into a non-demo freight state", () => {
@@ -93,5 +110,40 @@ describe("production state adapter", () => {
     expect(state.accounts[0]?.customerId).toBe("pending:user-2");
     expect(state.requests[0]).toMatchObject({ customerId: "pending:user-2", status: "submitted" });
     expect(state.shipments).toEqual([]);
+  });
+
+  it("renders pending customer access without any operational data", () => {
+    const state = buildPendingCustomerOperationsState(
+      PENDING_IDENTITY,
+      [{
+        commodity: "Packaged goods",
+        createdAt: "2026-08-21T12:00:00.000Z",
+        customerAccountId: null,
+        equipmentType: "dry_van",
+        id: "request-9",
+        notes: "Quote requested for Friday.",
+        referenceNumber: "REQ-109",
+        shipmentId: null,
+        status: "submitted",
+        updatedAt: "2026-08-21T12:00:00.000Z",
+      }],
+      "2026-08-21T12:00:00.000Z",
+    );
+
+    expect(state.session).toEqual({
+      accessState: "pending_customer_approval",
+      accountId: "user-3",
+      effectiveRole: "customer",
+    });
+    expect(state.accounts[0]).toMatchObject({
+      customerId: "pending:user-3",
+      email: "pending@northline.example.com",
+      role: "customer",
+    });
+    expect(state.requests[0]).toMatchObject({ customerId: "pending:user-3", id: "request-9" });
+    expect(state.shipments).toEqual([]);
+    expect(state.drivers).toEqual([]);
+    expect(state.integrations).toEqual([]);
+    expect(state.hosClocks).toEqual([]);
   });
 });

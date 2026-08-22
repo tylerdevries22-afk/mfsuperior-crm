@@ -6,9 +6,16 @@ import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 
 import { AnimatedButton, Screen } from "@/components/ui";
 import { getProductionAuthService } from "@/features/auth/runtime-service";
-import { toAuthFailure } from "@/lib/auth";
+import { toAuthFailure, type AuthIdentity } from "@/lib/auth";
 import { useOperations } from "@/store";
 import { RADIUS, SPACE, TYPO, useTheme } from "@/theme";
+
+/** The server access state decides the landing surface, never local metadata. */
+function destinationFor(identity: AuthIdentity): "/mfa" | "/pending-approval" | "/(tabs)" {
+  if (identity.accessState === "pending_customer_approval") return "/pending-approval";
+  if (identity.role === "admin" && identity.mfa.status !== "verified") return "/mfa";
+  return "/(tabs)";
+}
 
 export default function AuthCallbackScreen() {
   const router = useRouter();
@@ -27,7 +34,7 @@ export default function AuthCallbackScreen() {
       if (!active) return;
       if (result.kind === "password-recovery") { router.replace("/(auth)/reset-password"); return; }
       await actions.restoreSession();
-      router.replace(result.identity.role === "admin" && result.identity.mfa.status !== "verified" ? "/mfa" : "/(tabs)");
+      router.replace(destinationFor(result.identity));
     };
     void complete().catch((caught: unknown) => { if (active) setError(toAuthFailure(caught).message); });
     return () => { active = false; };

@@ -40,6 +40,7 @@ describe("auth configuration", () => {
     })).toEqual({
       config: {
         apiBaseUrl: "https://api.example.com/api/mobile",
+        authApiBaseUrl: "https://api.example.com/api/auth",
         redirectScheme: "mfsuperior",
         supabasePublishableKey: "sb_publishable_test",
         supabaseUrl: "https://project.supabase.co",

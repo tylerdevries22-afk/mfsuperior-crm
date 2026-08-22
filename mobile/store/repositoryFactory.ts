@@ -3,6 +3,7 @@ import type { OperationsRepository } from "../domain/repository";
 import type { DemoOperationsState } from "../domain/types";
 import { DEMO_STATE_VERSION } from "../domain/types";
 import {
+  ApiMembershipSyncGateway,
   createSecureSessionStorage,
   createSupabaseAuthClient,
   resolveAuthRuntimeConfig,
@@ -44,11 +45,19 @@ export function createOperationsRepositoryFromEnvironment(
     fetchImplementation: options.fetchImplementation,
     storage: options.authStorage ?? createSecureSessionStorage(),
   });
-  const auth = new SupabaseAuthService(client, queue);
+  const getAccessToken = (): Promise<string | null> => auth.getAccessToken();
+  const membershipSync = new ApiMembershipSyncGateway({
+    apiClient: new ApiClient({
+      baseUrl: runtime.config.authApiBaseUrl,
+      fetchImplementation: options.fetchImplementation,
+      getAccessToken,
+    }),
+  });
+  const auth = new SupabaseAuthService(client, queue, membershipSync);
   const apiClient = new ApiClient({
     baseUrl: runtime.config.apiBaseUrl,
     fetchImplementation: options.fetchImplementation,
-    getAccessToken: () => auth.getAccessToken(),
+    getAccessToken,
   });
   return new ProductionOperationsRepository({
     apiClient,
