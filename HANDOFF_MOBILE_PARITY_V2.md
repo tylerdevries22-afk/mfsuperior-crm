@@ -63,6 +63,11 @@ The native audit found an acceptance-contract conflict: Apple’s iPhone 16 Pro 
 - **Rebuilt home, assistant, and the load detail on the reference composition.** The home tab is now a thin role switch over `AdminHome`, `DriverHome`, and `CustomerHome` exactly as the reference is, with `homeStyles.ts` ported verbatim; `PulseOrb`, `StatPill`, and `InlineError` come from the reference's home helpers. The assistant follows the reference diagnose screen — live "Thinking" header, welcome block over a quick-action rail, chat list, composer with suggested replies — with its stylesheet ported verbatim. Pressing a schedule card now lands on the reference's step rail (`LoadFlowBar`, ported from `JobFlowBar`) rather than a plain progress bar.
 - Anchored the demo timeline to the current day. It was pinned to fixed August dates, so the schedule drifted into the past until Today was permanently empty. The shift is a whole number of days, preserving every time-of-day and inter-record gap, and it reads the repository's injected clock so tests pinned to the fixture anchor still see canonical data.
 - Converted `PulseOrb` from Reanimated to React Native `Animated`. It was the only Reanimated call site and there is no babel config pinning the worklets plugin, so it rested on a transform nothing else in the app needed.
+- **Removed the equipment estate and rebuilt Capacity as HQ.** Tractors, trailers, driver-equipment links, equipment models, the equipment marketplace, and capacity orders are gone from the runtime, fixtures, types, and routes; `EquipmentType` (`dry_van | reefer | flatbed`) deliberately stays because it is freight class, stamped into EDI and read by the schedule and the API. The tab is now **HQ**, a live operating picture rather than an asset register: a full-bleed map behind a draggable sheet, selection synced both ways.
+- **Built the HQ map on MapLibre GL over OpenFreeMap tiles.** MapLibre is the community fork of Mapbox GL taken before the licence change — the same renderer with no token, no billing account, and no per-load pricing; OpenFreeMap serves OpenStreetMap vector tiles with no key and no request cap, and swaps for self-hosted tiles by changing one style URL. It renders through a WebView because Expo Go bundles `RNCWebView` but no native map module (verified by scanning the Expo Go binary: `RNCWebView` 110 symbol hits, `RNMapsAirModule` and `ExpoMapsView` zero). Moving to a development build later means swapping the component for the native MapLibre SDK while keeping the same style URL and GeoJSON.
+- **Made the HQ map a live fleet picture.** The camera opens framed on Colorado; each unit is an inline SVG box truck matching the logo mark, badged with the driver's portrait and a status dot so duty state survives the cosmetic yellow/white livery; three yellow and two white trucks glide along I-25, I-70, US-50, and I-76. Tapping a truck raises the sheet onto that driver's row; tapping a row recentres the map on their truck. Movement is **demo-only** and gated on the demo workspace — real positions arrive through `recordDriverLocation`, and drawing invented coordinates on an operations map would misreport where a driver is. Three demo drivers with portraits were added so the fleet reads as five trucks on home and the schedule too, not just on this map.
+- Fixed three defects the HQ map surfaced. The page is now built **once** and updated through `injectJavaScript`; rebuilding `source` remounted the map, which at one position update a second flickered continuously and discarded the camera. Portraits travel on their own channel rather than with every position tick, because five base64 avatars a second is roughly a quarter of a megabyte of bridge traffic for data that changes only when the fleet does. And `paint()` no longer rewrites the marker element's `className`: MapLibre's own class is what positions a marker, so replacing it dropped every marker after the first into document flow, stacked 44px apart — which is why most of the fleet never appeared where it belonged.
+- Fixed the HQ sheet trap. At a 1.0 expanded ratio the sheet's top landed at y=0, putting the grab handle behind the status bar with nothing left to pull down. The expanded snap is now capped below the screen header (measured, not hard-coded), and the drag surface is the whole header block rather than the 28pt handle, so the sheet can always be brought back down and the screen it belongs to stays legible.
 - Added `scripts/seed-mf-superior.ts` (`npm run tenant:seed`): an idempotent seed for the MF Superior Products organization, its carrier profile, and the initial `info@mfsuperiorproducts.com` admin invitation. It mints an invitation rather than a membership, so admins stay invitation-only, prints the raw token exactly once because only the SHA-256 hash is stored, and refuses to rewrite an existing SCAC or reactivate a non-active organization.
 
 ## Local Docker stack (running, verified end to end)
@@ -142,6 +147,19 @@ Note on `simctl`: `xcrun simctl openurl` only lands reliably when Expo Go is
 the app silently stays on the Expo Go home screen. Terminate first, then
 `openurl` cold.
 
+Note on Fast Refresh and the HQ map: `LiveMap` memoizes its page HTML, and Fast
+Refresh preserves hook state, so an edit to the page markup keeps serving the
+previous page and the injected calls hit functions that no longer exist. Cold
+relaunch Expo Go after editing that file rather than trusting a hot reload.
+
+Note on the tunnel URL: `expo start --tunnel` mints a new `exp.direct` host on
+every start, and the printed QR does not appear in a non-TTY log. Read the
+current URL from the local ngrok API instead:
+
+```bash
+curl -s http://127.0.0.1:4040/api/tunnels | python3 -c "import sys,json;[print(t['public_url']) for t in json.load(sys.stdin)['tunnels']]"
+```
+
 ## Verification already passing (re-run at this checkpoint)
 
 Re-run and green at this checkpoint:
@@ -196,6 +214,11 @@ Items 1 through 4 are complete and pushed. The remaining order is:
 - `shipment_events`, `driver_locations`, and `driver_status_events` inherit tenancy transitively through non-null foreign keys to `shipments` and `drivers`, which are themselves tenant-pinned by migration `0010`. They carry no tenant column of their own, so a telemetry row naming a driver from one carrier and a shipment from another is still blocked only by the application check, not by a database constraint. Closing that would require either a denormalized `carrier_id` on each table or a trigger; neither is in place.
 - Migration `0010` gives an orphan carrier a **suspended** organization rather than an active one. That is deliberate — no one gains access from a backfill — but an operator must consciously activate such an organization before its carrier is usable.
 - The mobile dependency audit reports 19 advisories (10 moderate, 9 high) at SDK 54, all transitive inside Expo's own build tooling (`image-size` via metro, `uuid` via xcode/config-plugins, `postcss`). These are dev-time tooling, not code shipped to the device. `npm audit fix --force` must not be used: it would break the SDK 54 pinning that device access depends on.
+- The HQ map runs inside a WebView, so it needs network access for tiles and it is not a native map surface. On a cold open the map area is blank for a second or two while OpenFreeMap tiles arrive. A development build would allow the native MapLibre SDK; Expo Go cannot.
+- HQ fleet movement is simulated and exists only in demo workspaces. Nothing about it is a live GPS feed, and it must not be read as one.
+- The HQ camera frames Colorado because that is where the demo fleet operates. It is a constant in `LiveMap`, not derived from tenant data, so another region would need it changed.
+- A long drag on the HQ sheet can land two snaps away rather than one: the release resolves the dragged height to its nearest snap and then steps once further in the drag direction. That is the ported actz-may contract, not a defect, but it can read as an overshoot.
+
 - `scripts/seed-mf-superior.ts` requires `MF_SUPERIOR_SCAC` and has no default. A placeholder SCAC would end up in EDI envelopes, so the script fails closed instead.
 
 ## Native audit artifacts and reproducibility
