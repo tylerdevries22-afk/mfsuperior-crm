@@ -3,7 +3,7 @@
 Last updated: 2026-08-21  
 Working branch: `codex/mobile-parity-v2`  
 First durable checkpoint: `f8ec099`  
-Latest feature checkpoint at this update: `8d174e0`
+Latest feature checkpoint at this update: `2e8d680`
 Remote: `origin` (`tylerdevries22-afk/mfsuperior-crm`)
 
 ## Objective and immutable baseline
@@ -39,22 +39,34 @@ The native audit found an acceptance-contract conflict: Apple’s iPhone 16 Pro 
 - Neutralized Target-specific operational demo content and renamed mobile carrier fields/actions to provider-neutral freight names. Shipment detail responses now expose an explicit safe mobile projection rather than returning raw Target/EDI columns.
 - Switched Inter and icon imports to the exact used weights/families. The all-platform export now contains 74 assets/18 MB instead of 136 assets/35 MB.
 - Added verified-email customer self-registration as a `customer/pending` membership plus access request. Pending users can read/create only their own freight requests; MFA-authenticated admins can approve/reject idempotently, and approval links a same-tenant customer account before shipment access. Admins and drivers remain invitation-only.
+- Aligned the mobile offline queue with the real `v1/mutations` contract for duty status, shipment status, location, exception, photo, signature, and POD, preserving FIFO per shipment and conflict/idempotency semantics.
+- Made `/api/auth/sync` the mobile identity source of truth. `SupabaseAuthService` no longer reads `app_metadata.role`; role, organization, carrier/driver/customer linkage, and access state now come from the server through `ApiMembershipSyncGateway`, and the payload is re-validated on the client before it can grant anything.
+- Added the `pending_customer_approval` surface: `app/pending-approval.tsx` is the only protected screen a `customer/pending` membership can reach, hydrated from `/v1/requests` alone because bootstrap and shipments stay refused server-side.
+- Replaced the prototype online write URLs with real routes: `POST /v1/shipments/[id]/tender-response`, `POST /v1/shipments/[id]/assignment`, `POST /v1/exceptions/[id]/resolution`, `GET /v1/exceptions`, `GET|POST /v1/messages`, and `POST /v1/messages/[id]/read`. All are idempotency-keyed, tenant-scoped, rate-limited, and return the `{ data, error, meta }` envelope.
+- Added tenant-scoped operational messaging (`operations_messages`, `operations_message_reads`) in additive migration `0008_operations_messages.sql`, plus a bootstrap contact directory scoped by role (admins see the active roster, drivers and customers see only admins).
+- Added `freight_requests.subject` and `freight_requests.request_type` in additive migration `0009_freight_request_intake.sql` so mobile request intake round-trips faithfully instead of overloading `reference_number`/`commodity`. The mobile request form now collects the pickup and delivery addresses the API requires.
+- Made the surfaces with no production backing fail closed instead of posting to URLs that do not exist: intermediate-stop advance and tractor/trailer assignment now raise structured domain errors.
 
-## Verification already passing
+## Verification already passing (re-run at this checkpoint)
 
-- Mobile TypeScript: `cd mobile && npm run typecheck`
-- Mobile ESLint: `cd mobile && npm run lint`
-- Complete mobile Jest suite: 16 suites, 77/77 assertions
-- Manifest and route contracts: 24/24 in the agent verification pass
+Re-run and green at this checkpoint:
+
+- Mobile TypeScript: `cd mobile && npm run typecheck` — clean
+- Mobile ESLint: `cd mobile && npm run lint` — zero warnings
+- Complete mobile Jest suite: 17 suites, 87/87 assertions
+- Backend TypeScript: `npx tsc --noEmit --incremental false` — clean
+- Web ESLint: `npm run lint` — zero warnings
+- Complete web Vitest suite: 103 passed, 14 skipped (13 files, 2 skipped)
+- Backend mobile-API contract tests (`tests/unit/carrier-api.test.ts`): 20/20
+- `git diff --check`: clean at checkpoint
+
+Carried forward from the prior checkpoint and **not** re-run at this one:
+
+- Manifest and route contracts: 24/24
 - Expo Doctor: 21/21 checks passed
 - Expo all-platform export: passed
 - iOS Hermes export: 3.9 MB; Android Hermes export: 4.2 MB; exported assets total: 18 MB
-- Backend partner/X12/security tests: 20/20
-- Backend TypeScript: passed with `npx tsc --noEmit --incremental false`
-- Backend focused authorization/API tests: 13/13
-- Complete web Vitest suite: 100 passed, 14 skipped
 - Web production build: `npx next build --webpack` passed, including TypeScript, static generation, and route collection
-- `git diff --check`: clean at checkpoint
 
 The Jest process can retain an Expo test handle after reporting success. Use `--watchman=false --forceExit` for the current suite and separately investigate with `--detectOpenHandles`; do not mistake the retained handle for a failing assertion.
 
@@ -64,13 +76,22 @@ The default Turbopack production build panics in this Codex host while PostCSS t
 
 ## Immediate next work, in order
 
-1. Align mobile offline queue kinds with the real backend endpoint (`v1/mutations`, not the prototype `v1/mobile/offline-mutations`) for driver duty status, shipment status, location, exception, photo, signature, and POD. Preserve FIFO per shipment and conflict/idempotency semantics.
-2. Wire the mobile auth callback/bootstrap to `/api/auth/sync` as its source of truth and render the new `pending_customer_approval` state. The backend pending-access policy is complete; Supabase metadata must never authorize UI or API access.
-3. Implement the production repository’s remaining online mutation/message routes. Bootstrap/list hydration is real, but several write URLs/shapes remain prototype-only and have no matching API route.
-4. Finish tenant backfill/validation constraints for operational rows and seed the MF Superior organization plus the initial `info@mfsuperiorproducts.com` admin invitation.
+Items 1, 2, and 3 are complete and pushed. The remaining order is:
+
+1. **(Done)** Offline queue aligned with `v1/mutations`.
+2. **(Done)** `/api/auth/sync` is the mobile identity source of truth and `pending_customer_approval` renders.
+3. **(Done)** Production online mutation/message routes implemented; the only writes that still refuse are the two with no server-side model (intermediate stops, tractor/trailer assignment), and they now fail closed with structured errors instead of hitting missing URLs.
+4. Finish tenant backfill/validation constraints for operational rows and seed the MF Superior organization plus the initial `info@mfsuperiorproducts.com` admin invitation. Migrations `0008` and `0009` are generated but have not been applied to any database — no Neon/Supabase project is provisioned yet.
 5. Resolve the canonical simulator geometry, then capture both apps natively and close measured typography/spacing/component diffs. The current MF login sheet and monolithic role-home composition are source-inspection parity risks. Web screenshots are not a release substitute.
 6. Add Maestro journeys, screenshot masks/threshold checks, accessibility automation, Playwright staging coverage, mutation testing, health checks, and CI gates from the approved plan.
 7. Run the complete final suite after pending backend edits: mobile lint/typecheck/Jest/Expo Doctor/export, web lint/typecheck/Vitest/build/Playwright, audits, secret scan, bundle and asset budgets.
+
+### Known limitations recorded honestly
+
+- `shipment_events` records `driver_id` but not a general actor user id, so an admin-reported exception has no reporter attribution. The mobile `ExceptionReport.reportedByAccountId` is the driver id when present and an empty string otherwise.
+- `shipments.intermediate_stops` exists as JSONB but nothing writes it and the mobile projection only builds a pickup and a delivery stop, so `advanceIntermediateStop` fails closed rather than pretending.
+- There is no server-side equipment registry, so `assignShipment` refuses tractor/trailer ids rather than dropping them silently.
+- Messaging is tenant-scoped to sender plus listed recipients; admins deliberately do not get a blanket read over private threads.
 
 ## Native audit artifacts and reproducibility
 
@@ -123,6 +144,9 @@ Durable pushed history for this rebuild:
 - `6966090` — safe provider-neutral shipment detail response
 - `6a18fef` — font/icon asset trimming
 - `8d174e0` — pending customer access policy and migration
+- `1530fab` — offline queue aligned with the `v1/mutations` contract
+- `1d08122` — mobile identity derived from `/api/auth/sync` plus the pending-customer surface
+- `2e8d680` — production online mutation and message routes
 
 Continue on `codex/mobile-parity-v2`. After each coherent slice:
 
@@ -135,6 +159,50 @@ git push origin codex/mobile-parity-v2
 ```
 
 Do not rewrite or force-push the branch. Stage explicit paths while another agent is editing the shared worktree, preserve unrelated user changes, and update this handoff after verification results or blockers change.
+
+## Copy/paste start for a Claude cloud agent (Claude desktop app)
+
+Paste this whole block into a new Claude session with the repository connected. It
+carries no chat history — everything durable lives in this file and in the pushed
+branch, so the agent can resume from a cold start.
+
+```text
+Repository: tylerdevries22-afk/mfsuperior-crm
+Branch: codex/mobile-parity-v2  (never force-push, never rewrite history)
+
+1. git switch codex/mobile-parity-v2 && git pull --ff-only
+2. Read AGENTS.md and HANDOFF_MOBILE_PARITY_V2.md completely before editing anything.
+   HANDOFF_MOBILE_PARITY_V2.md is the single source of truth for what is done,
+   what is verified, and what is blocked. There is no other context to recover.
+3. Keep the appliance reference pinned at 480991b7eb0036e4e85c37d3784b2de2ca97d10d.
+   Approved deviations: MF lime branding, freight terminology/data, original
+   freight artwork, semantic status colors.
+4. Work "Immediate next work, in order" from the first item still marked open.
+   Items 1-3 are complete and pushed; start at item 4 unless Tyler says otherwise.
+5. Run proportional tests after each coherent change. Zero lint warnings is a
+   hard gate, not a goal:
+     cd mobile && npm run typecheck && npm run lint && npm test -- --watchman=false --forceExit
+     cd ..     && npm run typecheck && npm run lint && npm test
+6. Commit each verified slice with explicit paths, then push immediately:
+     git diff --check && git status --short
+     git add <verified files>
+     git commit -m "feat: <specific parity slice>"
+     git push origin codex/mobile-parity-v2
+7. Update HANDOFF_MOBILE_PARITY_V2.md whenever status, verification results, or
+   blockers change, and push that too.
+8. Honesty gates, non-negotiable:
+   - Do not claim native pixel parity. The canonical geometry conflict
+     (393x852 requested vs 402x874 rendered) is unresolved and there is no
+     trustworthy current native MF capture.
+   - Do not claim any partner connection is live without real credentials and a
+     successful UAT. Target stays "Portal available - EDI onboarding required";
+     the other six partners stay "Credentials required".
+   - Migrations 0008 and 0009 are generated but have never run against a real
+     database. Do not report them as applied.
+9. Ask Tyler only when an external credential, service approval, production
+   authorization, or unresolved product decision is genuinely required.
+   The open external blockers are listed under "External blockers requiring Tyler".
+```
 
 ## Copy/paste start for Claude Code or Kimi
 
