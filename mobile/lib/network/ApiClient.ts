@@ -1,5 +1,6 @@
 import { randomUUID } from "expo-crypto";
 
+import { isEncryptedOrLocalUrl } from "../private-network";
 import { NetworkRequestError, type NetworkFailure } from "./errors";
 import {
   createResilientFetch,
@@ -128,7 +129,7 @@ export class ApiClient {
 function validateBaseUrl(value: string): URL {
   try {
     const url = new URL(value);
-    if (url.protocol !== "https:" && url.hostname !== "localhost" && url.hostname !== "127.0.0.1") {
+    if (!isEncryptedOrLocalUrl(url)) {
       throw new Error("Unsupported API protocol.");
     }
     return url;

@@ -1,3 +1,5 @@
+import { isPrivateNetworkHost } from "../private-network";
+
 export interface ProductionAuthConfig {
   readonly apiBaseUrl: string;
   /** Origin-scoped base for the server membership endpoints (`/api/auth/`). */
@@ -87,37 +89,6 @@ function requireMobileApiBaseUrl(value: string | undefined): string | null {
   return url.toString().replace(/\/$/, "");
 }
 
-/**
- * Plaintext HTTP is tolerated only for hosts that cannot leave the local
- * network. A physical device on Wi-Fi reaches the development machine by its
- * LAN address, never by `localhost`, so restricting the exemption to loopback
- * made on-device testing impossible against a local backend.
- *
- * The allowance is deliberately range-based rather than "any http URL": a
- * public hostname still fails closed, so a misconfigured build cannot silently
- * ship cleartext auth traffic across the internet.
- */
 function isLocalDevelopmentHost(hostname: string): boolean {
-  const host = hostname.toLowerCase();
-  if (host === "localhost" || host.endsWith(".localhost")) return true;
-  // Bonjour/mDNS names resolve only on the local link.
-  if (host.endsWith(".local")) return true;
-  if (host === "::1" || host === "[::1]") return true;
-  return isPrivateIpv4(host);
-}
-
-function isPrivateIpv4(host: string): boolean {
-  const octets = host.split(".");
-  if (octets.length !== 4) return false;
-  const parsed = octets.map((octet) =>
-    /^\d{1,3}$/.test(octet) ? Number(octet) : Number.NaN,
-  );
-  if (parsed.some((octet) => Number.isNaN(octet) || octet > 255)) return false;
-  const [first, second] = parsed;
-  if (first === 127) return true; // loopback
-  if (first === 10) return true; // RFC1918 /8
-  if (first === 172 && second >= 16 && second <= 31) return true; // RFC1918 /12
-  if (first === 192 && second === 168) return true; // RFC1918 /16
-  if (first === 169 && second === 254) return true; // link-local
-  return false;
+  return isPrivateNetworkHost(hostname);
 }
