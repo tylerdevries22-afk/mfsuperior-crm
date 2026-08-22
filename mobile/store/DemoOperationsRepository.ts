@@ -2,7 +2,11 @@ import {
   OperationsDomainError,
   toOperationsFailure,
 } from "../domain/errors";
-import { anchorDemoStateTo, createDemoOperationsState } from "../domain/fixtures";
+import {
+  anchorDemoStateTo,
+  createDemoOperationsState,
+  reanchorDemoState,
+} from "../domain/fixtures";
 import type {
   HydrationResult,
   OperationsRepository,
@@ -104,7 +108,12 @@ export class DemoOperationsRepository implements OperationsRepository {
           return { state: this.state, recoveryFailure: null };
         }
 
-        this.state = deserializeDemoOperationsState(serialized);
+        // Restored state carries whatever day it was last anchored to, so it
+        // is moved onto today before anyone reads it.
+        this.state = reanchorDemoState(
+          deserializeDemoOperationsState(serialized),
+          new Date(this.clock()),
+        );
         this.notify();
         return { state: this.state, recoveryFailure: null };
       } catch (error: unknown) {

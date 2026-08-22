@@ -855,3 +855,37 @@ export function anchorDemoStateTo(
   if (days === 0) return state;
   return shiftDeep(state, days);
 }
+
+/**
+ * Re-anchors already-persisted demo state onto the current day.
+ *
+ * `anchorDemoStateTo` only helps state built fresh; a demo that is saved and
+ * then reopened after midnight would drift back into the past. The offset that
+ * was originally applied is recoverable without storing it, because
+ * `createDemoOperationsState` is deterministic: comparing a persisted
+ * appointment against its canonical counterpart gives the shift exactly.
+ *
+ * Appointment windows are read-only in the demo — status changes and events
+ * move, appointments do not — so they are a stable reference point.
+ */
+export function reanchorDemoState(
+  persisted: DemoOperationsState,
+  now: Date = new Date(),
+): DemoOperationsState {
+  const canonical = createDemoOperationsState();
+  const reference = canonical.shipments[0];
+  const saved = reference
+    ? persisted.shipments.find((shipment) => shipment.id === reference.id)
+    : undefined;
+  const canonicalAt = reference?.stops[0]?.appointment.startsAt;
+  const savedAt = saved?.stops[0]?.appointment.startsAt;
+  if (!canonicalAt || !savedAt) return persisted;
+
+  const appliedDays = Math.round(
+    (new Date(savedAt).getTime() - new Date(canonicalAt).getTime()) / MS_PER_DAY,
+  );
+  const wantedDays = demoDayOffset(now);
+  const delta = wantedDays - appliedDays;
+  if (delta === 0) return persisted;
+  return shiftDeep(persisted, delta);
+}

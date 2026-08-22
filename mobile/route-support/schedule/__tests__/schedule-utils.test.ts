@@ -1,4 +1,8 @@
-import { anchorDemoStateTo, createDemoOperationsState } from "@/domain/fixtures";
+import {
+  anchorDemoStateTo,
+  createDemoOperationsState,
+  reanchorDemoState,
+} from "@/domain/fixtures";
 import type { Shipment } from "@/domain/types";
 import {
   addDays,
@@ -139,5 +143,40 @@ describe("demo timeline anchoring", () => {
       return start !== null && formatDateKey(new Date(start)) === todayKey;
     });
     expect(startsToday).toBe(true);
+  });
+});
+
+describe("re-anchoring persisted demo state", () => {
+  it("moves a demo saved on an earlier day onto today", () => {
+    // Simulates a demo saved yesterday: anchored to one day before now.
+    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const saved = anchorDemoStateTo(createDemoOperationsState(), yesterday);
+    const restored = reanchorDemoState(saved, new Date());
+
+    const todayKey = formatDateKey(new Date());
+    const startsToday = restored.shipments.some((s) => {
+      const start = scheduledStart(s);
+      return start !== null && formatDateKey(new Date(start)) === todayKey;
+    });
+    expect(startsToday).toBe(true);
+  });
+
+  it("is a no-op when the saved state is already on today", () => {
+    const saved = anchorDemoStateTo(createDemoOperationsState(), new Date());
+    expect(reanchorDemoState(saved, new Date())).toBe(saved);
+  });
+
+  it("preserves edits made to the saved state", () => {
+    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const saved = anchorDemoStateTo(createDemoOperationsState(), yesterday);
+    const edited = {
+      ...saved,
+      shipments: saved.shipments.map((s, i) =>
+        i === 0 ? { ...s, status: "delivered" as const } : s,
+      ),
+    };
+    const restored = reanchorDemoState(edited, new Date());
+    expect(restored.shipments[0].status).toBe("delivered");
+    expect(restored.shipments).toHaveLength(edited.shipments.length);
   });
 });
