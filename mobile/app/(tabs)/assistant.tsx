@@ -1,21 +1,43 @@
-import Ionicons from "@expo/vector-icons/Ionicons";
-import { useRouter } from "expo-router";
-import { useRef, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Feather } from "@expo/vector-icons";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  FlatList,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  Text,
+  View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { WorkspaceGrid, type WorkspaceAction } from "@/components/operations";
-import { Button, Card, Header, PressableSurface, Screen, SectionHeader, TextField } from "@/components/ui";
 import { localAssistantReply } from "@/lib/tab-workspaces";
+import {
+  ASSISTANT_QUICK_ACTIONS,
+  AssistantWelcome,
+  type AssistantQuickAction,
+} from "@/route-support/assistant/_components/AssistantWelcome";
+import { AssistantInputBar } from "@/route-support/assistant/_components/AssistantInputBar";
+import { st } from "@/route-support/assistant/styles";
 import { useOperations } from "@/store";
-import { ICON, RADIUS, SPACE, TYPO, useTheme } from "@/theme";
+import { THEME, useTheme } from "@/theme";
+
+/**
+ * Ported from the Appliance Diagnostic Systems assistant at
+ * 480991b7eb0036e4e85c37d3784b2de2ca97d10d: a header carrying a live
+ * "Thinking" indicator and a new-chat action, a keyboard-avoiding body that
+ * shows the welcome screen until the first message, a chat list, and the
+ * composer with its suggested-reply rail.
+ */
 
 interface ChatMessage {
-  readonly id: number;
+  readonly id: string;
   readonly author: "assistant" | "user";
   readonly body: string;
 }
 
-const SUGGESTIONS = ["What is my next stop?", "Explain the HOS clock", "Is partner EDI ready?"] as const;
+const TAB_BAR_HEIGHT = 88;
 
 function ChatBubble({ message }: { readonly message: ChatMessage }) {
   const theme = useTheme();
@@ -23,146 +45,166 @@ function ChatBubble({ message }: { readonly message: ChatMessage }) {
   return (
     <View
       accessibilityLabel={`${fromUser ? "You" : "Operations assistant"}: ${message.body}`}
-      style={[
-        styles.bubble,
-        fromUser ? styles.userBubble : styles.assistantBubble,
-        {
-          backgroundColor: fromUser ? theme.primary : theme.surface,
-          borderColor: fromUser ? theme.primary : theme.border,
-        },
-      ]}
+      style={{
+        alignSelf: fromUser ? "flex-end" : "flex-start",
+        maxWidth: "86%",
+        marginBottom: 10,
+        paddingHorizontal: 14,
+        paddingVertical: 10,
+        borderRadius: 18,
+        borderWidth: 1,
+        backgroundColor: fromUser ? theme.primary : theme.surface,
+        borderColor: fromUser ? theme.primary : theme.border,
+      }}
     >
-      <Text style={[styles.bubbleText, { color: fromUser ? theme.primaryForeground : theme.text }]}>{message.body}</Text>
-    </View>
-  );
-}
-
-function SuggestionRow({ onSelect }: { readonly onSelect: (suggestion: string) => void }) {
-  const theme = useTheme();
-  return (
-    <View style={styles.suggestions}>
-      {SUGGESTIONS.map((suggestion) => (
-        <PressableSurface
-          accessibilityLabel={`Ask: ${suggestion}`}
-          haptic="selection"
-          key={suggestion}
-          onPress={() => onSelect(suggestion)}
-          style={[styles.suggestion, { backgroundColor: theme.surfaceElevated, borderColor: theme.border }]}
-        >
-          <Text style={[styles.suggestionText, { color: theme.primaryLight }]}>{suggestion}</Text>
-        </PressableSurface>
-      ))}
-    </View>
-  );
-}
-
-function useAssistantConversation(activeLoadId?: string) {
-  const nextId = useRef(2);
-  const [prompt, setPrompt] = useState("");
-  const [messages, setMessages] = useState<readonly ChatMessage[]>([{
-    id: 1,
-    author: "assistant",
-    body: "I can help with freight records, HOS, exceptions, equipment, and EDI workflows. Critical actions still require your confirmation.",
-  }]);
-
-  function sendPrompt(value = prompt): void {
-    const cleanPrompt = value.trim();
-    if (!cleanPrompt) return;
-    const userId = nextId.current++;
-    const assistantId = nextId.current++;
-    setMessages((current) => [...current,
-      { id: userId, author: "user", body: cleanPrompt },
-      { id: assistantId, author: "assistant", body: localAssistantReply(cleanPrompt, activeLoadId) },
-    ]);
-    setPrompt("");
-  }
-  return { messages, prompt, sendPrompt, setPrompt };
-}
-
-function AssistantIntro() {
-  const theme = useTheme();
-  return (
-    <Card variant="outlined">
-      <View style={styles.assistantMark}>
-        <View style={[styles.orb, { backgroundColor: theme.primaryMuted }]}>
-          <Ionicons color={theme.primaryLight} name="sparkles-outline" size={ICON.xl} />
-        </View>
-        <View style={styles.grow}>
-          <Text style={[styles.title, { color: theme.text }]}>Operations copilot</Text>
-          <Text style={[styles.subtitle, { color: theme.textSecondary }]}>Fast, repeatable guidance for freight operations.</Text>
-        </View>
-      </View>
-    </Card>
-  );
-}
-
-function Conversation({ messages }: { readonly messages: readonly ChatMessage[] }) {
-  return (
-    <>
-      <SectionHeader title="Conversation" />
-      <View accessibilityLabel="Assistant conversation" accessible style={styles.conversation}>
-        {messages.map((message) => <ChatBubble key={message.id} message={message} />)}
-      </View>
-    </>
-  );
-}
-
-function Composer({ prompt, onPromptChange, onSend }: {
-  readonly prompt: string;
-  readonly onPromptChange: (value: string) => void;
-  readonly onSend: () => void;
-}) {
-  const theme = useTheme();
-  return (
-    <View style={styles.composer}>
-      <TextField accessibilityLabel="Ask the operations assistant" containerStyle={styles.grow} maxLength={240} onChangeText={onPromptChange} onSubmitEditing={onSend} placeholder="Ask about a load or workflow" returnKeyType="send" value={prompt} />
-      <Button accessibilityLabel="Send question" disabled={!prompt.trim()} icon={<Ionicons color={theme.primaryForeground} name="arrow-up" size={ICON.md} />} onPress={onSend} title="Send" />
+      <Text
+        style={{
+          color: fromUser ? theme.primaryForeground : theme.text,
+          fontSize: 15,
+          lineHeight: 21,
+        }}
+      >
+        {message.body}
+      </Text>
     </View>
   );
 }
 
 export default function AssistantScreen() {
-  const router = useRouter();
-  const theme = useTheme();
-  const { activeShipment, effectiveRole } = useOperations();
-  const chat = useAssistantConversation(activeShipment?.loadNumber);
+  const insets = useSafeAreaInsets();
+  const { activeShipment } = useOperations();
+  const listRef = useRef<FlatList<ChatMessage>>(null);
 
-  const actions: readonly WorkspaceAction[] = [
-    { key: "triage", label: "Exception triage", detail: "Delay, damage, temperature", icon: "warning-outline", tone: "warning", onPress: () => router.push("/exception-diagnostic") },
-    { key: "hos", label: "HOS guide", detail: "Duty-clock explanation", icon: "timer-outline", tone: "success", onPress: () => router.push("/hours-of-service") },
-    ...(effectiveRole === "admin" ? [{ key: "edi", label: "EDI audit", detail: "204 · 990 · 214 · 210 · 997", icon: "git-network-outline" as const, tone: "info" as const, onPress: () => router.push("/edi-audit") }] : []),
-  ];
+  const [messages, setMessages] = useState<readonly ChatMessage[]>([]);
+  const [inputText, setInputText] = useState("");
+  const [streaming, setStreaming] = useState(false);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const [activeQuickAction, setActiveQuickAction] = useState<string | null>(null);
+
+  useEffect(() => {
+    const show = Keyboard.addListener("keyboardWillShow", () => setKeyboardVisible(true));
+    const hide = Keyboard.addListener("keyboardWillHide", () => setKeyboardVisible(false));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
+
+  const send = useCallback(
+    (text: string) => {
+      const trimmed = text.trim();
+      if (!trimmed || streaming) return;
+      const question: ChatMessage = {
+        id: `u-${Date.now()}`,
+        author: "user",
+        body: trimmed,
+      };
+      setMessages((prev) => [...prev, question]);
+      setInputText("");
+      setActiveQuickAction(null);
+      setStreaming(true);
+
+      // The reference streams from its model; the freight assistant answers
+      // from local freight records so it still works offline.
+      const reply = localAssistantReply(trimmed, activeShipment?.loadNumber);
+      const timer = setTimeout(() => {
+        setMessages((prev) => [...prev, { id: `a-${Date.now()}`, author: "assistant", body: reply }]);
+        setStreaming(false);
+      }, 380);
+      return () => clearTimeout(timer);
+    },
+    [activeShipment?.loadNumber, streaming],
+  );
+
+  const startNewChat = useCallback(() => {
+    setMessages([]);
+    setInputText("");
+    setActiveQuickAction(null);
+  }, []);
+
+  const handleQuickAction = useCallback(
+    (action: AssistantQuickAction) => {
+      setActiveQuickAction(action.key);
+      send(action.prompt);
+    },
+    [send],
+  );
+
+  useEffect(() => {
+    if (messages.length > 0) {
+      listRef.current?.scrollToEnd({ animated: true });
+    }
+  }, [messages.length]);
+
+  const suggestions = messages.length > 0 && !streaming
+    ? ASSISTANT_QUICK_ACTIONS.slice(0, 3).map((action) => action.prompt)
+    : [];
 
   return (
-    <View style={[styles.fill, { backgroundColor: theme.background }]}>
-      <Header subtitle="Freight guidance and guided triage" title="Assistant" />
-      <Screen keyboardAware safeEdges={["left", "right", "bottom"]} scroll contentContainerStyle={styles.content}>
-        <AssistantIntro />
-        <SuggestionRow onSelect={chat.sendPrompt} />
-        <Conversation messages={chat.messages} />
-        <Composer onPromptChange={chat.setPrompt} onSend={() => chat.sendPrompt()} prompt={chat.prompt} />
-        <SectionHeader title="Guided workflows" />
-        <WorkspaceGrid actions={actions} />
-      </Screen>
+    <View style={st.container}>
+      <View style={[st.header, { paddingTop: insets.top + 8 }]}>
+        <View style={st.headerCenter}>
+          <Text style={st.headerTitle}>Assistant</Text>
+          {streaming ? (
+            <View style={st.headerLive}>
+              <View style={st.liveDot} />
+              <Text style={st.liveText}>Thinking</Text>
+            </View>
+          ) : null}
+        </View>
+        <Pressable
+          accessibilityLabel="New chat"
+          accessibilityRole="button"
+          hitSlop={12}
+          onPress={startNewChat}
+          style={st.newChatBtn}
+        >
+          <Feather color={THEME.text} name="edit" size={20} />
+        </Pressable>
+      </View>
+
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={0}
+        style={st.body}
+      >
+        {messages.length === 0 ? (
+          // `welcomeWrap` is flex:1, so it must be a direct child of the
+          // flexing body — a wrapper without flex collapses it to zero height.
+          <AssistantWelcome
+            activeQuickAction={activeQuickAction}
+            onQuickAction={handleQuickAction}
+          />
+        ) : (
+          <FlatList
+            contentContainerStyle={st.chatList}
+            data={messages}
+            keyExtractor={(item) => item.id}
+            ref={listRef}
+            renderItem={({ item }) => <ChatBubble message={item} />}
+            showsVerticalScrollIndicator={false}
+          />
+        )}
+
+        {streaming ? (
+          <View style={st.toolStatusRow}>
+            <ActivityIndicator color={THEME.primary} size="small" />
+            <Text style={st.liveText}>Checking freight records…</Text>
+          </View>
+        ) : null}
+
+        <AssistantInputBar
+          insets={insets}
+          keyboardVisible={keyboardVisible}
+          onChangeText={setInputText}
+          onSend={send}
+          onSuggestion={send}
+          streaming={streaming}
+          suggestedReplies={suggestions}
+          tabBarHeight={TAB_BAR_HEIGHT}
+          value={inputText}
+        />
+      </KeyboardAvoidingView>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  assistantBubble: { alignSelf: "flex-start" },
-  assistantMark: { alignItems: "center", flexDirection: "row", gap: SPACE.md },
-  bubble: { borderRadius: RADIUS.md, borderWidth: 1, maxWidth: "88%", paddingHorizontal: SPACE.md, paddingVertical: SPACE.sm },
-  bubbleText: { ...TYPO.body },
-  composer: { alignItems: "flex-end", flexDirection: "row", gap: SPACE.sm },
-  content: { gap: SPACE.md, paddingBottom: SPACE.xxl },
-  conversation: { gap: SPACE.sm },
-  fill: { flex: 1 },
-  grow: { flex: 1, minWidth: 0 },
-  orb: { alignItems: "center", borderRadius: RADIUS.lg, height: 56, justifyContent: "center", width: 56 },
-  suggestion: { borderRadius: RADIUS.pill, borderWidth: 1, minHeight: 44, paddingHorizontal: SPACE.md, paddingVertical: SPACE.sm },
-  suggestionText: { ...TYPO.captionStrong },
-  suggestions: { flexDirection: "row", flexWrap: "wrap", gap: SPACE.sm },
-  subtitle: { ...TYPO.caption, marginTop: SPACE.xxs },
-  title: { ...TYPO.cardTitle },
-  userBubble: { alignSelf: "flex-end" },
-});

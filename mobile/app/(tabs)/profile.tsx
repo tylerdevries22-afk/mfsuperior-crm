@@ -1,14 +1,18 @@
 import Feather from "@expo/vector-icons/Feather";
+import Constants from "expo-constants";
 import * as Linking from "expo-linking";
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
+import { DriverAvatar } from "@/components/operations";
 import { AnimatedButton, Card, Header, ListRow, Screen, SectionHeader, SegmentedControl, Sheet, StatusBadge } from "@/components/ui";
 import type { AppRole } from "@/domain/types";
 import { FREIGHT_PARTNERS, validatedPartnerPortal, type FreightPartnerDefinition } from "@/features/partner-integrations";
 import { useOperations } from "@/store";
 import { RADIUS, SPACE, TYPO, useTheme } from "@/theme";
+
+const APP_VERSION = (Constants.expoConfig?.version ?? "1.0.0") as string;
 
 const ROLE_OPTIONS = [
   { label: "Customer", value: "customer" },
@@ -19,9 +23,12 @@ const ROLE_OPTIONS = [
 function AccountPanel() {
   const router = useRouter();
   const theme = useTheme();
-  const { currentAccount, effectiveRole } = useOperations();
+  const { currentAccount, effectiveRole, state } = useOperations();
   const initials = currentAccount?.displayName.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase() ?? "MF";
-  return <Card><View style={styles.accountRow}><View style={[styles.avatar, { backgroundColor: theme.primary }]}><Text style={[styles.initials, { color: theme.primaryForeground }]}>{initials}</Text></View><View style={styles.grow}><Text style={[styles.accountName, { color: theme.text }]}>{currentAccount?.displayName ?? "MF Superior user"}</Text><Text style={[styles.accountMeta, { color: theme.textSecondary }]}>{currentAccount?.title ?? "Freight operations"}</Text><Text style={[styles.accountMeta, { color: theme.textMuted }]}>{currentAccount?.companyName ?? "MF Superior Products"}</Text></View><StatusBadge status={effectiveRole ?? "pending"} /></View><View style={[styles.divider, { backgroundColor: theme.border }]} /><ListRow isLast onPress={() => router.push("/profile-details")} subtitle={currentAccount?.email ?? "Email unavailable"} title="Account details" /></Card>;
+  // A signed-in driver has a portrait; show it here rather than initials, so
+  // the avatar matches the one the schedule and home screens render.
+  const linkedDriver = state.drivers.find((driver) => driver.id === currentAccount?.driverId);
+  return <Card><View style={styles.accountRow}>{linkedDriver ? <DriverAvatar driver={linkedDriver} ring={false} size={58} /> : <View style={[styles.avatar, { backgroundColor: theme.primary }]}><Text style={[styles.initials, { color: theme.primaryForeground }]}>{initials}</Text></View>}<View style={styles.grow}><Text style={[styles.accountName, { color: theme.text }]}>{currentAccount?.displayName ?? "MF Superior user"}</Text><Text style={[styles.accountMeta, { color: theme.textSecondary }]}>{currentAccount?.title ?? "Freight operations"}</Text><Text style={[styles.accountMeta, { color: theme.textMuted }]}>{currentAccount?.companyName ?? "MF Superior Products"}</Text></View><StatusBadge status={effectiveRole ?? "pending"} /></View><View style={[styles.divider, { backgroundColor: theme.border }]} /><ListRow isLast onPress={() => router.push("/profile-details")} subtitle={currentAccount?.email ?? "Email unavailable"} title="Account details" /></Card>;
 }
 
 function DemoRolePreview() {
@@ -58,7 +65,7 @@ export default function ProfileScreen() {
   const [signingOut, setSigningOut] = useState(false);
   const isDemo = useMemo(() => currentAccount?.email.includes("@demo.") ?? false, [currentAccount?.email]);
   const signOut = async () => { setSigningOut(true); await actions.signOut(); setSigningOut(false); };
-  return <View style={[styles.fill, { backgroundColor: theme.background }]}><Header subtitle="Account, security, and connections" title="Profile" /><Screen safeEdges={["left", "right", "bottom"]} scroll contentContainerStyle={styles.content}><AccountPanel />{isDemo ? <View style={[styles.demoBanner, { backgroundColor: theme.primaryMuted, borderColor: theme.tint.primary.medium }]}><Feather color={theme.primaryLight} name="play-circle" size={18} /><View style={styles.grow}><Text style={[styles.demoBannerTitle, { color: theme.text }]}>Demo workspace</Text><Text style={[styles.demoBannerCopy, { color: theme.textSecondary }]}>Records stay on this device and no partner portal is contacted.</Text></View></View> : null}<DemoRolePreview />{currentAccount?.role === "admin" ? <IntegrationsSection /> : null}<SettingsGroups /><AnimatedButton fullWidth loading={signingOut} onPress={() => void signOut()} title="Sign out" variant="outline" /><Text style={[styles.footnote, { color: theme.textMuted }]}>MF Superior Products · Freight operations</Text></Screen></View>;
+  return <View style={[styles.fill, { backgroundColor: theme.background }]}><Header subtitle="Account, security, and connections" title="Profile" /><Screen safeEdges={["left", "right", "bottom"]} scroll contentContainerStyle={styles.content}><AccountPanel />{isDemo ? <View style={[styles.demoBanner, { backgroundColor: theme.primaryMuted, borderColor: theme.tint.primary.medium }]}><Feather color={theme.primaryLight} name="play-circle" size={18} /><View style={styles.grow}><Text style={[styles.demoBannerTitle, { color: theme.text }]}>Demo workspace</Text><Text style={[styles.demoBannerCopy, { color: theme.textSecondary }]}>Records stay on this device and no partner portal is contacted.</Text></View></View> : null}<DemoRolePreview />{currentAccount?.role === "admin" ? <IntegrationsSection /> : null}<SettingsGroups /><AnimatedButton fullWidth loading={signingOut} onPress={() => void signOut()} title="Sign out" variant="outline" /><View style={styles.legalRow}><Pressable accessibilityRole="link" onPress={() => void Linking.openURL("https://mfsuperiorproducts.com/privacy")}><Text style={[styles.legalLink, { color: theme.textSecondary }]}>Privacy Policy</Text></Pressable><Text style={[styles.legalDot, { color: theme.textMuted }]}>·</Text><Pressable accessibilityRole="link" onPress={() => void Linking.openURL("https://mfsuperiorproducts.com/terms")}><Text style={[styles.legalLink, { color: theme.textSecondary }]}>Terms &amp; Conditions</Text></Pressable></View><Text style={[styles.footnote, { color: theme.textMuted }]}>MF Superior Products · Freight operations · v{APP_VERSION}</Text></Screen></View>;
 }
 
 const styles = StyleSheet.create({
@@ -77,6 +84,9 @@ const styles = StyleSheet.create({
   demoTitleRow: { alignItems: "center", flexDirection: "row", gap: SPACE.sm },
   divider: { height: 1, marginTop: SPACE.md },
   fill: { flex: 1 },
+  legalDot: { ...TYPO.caption },
+  legalLink: { ...TYPO.caption, textDecorationLine: "underline" },
+  legalRow: { alignItems: "center", flexDirection: "row", gap: SPACE.xs, justifyContent: "center" },
   footnote: { ...TYPO.caption, paddingVertical: SPACE.md, textAlign: "center" },
   grow: { flex: 1, minWidth: 0 },
   initials: { ...TYPO.heading },

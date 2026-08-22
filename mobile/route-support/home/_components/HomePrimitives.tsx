@@ -1,18 +1,9 @@
 import { Feather } from "@expo/vector-icons";
-import { useEffect } from "react";
-import { Text, View } from "react-native";
-import Animated, {
-  Easing,
-  useAnimatedStyle,
-  useSharedValue,
-  withDelay,
-  withRepeat,
-  withSequence,
-  withTiming,
-} from "react-native-reanimated";
+import { useEffect, useRef } from "react";
+import { Animated, Easing, Text, View } from "react-native";
 
 import { AnimatedPressable } from "@/components/ui";
-import { THEME } from "@/theme";
+import { THEME, useReducedMotion } from "@/theme";
 
 import { s } from "../homeStyles";
 
@@ -21,43 +12,60 @@ import { s } from "../homeStyles";
  * 480991b7eb0036e4e85c37d3784b2de2ca97d10d — same timings, same geometry.
  */
 
+/**
+ * The reference drives this with Reanimated shared values. Every other
+ * animation in this app uses React Native's `Animated`, and this was the only
+ * Reanimated call site, so it is expressed with the same primitive rather than
+ * resting on a worklets plugin nothing else needs. Timings are unchanged.
+ *
+ * The loop is decorative emphasis, not information, so Reduce Motion leaves
+ * the orb at rest.
+ */
 export function PulseOrb({ color, delay = 0 }: { readonly color: string; readonly delay?: number }) {
-  const scale = useSharedValue(1);
-  const opacity = useSharedValue(0.6);
+  const progress = useRef(new Animated.Value(0)).current;
+  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
-    scale.value = withDelay(
-      delay,
-      withRepeat(
-        withSequence(
-          withTiming(1.6, { duration: 1800, easing: Easing.out(Easing.ease) }),
-          withTiming(1, { duration: 1200, easing: Easing.inOut(Easing.ease) }),
-        ),
-        -1,
-        true,
-      ),
+    if (reduceMotion) {
+      progress.setValue(0);
+      return undefined;
+    }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(progress, {
+          toValue: 1,
+          delay,
+          duration: 1800,
+          easing: Easing.out(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(progress, {
+          toValue: 0,
+          duration: 1200,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ]),
     );
-    opacity.value = withDelay(
-      delay,
-      withRepeat(
-        withSequence(withTiming(0.15, { duration: 1800 }), withTiming(0.6, { duration: 1200 })),
-        -1,
-        true,
-      ),
-    );
-  }, [delay, opacity, scale]);
+    loop.start();
+    return () => loop.stop();
+  }, [delay, progress, reduceMotion]);
 
-  const animStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-    opacity: opacity.value,
-  }));
+  const scale = progress.interpolate({ inputRange: [0, 1], outputRange: [1, 1.6] });
+  const opacity = progress.interpolate({ inputRange: [0, 1], outputRange: [0.6, 0.15] });
 
   return (
     <Animated.View
-      style={[
-        { position: "absolute", width: 8, height: 8, borderRadius: 4, backgroundColor: color },
-        animStyle,
-      ]}
+      pointerEvents="none"
+      style={{
+        position: "absolute",
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        backgroundColor: color,
+        opacity,
+        transform: [{ scale }],
+      }}
     />
   );
 }
