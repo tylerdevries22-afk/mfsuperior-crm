@@ -137,3 +137,83 @@ describe("toMutationOperation", () => {
     });
   });
 });
+
+describe("availability replay", () => {
+  const base = {
+    attempts: 0,
+    deviceCreatedAt: "2026-08-20T13:00:00.000Z",
+    entityVersion: 0,
+    idempotencyKey: "key-availability",
+    lastFailure: null,
+    nextAttemptAt: null,
+    ownerUserId: "3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+    pendingFileUris: [],
+  };
+
+  /**
+   * The write a driver makes from the cab, where signal is least reliable.
+   * Losing it would leave dispatch believing a driver is available when they
+   * have said otherwise, so it has to survive the queue round trip intact.
+   */
+  it("maps a queued block onto its replay operation", () => {
+    const operation = toMutationOperation({
+      ...base,
+      entityId: "availability-1",
+      kind: "availability",
+      payload: {
+        block: {
+          endsAt: "2026-09-02T18:00:00.000Z",
+          kind: "unavailable",
+          note: "Medical appointment",
+          startsAt: "2026-09-02T06:00:00.000Z",
+        },
+      },
+      shipmentId: "availability-driver-brenna",
+    });
+
+    expect(operation).toMatchObject({
+      operation: "availability.block.set",
+      payload: {
+        endsAt: "2026-09-02T18:00:00.000Z",
+        kind: "unavailable",
+        note: "Medical appointment",
+        startsAt: "2026-09-02T06:00:00.000Z",
+      },
+    });
+  });
+
+  it("omits the optional fields it was not given", () => {
+    const operation = toMutationOperation({
+      ...base,
+      entityId: "availability-2",
+      kind: "availability",
+      payload: {
+        block: {
+          endsAt: "2026-09-02T18:00:00.000Z",
+          kind: "time_off",
+          startsAt: "2026-09-02T06:00:00.000Z",
+        },
+      },
+      shipmentId: "availability-driver-brenna",
+    });
+
+    expect(operation?.payload).not.toHaveProperty("id");
+    expect(operation?.payload).not.toHaveProperty("driverId");
+    expect(operation?.payload).not.toHaveProperty("note");
+  });
+
+  it("maps a queued removal onto its own operation", () => {
+    const operation = toMutationOperation({
+      ...base,
+      entityId: "availability-3",
+      kind: "availability_removal",
+      payload: { blockId: "availability-3" },
+      shipmentId: "availability-driver-brenna",
+    });
+
+    expect(operation).toMatchObject({
+      operation: "availability.block.remove",
+      payload: { id: "availability-3" },
+    });
+  });
+});

@@ -53,6 +53,35 @@ function IntegrationsSection() {
   return <><SectionHeader title="Integrations" /><Card padding="none">{FREIGHT_PARTNERS.map((partner, index) => <ListRow isLast={index === FREIGHT_PARTNERS.length - 1} key={partner.id} leading={<View style={[styles.integrationIcon, { backgroundColor: partner.status === "portal_available" ? theme.warningMuted : theme.surfaceElevated }]}><Feather color={partner.status === "portal_available" ? theme.warning : theme.textMuted} name={partner.id === "target" ? "target" : "link-2"} size={19} /></View>} onPress={() => setSelected(partner)} subtitle={partner.statusLabel} title={partner.name} trailing={<Feather color={theme.textMuted} name="chevron-right" size={18} />} />)}</Card><PartnerSheet onClose={() => setSelected(null)} partner={selected} /></>;
 }
 
+function DriverToolsSection() {
+  const router = useRouter();
+  const theme = useTheme();
+  const { effectiveRole } = useOperations();
+  // Gated on effectiveRole rather than the account role, so an admin previewing
+  // the driver experience actually sees the driver's own tools. The
+  // Integrations section above deliberately stays on the true account role:
+  // partner credentials are not part of a role preview.
+  if (effectiveRole !== "driver") return null;
+  return <><SectionHeader title="Driver tools" /><Card padding="none"><ListRow leading={<Feather color={theme.primaryLight} name="calendar" size={19} />} onPress={() => router.push("/availability")} subtitle="Set your days and block time" title="Availability" /><ListRow leading={<Feather color={theme.primaryLight} name="map" size={19} />} onPress={() => router.push("/trip-history")} subtitle="Delivered loads and what they earned" title="Trip history" /><ListRow isLast leading={<Feather color={theme.primaryLight} name="dollar-sign" size={19} />} onPress={() => router.push("/driver-payments")} subtitle="Payout methods and settlements" title="Payments" /></Card></>;
+}
+
+const ADMIN_CONSOLES = [
+  { icon: "truck", route: "/fleet", subtitle: "Tractors, trailers, and assignments", title: "Fleet" },
+  { icon: "clipboard", route: "/jobs", subtitle: "Dispatch board for every load", title: "Jobs" },
+  { icon: "users", route: "/driver-scheduling", subtitle: "Availability against the week's work", title: "Driver scheduling" },
+  { icon: "credit-card", route: "/payouts", subtitle: "Settlements and payment records", title: "Payouts & payments" },
+  { icon: "tool", route: "/maintenance", subtitle: "Work orders and preventive service", title: "Repairs & maintenance" },
+  { icon: "file-text", route: "/licensing", subtitle: "Registration, inspections, and CDLs", title: "Licensing & registration" },
+] as const;
+
+function AdminConsoleSection() {
+  const router = useRouter();
+  const theme = useTheme();
+  const { effectiveRole } = useOperations();
+  if (effectiveRole !== "admin") return null;
+  return <><SectionHeader title="Operations" /><Card padding="none">{ADMIN_CONSOLES.map((console, index) => <ListRow isLast={index === ADMIN_CONSOLES.length - 1} key={console.route} leading={<Feather color={theme.primaryLight} name={console.icon} size={19} />} onPress={() => router.push(console.route)} subtitle={console.subtitle} title={console.title} />)}</Card></>;
+}
+
 function SettingsGroups() {
   const router = useRouter();
   const theme = useTheme();
@@ -65,7 +94,7 @@ export default function ProfileScreen() {
   const [signingOut, setSigningOut] = useState(false);
   const isDemo = useMemo(() => currentAccount?.email.includes("@demo.") ?? false, [currentAccount?.email]);
   const signOut = async () => { setSigningOut(true); await actions.signOut(); setSigningOut(false); };
-  return <View style={[styles.fill, { backgroundColor: theme.background }]}><Header subtitle="Account, security, and connections" title="Profile" /><Screen safeEdges={["left", "right", "bottom"]} scroll contentContainerStyle={styles.content}><AccountPanel />{isDemo ? <View style={[styles.demoBanner, { backgroundColor: theme.primaryMuted, borderColor: theme.tint.primary.medium }]}><Feather color={theme.primaryLight} name="play-circle" size={18} /><View style={styles.grow}><Text style={[styles.demoBannerTitle, { color: theme.text }]}>Demo workspace</Text><Text style={[styles.demoBannerCopy, { color: theme.textSecondary }]}>Records stay on this device and no partner portal is contacted.</Text></View></View> : null}<DemoRolePreview />{currentAccount?.role === "admin" ? <IntegrationsSection /> : null}<SettingsGroups /><AnimatedButton fullWidth loading={signingOut} onPress={() => void signOut()} title="Sign out" variant="outline" /><View style={styles.legalRow}><Pressable accessibilityRole="link" onPress={() => void Linking.openURL("https://mfsuperiorproducts.com/privacy")}><Text style={[styles.legalLink, { color: theme.textSecondary }]}>Privacy Policy</Text></Pressable><Text style={[styles.legalDot, { color: theme.textMuted }]}>·</Text><Pressable accessibilityRole="link" onPress={() => void Linking.openURL("https://mfsuperiorproducts.com/terms")}><Text style={[styles.legalLink, { color: theme.textSecondary }]}>Terms &amp; Conditions</Text></Pressable></View><Text style={[styles.footnote, { color: theme.textMuted }]}>MF Superior Products · Freight operations · v{APP_VERSION}</Text></Screen></View>;
+  return <View style={[styles.fill, { backgroundColor: theme.background }]}><Header subtitle="Account, security, and connections" title="Profile" /><Screen safeEdges={["left", "right", "bottom"]} scroll contentContainerStyle={styles.content}><AccountPanel />{isDemo ? <View style={[styles.demoBanner, { backgroundColor: theme.primaryMuted, borderColor: theme.tint.primary.medium }]}><Feather color={theme.primaryLight} name="play-circle" size={18} /><View style={styles.grow}><Text style={[styles.demoBannerTitle, { color: theme.text }]}>Demo workspace</Text><Text style={[styles.demoBannerCopy, { color: theme.textSecondary }]}>Records stay on this device and no partner portal is contacted.</Text></View></View> : null}<DemoRolePreview /><DriverToolsSection /><AdminConsoleSection />{currentAccount?.role === "admin" ? <IntegrationsSection /> : null}<SettingsGroups /><AnimatedButton fullWidth loading={signingOut} onPress={() => void signOut()} title="Sign out" variant="outline" /><View style={styles.legalRow}><Pressable accessibilityRole="link" onPress={() => void Linking.openURL("https://mfsuperiorproducts.com/privacy")}><Text style={[styles.legalLink, { color: theme.textSecondary }]}>Privacy Policy</Text></Pressable><Text style={[styles.legalDot, { color: theme.textMuted }]}>·</Text><Pressable accessibilityRole="link" onPress={() => void Linking.openURL("https://mfsuperiorproducts.com/terms")}><Text style={[styles.legalLink, { color: theme.textSecondary }]}>Terms &amp; Conditions</Text></Pressable></View><Text style={[styles.footnote, { color: theme.textMuted }]}>MF Superior Products · Freight operations · v{APP_VERSION}</Text></Screen></View>;
 }
 
 const styles = StyleSheet.create({

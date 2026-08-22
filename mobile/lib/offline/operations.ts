@@ -1,4 +1,5 @@
 import type {
+  AvailabilityBlockInput,
   ExceptionReportInput,
   GeoPoint,
   HosDutyStatus,
@@ -14,7 +15,9 @@ export type MutationOperationName =
   | "shipment.photo.attach"
   | "shipment.signature.record"
   | "shipment.status.update"
-  | "shipment.pod.submit";
+  | "shipment.pod.submit"
+  | "availability.block.set"
+  | "availability.block.remove";
 
 export interface MutationOperation {
   readonly idempotencyKey: string;
@@ -56,6 +59,25 @@ export function toMutationOperation(
     occurredAt: mutation.deviceCreatedAt,
   };
   switch (mutation.kind) {
+    case "availability": {
+      const payload = mutation.payload as { readonly block: AvailabilityBlockInput };
+      return {
+        ...base,
+        operation: "availability.block.set",
+        payload: {
+          endsAt: payload.block.endsAt,
+          kind: payload.block.kind,
+          ...(payload.block.id ? { id: payload.block.id } : {}),
+          ...(payload.block.driverId ? { driverId: payload.block.driverId } : {}),
+          ...(payload.block.note ? { note: payload.block.note } : {}),
+          startsAt: payload.block.startsAt,
+        },
+      };
+    }
+    case "availability_removal": {
+      const payload = mutation.payload as { readonly blockId: string };
+      return { ...base, operation: "availability.block.remove", payload: { id: payload.blockId } };
+    }
     case "driver_status": {
       const payload = mutation.payload as { readonly status: HosDutyStatus };
       return {

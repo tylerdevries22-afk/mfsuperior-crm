@@ -106,7 +106,12 @@ function inferTone(status: string): BadgeTone {
   return "neutral";
 }
 
-function statusLabel(status: string): string {
+/**
+ * `on_duty` becomes `On Duty`. Exported because several screens render an enum
+ * outside a badge, and each hand-rolled conversion was one more place for a
+ * raw `in_progress` to reach the screen.
+ */
+export function statusLabel(status: string): string {
   return status.replaceAll("_", " ").replace(/\b\w/g, (character) => character.toUpperCase());
 }
 

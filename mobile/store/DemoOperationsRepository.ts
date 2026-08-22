@@ -16,11 +16,19 @@ import {
   transitionHosStatus,
   transitionShipmentStatus,
 } from "../domain/transitions";
+import { buildPayoutLineItems, summarizePayout } from "../domain/payouts";
 import type {
   AppRole,
+  AvailabilityBlock,
+  AvailabilityBlockInput,
+  AvailabilityRule,
+  AvailabilityRuleInput,
+  ComplianceDocument,
+  ComplianceDocumentInput,
   CreateCustomerRequestInput,
   CustomerRequest,
   DemoOperationsState,
+  Driver,
   EdiTransaction,
   EdiTransactionType,
   EntityId,
@@ -28,8 +36,16 @@ import type {
   ExceptionReportInput,
   GeoPoint,
   HosDutyStatus,
+  IsoDateTime,
+  MaintenanceOrder,
+  MaintenanceOrderInput,
+  MaintenanceOrderPatch,
   OperationsMessage,
   OperationsAccount,
+  Payout,
+  PayoutMethod,
+  PayoutMethodInput,
+  PayoutRail,
   ProofOfDelivery,
   ProofOfDeliveryInput,
   SendMessageInput,
@@ -37,7 +53,10 @@ import type {
   ShipmentEvent,
   ShipmentEventSource,
   ShipmentStatus,
+  Vehicle,
+  VehicleInput,
 } from "../domain/types";
+import { PayoutMethodStore } from "./payoutMethodStore";
 import { AsyncStoragePersistenceAdapter, type PersistenceAdapter } from "./persistence";
 import {
   deserializeDemoOperationsState,
@@ -47,6 +66,8 @@ import {
 export interface DemoOperationsRepositoryOptions {
   readonly persistence?: PersistenceAdapter;
   readonly clock?: () => string;
+  /** Injected in tests so payout handles never reach a real keychain. */
+  readonly payoutMethods?: PayoutMethodStore;
 }
 
 interface StateUpdate<Result> {
@@ -82,10 +103,12 @@ export class DemoOperationsRepository implements OperationsRepository {
   private readonly listeners = new Set<OperationsStateListener>();
   private operationQueue: Promise<void> = Promise.resolve();
   private idSequence = 0;
+  private readonly payoutMethods: PayoutMethodStore;
 
   constructor(options: DemoOperationsRepositoryOptions = {}) {
     this.persistence = options.persistence ?? new AsyncStoragePersistenceAdapter();
     this.clock = options.clock ?? (() => new Date().toISOString());
+    this.payoutMethods = options.payoutMethods ?? new PayoutMethodStore({ clock: () => this.clock() });
     this.state = this.freshState();
   }
 
@@ -781,6 +804,564 @@ export class DemoOperationsRepository implements OperationsRepository {
     return this.state.ediTransactions.filter((transaction) => transaction.shipmentId === shipmentId);
   }
 
+  /**
+   * Availability writes. A driver owns their own calendar; an admin may write
+   * anyone's by naming a driver in the input. Conflicts with already-assigned
+   * loads are surfaced by the screen, which has both collections in hand —
+   * the write itself is never blocked, because a driver telling dispatch they
+   * are unavailable is information dispatch needs, not an error.
+   */
+  setAvailabilityBlock(input: AvailabilityBlockInput): Promise<AvailabilityBlock> {
+    return this.commit((state, occurredAt) => {
+      const context = getSessionContext(state);
+      const driverId = resolveAvailabilityDriverId(state, context, input.driverId);
+      const startsAt = normalizedIsoDateTime(input.startsAt);
+      const endsAt = normalizedIsoDateTime(input.endsAt);
+      if (Date.parse(endsAt) <= Date.parse(startsAt)) {
+        throw new OperationsDomainError(
+          "VALIDATION_FAILED",
+          "An availability block has to end after it starts.",
+        );
+      }
+
+      const existing = input.id
+        ? state.availabilityBlocks.find(
+            (candidate) => candidate.id === input.id && candidate.driverId === driverId,
+          )
+        : undefined;
+      if (input.id && !existing) {
+        throw new OperationsDomainError("NOT_FOUND", "That availability block could not be found.");
+      }
+
+      const block: AvailabilityBlock = {
+        createdAt: existing?.createdAt ?? occurredAt,
+        driverId,
+        endsAt,
+        id: existing?.id ?? this.nextId("availability", occurredAt),
+        kind: input.kind,
+        note: input.note?.trim() || undefined,
+        ruleId: existing?.ruleId,
+        startsAt,
+        updatedAt: occurredAt,
+      };
+
+      const others = state.availabilityBlocks.filter((candidate) => candidate.id !== block.id);
+      return {
+        result: block,
+        state: {
+          ...state,
+          availabilityBlocks: [...others, block],
+          updatedAt: occurredAt,
+        },
+      };
+    });
+  }
+
+  removeAvailabilityBlock(blockId: EntityId): Promise<DemoOperationsState> {
+    return this.commit((state, occurredAt) => {
+      const context = getSessionContext(state);
+      const block = state.availabilityBlocks.find((candidate) => candidate.id === blockId);
+      if (!block) {
+        throw new OperationsDomainError("NOT_FOUND", "That availability block could not be found.");
+      }
+      resolveAvailabilityDriverId(state, context, block.driverId);
+
+      const nextState: DemoOperationsState = {
+        ...state,
+        availabilityBlocks: state.availabilityBlocks.filter(
+          (candidate) => candidate.id !== blockId,
+        ),
+        updatedAt: occurredAt,
+      };
+      return { result: nextState, state: nextState };
+    });
+  }
+
+  setAvailabilityRule(input: AvailabilityRuleInput): Promise<AvailabilityRule> {
+    return this.commit((state, occurredAt) => {
+      const context = getSessionContext(state);
+      const driverId = resolveAvailabilityDriverId(state, context, input.driverId);
+      if (
+        !Number.isInteger(input.startMinute) ||
+        !Number.isInteger(input.endMinute) ||
+        input.startMinute < 0 ||
+        input.endMinute > 1_440 ||
+        input.endMinute <= input.startMinute
+      ) {
+        throw new OperationsDomainError(
+          "VALIDATION_FAILED",
+          "A weekly pattern has to cover a real span inside one day.",
+        );
+      }
+
+      const existing = input.id
+        ? state.availabilityRules.find(
+            (candidate) => candidate.id === input.id && candidate.driverId === driverId,
+          )
+        : undefined;
+      if (input.id && !existing) {
+        throw new OperationsDomainError("NOT_FOUND", "That weekly pattern could not be found.");
+      }
+
+      const rule: AvailabilityRule = {
+        createdAt: existing?.createdAt ?? occurredAt,
+        driverId,
+        effectiveFrom: normalizedIsoDateTime(input.effectiveFrom),
+        effectiveUntil: input.effectiveUntil
+          ? normalizedIsoDateTime(input.effectiveUntil)
+          : undefined,
+        endMinute: input.endMinute,
+        id: existing?.id ?? this.nextId("availability-rule", occurredAt),
+        kind: input.kind,
+        startMinute: input.startMinute,
+        updatedAt: occurredAt,
+        weekday: input.weekday,
+      };
+
+      const others = state.availabilityRules.filter((candidate) => candidate.id !== rule.id);
+      return {
+        result: rule,
+        state: { ...state, availabilityRules: [...others, rule], updatedAt: occurredAt },
+      };
+    });
+  }
+
+  removeAvailabilityRule(ruleId: EntityId): Promise<DemoOperationsState> {
+    return this.commit((state, occurredAt) => {
+      const context = getSessionContext(state);
+      const rule = state.availabilityRules.find((candidate) => candidate.id === ruleId);
+      if (!rule) {
+        throw new OperationsDomainError("NOT_FOUND", "That weekly pattern could not be found.");
+      }
+      resolveAvailabilityDriverId(state, context, rule.driverId);
+
+      const nextState: DemoOperationsState = {
+        ...state,
+        // Blocks expanded from the rule go with it; leaving them behind would
+        // keep enforcing a pattern the driver just deleted.
+        availabilityBlocks: state.availabilityBlocks.filter(
+          (candidate) => candidate.ruleId !== ruleId,
+        ),
+        availabilityRules: state.availabilityRules.filter((candidate) => candidate.id !== ruleId),
+        updatedAt: occurredAt,
+      };
+      return { result: nextState, state: nextState };
+    });
+  }
+
+  /**
+   * Payout handles. Driver-only and scoped to the signed-in driver — an admin
+   * has no read path to a raw handle through this repository at all.
+   */
+  listPayoutMethods(): Promise<readonly PayoutMethod[]> {
+    return this.enqueue(async () => {
+      const context = getSessionContext(this.state);
+      requireRole(context, "driver", "A Driver role is required to view payout methods.");
+      return this.payoutMethods.list(requireDriverId(context));
+    });
+  }
+
+  savePayoutMethod(input: PayoutMethodInput): Promise<PayoutMethod> {
+    return this.enqueue(async () => {
+      const context = getSessionContext(this.state);
+      requireRole(context, "driver", "A Driver role is required to save a payout method.");
+      return this.payoutMethods.save(requireDriverId(context), input);
+    });
+  }
+
+  removePayoutMethod(methodId: EntityId): Promise<readonly PayoutMethod[]> {
+    return this.enqueue(async () => {
+      const context = getSessionContext(this.state);
+      requireRole(context, "driver", "A Driver role is required to remove a payout method.");
+      return this.payoutMethods.remove(requireDriverId(context), methodId);
+    });
+  }
+
+  setDefaultPayoutMethod(methodId: EntityId): Promise<readonly PayoutMethod[]> {
+    return this.enqueue(async () => {
+      const context = getSessionContext(this.state);
+      requireRole(context, "driver", "A Driver role is required to change the default payout.");
+      return this.payoutMethods.setDefault(requireDriverId(context), methodId);
+    });
+  }
+
+  upsertVehicle(input: VehicleInput): Promise<Vehicle> {
+    return this.commit((state, occurredAt) => {
+      requireRole(
+        getSessionContext(state),
+        "admin",
+        "An Admin role is required to manage the fleet.",
+      );
+      const existing = input.id
+        ? state.vehicles.find((candidate) => candidate.id === input.id)
+        : undefined;
+      if (input.id && !existing) {
+        throw new OperationsDomainError("NOT_FOUND", "That vehicle could not be found.");
+      }
+
+      const unitNumber = input.unitNumber.trim();
+      if (unitNumber.length === 0) {
+        throw new OperationsDomainError("VALIDATION_FAILED", "A vehicle needs a unit number.");
+      }
+      // Unit numbers are how the shop, the driver, and dispatch all refer to
+      // the same truck, so two units may never share one.
+      const duplicate = state.vehicles.find(
+        (candidate) => candidate.id !== existing?.id &&
+          candidate.unitNumber.toLowerCase() === unitNumber.toLowerCase(),
+      );
+      if (duplicate) {
+        throw new OperationsDomainError(
+          "VALIDATION_FAILED",
+          `Unit ${unitNumber} is already in the fleet.`,
+        );
+      }
+      if (input.assignedDriverId) {
+        findDriver(state, input.assignedDriverId);
+      }
+
+      const vehicle: Vehicle = {
+        assignedDriverId: input.assignedDriverId,
+        createdAt: existing?.createdAt ?? occurredAt,
+        id: existing?.id ?? this.nextId("vehicle", occurredAt),
+        make: input.make,
+        model: input.model,
+        odometerMiles: Math.max(0, Math.round(input.odometerMiles)),
+        plateNumber: input.plateNumber,
+        plateState: input.plateState,
+        status: input.status,
+        type: input.type,
+        unitNumber,
+        updatedAt: occurredAt,
+        vin: input.vin.trim().toUpperCase(),
+        year: input.year,
+      };
+
+      const others = state.vehicles.filter((candidate) => candidate.id !== vehicle.id);
+      return {
+        result: vehicle,
+        state: { ...state, updatedAt: occurredAt, vehicles: [...others, vehicle] },
+      };
+    });
+  }
+
+  assignVehicle(vehicleId: EntityId, driverId: EntityId | null): Promise<Vehicle> {
+    return this.commit((state, occurredAt) => {
+      requireRole(
+        getSessionContext(state),
+        "admin",
+        "An Admin role is required to assign a vehicle.",
+      );
+      const vehicle = findVehicle(state, vehicleId);
+      if (driverId) {
+        findDriver(state, driverId);
+        // A tractor in the shop cannot be handed to a driver who would then be
+        // dispatched on it.
+        if (vehicle.status === "in_shop" || vehicle.status === "out_of_service") {
+          throw new OperationsDomainError(
+            "VALIDATION_FAILED",
+            `Unit ${vehicle.unitNumber} is ${vehicle.status === "in_shop" ? "in the shop" : "out of service"} and cannot be assigned.`,
+          );
+        }
+      }
+
+      const updated: Vehicle = {
+        ...vehicle,
+        assignedDriverId: driverId ?? undefined,
+        updatedAt: occurredAt,
+      };
+      return {
+        result: updated,
+        state: {
+          ...state,
+          updatedAt: occurredAt,
+          vehicles: state.vehicles.map((candidate) => candidate.id === updated.id ? updated : candidate),
+        },
+      };
+    });
+  }
+
+  createMaintenanceOrder(input: MaintenanceOrderInput): Promise<MaintenanceOrder> {
+    return this.commit((state, occurredAt) => {
+      requireRole(
+        getSessionContext(state),
+        "admin",
+        "An Admin role is required to open a work order.",
+      );
+      const vehicle = findVehicle(state, input.vehicleId);
+      if (input.reportedByDriverId) {
+        findDriver(state, input.reportedByDriverId);
+      }
+
+      const order: MaintenanceOrder = {
+        costCents: input.costCents,
+        description: input.description,
+        id: this.nextId("maintenance", occurredAt),
+        kind: input.kind,
+        odometerMiles: input.odometerMiles ?? vehicle.odometerMiles,
+        openedAt: occurredAt,
+        reportedByDriverId: input.reportedByDriverId,
+        scheduledFor: input.scheduledFor ? normalizedIsoDateTime(input.scheduledFor) : undefined,
+        severity: input.severity,
+        status: input.scheduledFor ? "scheduled" : "open",
+        summary: input.summary,
+        updatedAt: occurredAt,
+        vehicleId: vehicle.id,
+        vendorName: input.vendorName,
+      };
+
+      // A critical repair takes the unit off the board and off its driver, so
+      // the fleet screen and the dispatch board cannot disagree about whether
+      // the truck can run.
+      const grounded = order.severity === "critical";
+      return {
+        result: order,
+        state: {
+          ...state,
+          maintenanceOrders: [...state.maintenanceOrders, order],
+          updatedAt: occurredAt,
+          vehicles: grounded
+            ? state.vehicles.map((candidate) => candidate.id === vehicle.id
+                ? { ...candidate, assignedDriverId: undefined, status: "out_of_service" as const, updatedAt: occurredAt }
+                : candidate)
+            : state.vehicles,
+        },
+      };
+    });
+  }
+
+  updateMaintenanceOrder(
+    orderId: EntityId,
+    patch: MaintenanceOrderPatch,
+  ): Promise<MaintenanceOrder> {
+    return this.commit((state, occurredAt) => {
+      requireRole(
+        getSessionContext(state),
+        "admin",
+        "An Admin role is required to update a work order.",
+      );
+      const order = state.maintenanceOrders.find((candidate) => candidate.id === orderId);
+      if (!order) {
+        throw new OperationsDomainError("NOT_FOUND", "That work order could not be found.");
+      }
+      if (order.status === "completed" || order.status === "cancelled") {
+        throw new OperationsDomainError(
+          "VALIDATION_FAILED",
+          "A closed work order cannot be changed. Open a new one instead.",
+        );
+      }
+
+      const status = patch.status ?? order.status;
+      const updated: MaintenanceOrder = {
+        ...order,
+        completedAt: status === "completed"
+          ? patch.completedAt ? normalizedIsoDateTime(patch.completedAt) : occurredAt
+          : order.completedAt,
+        costCents: patch.costCents ?? order.costCents,
+        description: patch.description ?? order.description,
+        scheduledFor: patch.scheduledFor
+          ? normalizedIsoDateTime(patch.scheduledFor)
+          : order.scheduledFor,
+        severity: patch.severity ?? order.severity,
+        status,
+        updatedAt: occurredAt,
+        vendorName: patch.vendorName ?? order.vendorName,
+      };
+
+      // Closing the last open order on a unit puts it back in service.
+      const stillDown = state.maintenanceOrders.some(
+        (candidate) => candidate.vehicleId === order.vehicleId &&
+          candidate.id !== order.id &&
+          candidate.status !== "completed" &&
+          candidate.status !== "cancelled",
+      );
+      const releaseVehicle = (status === "completed" || status === "cancelled") && !stillDown;
+
+      return {
+        result: updated,
+        state: {
+          ...state,
+          maintenanceOrders: state.maintenanceOrders.map(
+            (candidate) => candidate.id === updated.id ? updated : candidate,
+          ),
+          updatedAt: occurredAt,
+          vehicles: releaseVehicle
+            ? state.vehicles.map((candidate) => candidate.id === order.vehicleId && candidate.status !== "retired"
+                ? { ...candidate, status: "active" as const, updatedAt: occurredAt }
+                : candidate)
+            : state.vehicles,
+        },
+      };
+    });
+  }
+
+  upsertComplianceDocument(input: ComplianceDocumentInput): Promise<ComplianceDocument> {
+    return this.commit((state, occurredAt) => {
+      requireRole(
+        getSessionContext(state),
+        "admin",
+        "An Admin role is required to record a compliance document.",
+      );
+      if (input.subjectType === "vehicle") {
+        findVehicle(state, input.subjectId);
+      } else {
+        findDriver(state, input.subjectId);
+      }
+
+      const issuedOn = normalizedIsoDateTime(input.issuedOn);
+      const expiresOn = normalizedIsoDateTime(input.expiresOn);
+      if (Date.parse(expiresOn) <= Date.parse(issuedOn)) {
+        throw new OperationsDomainError(
+          "VALIDATION_FAILED",
+          "A document has to expire after it was issued.",
+        );
+      }
+
+      const existing = input.id
+        ? state.complianceDocuments.find((candidate) => candidate.id === input.id)
+        : state.complianceDocuments.find(
+            (candidate) => candidate.subjectId === input.subjectId && candidate.kind === input.kind,
+          );
+
+      const document: ComplianceDocument = {
+        expiresOn,
+        id: existing?.id ?? this.nextId("compliance", occurredAt),
+        identifier: input.identifier,
+        issuedOn,
+        issuingState: input.issuingState,
+        kind: input.kind,
+        subjectId: input.subjectId,
+        subjectType: input.subjectType,
+        updatedAt: occurredAt,
+      };
+
+      const others = state.complianceDocuments.filter((candidate) => candidate.id !== document.id);
+      return {
+        result: document,
+        state: {
+          ...state,
+          complianceDocuments: [...others, document],
+          updatedAt: occurredAt,
+        },
+      };
+    });
+  }
+
+  issuePayout(
+    driverId: EntityId,
+    periodStart: IsoDateTime,
+    periodEnd: IsoDateTime,
+  ): Promise<Payout> {
+    return this.commit((state, occurredAt) => {
+      requireRole(
+        getSessionContext(state),
+        "admin",
+        "An Admin role is required to issue a settlement.",
+      );
+      findDriver(state, driverId);
+      const start = normalizedIsoDateTime(periodStart);
+      const end = normalizedIsoDateTime(periodEnd);
+      if (Date.parse(end) <= Date.parse(start)) {
+        throw new OperationsDomainError(
+          "VALIDATION_FAILED",
+          "A settlement period has to end after it starts.",
+        );
+      }
+
+      // Two settlements covering one delivery would pay for it twice.
+      const overlapping = state.payouts.find(
+        (candidate) => candidate.driverId === driverId &&
+          candidate.status !== "failed" &&
+          Date.parse(candidate.periodStart) < Date.parse(end) &&
+          Date.parse(candidate.periodEnd) > Date.parse(start),
+      );
+      if (overlapping) {
+        throw new OperationsDomainError(
+          "VALIDATION_FAILED",
+          "That period overlaps a settlement this driver already has.",
+        );
+      }
+
+      const lineItems = buildPayoutLineItems({
+        driverId,
+        nextId: (prefix) => this.nextId(prefix, occurredAt),
+        periodEnd: end,
+        periodStart: start,
+        shipments: state.shipments,
+      });
+      if (lineItems.length === 0) {
+        throw new OperationsDomainError(
+          "VALIDATION_FAILED",
+          "That period has no delivered loads to settle.",
+        );
+      }
+
+      const totals = summarizePayout(lineItems);
+      const payout: Payout = {
+        createdAt: occurredAt,
+        deductionCents: totals.deductionCents,
+        driverId,
+        grossCents: totals.grossCents,
+        id: this.nextId("payout", occurredAt),
+        issuedAt: occurredAt,
+        lineItems,
+        netCents: totals.netCents,
+        periodEnd: end,
+        periodStart: start,
+        status: "pending",
+        updatedAt: occurredAt,
+      };
+
+      return {
+        result: payout,
+        state: { ...state, payouts: [...state.payouts, payout], updatedAt: occurredAt },
+      };
+    });
+  }
+
+  /**
+   * Records that a settlement was paid on a rail. This moves no money and
+   * contacts nothing; it is the ledger catching up with a transfer that
+   * happened in the driver's own payment app.
+   */
+  markPayoutPaid(payoutId: EntityId, rail: PayoutRail): Promise<Payout> {
+    return this.commit((state, occurredAt) => {
+      requireRole(
+        getSessionContext(state),
+        "admin",
+        "An Admin role is required to record a settlement as paid.",
+      );
+      const payout = state.payouts.find((candidate) => candidate.id === payoutId);
+      if (!payout) {
+        throw new OperationsDomainError("NOT_FOUND", "That settlement could not be found.");
+      }
+      if (payout.status === "paid") {
+        throw new OperationsDomainError(
+          "VALIDATION_FAILED",
+          "That settlement is already recorded as paid.",
+        );
+      }
+
+      const updated: Payout = {
+        ...payout,
+        paidAt: occurredAt,
+        // The rail, never the handle. An admin reconciling a settlement needs
+        // to know it went out over Venmo; they have no business knowing which
+        // Venmo account, and no read path to one.
+        rail,
+        status: "paid",
+        updatedAt: occurredAt,
+      };
+      return {
+        result: updated,
+        state: {
+          ...state,
+          payouts: state.payouts.map((candidate) => candidate.id === updated.id ? updated : candidate),
+          updatedAt: occurredAt,
+        },
+      };
+    });
+  }
+
   private commit<Result>(
     update: (state: DemoOperationsState, occurredAt: string) => StateUpdate<Result>,
   ): Promise<Result> {
@@ -848,6 +1429,52 @@ function requireDriverId(context: SessionContext): EntityId {
     throw new OperationsDomainError("NOT_FOUND", "The demo driver could not be found.");
   }
   return context.driverId;
+}
+
+/**
+ * Whose calendar this write lands on. A driver only ever writes their own, and
+ * naming somebody else is refused rather than silently redirected — a screen
+ * that sent the wrong driverId should fail loudly, not edit the wrong person.
+ */
+function resolveAvailabilityDriverId(
+  state: DemoOperationsState,
+  context: SessionContext,
+  requestedDriverId: EntityId | undefined,
+): EntityId {
+  if (context.effectiveRole === "admin") {
+    const driverId = requestedDriverId ?? state.drivers[0]?.id;
+    if (!driverId) {
+      throw new OperationsDomainError("NOT_FOUND", "No driver was named for this calendar.");
+    }
+    findDriver(state, driverId);
+    return driverId;
+  }
+
+  requireRole(context, "driver", "A Driver or Admin role is required to change availability.");
+  const driverId = requireDriverId(context);
+  if (requestedDriverId && requestedDriverId !== driverId) {
+    throw new OperationsDomainError(
+      "UNAUTHORIZED",
+      "A driver can only change their own availability.",
+    );
+  }
+  return driverId;
+}
+
+function findDriver(state: DemoOperationsState, driverId: EntityId): Driver {
+  const driver = state.drivers.find((candidate) => candidate.id === driverId);
+  if (!driver) {
+    throw new OperationsDomainError("NOT_FOUND", "The driver could not be found.", { driverId });
+  }
+  return driver;
+}
+
+function findVehicle(state: DemoOperationsState, vehicleId: EntityId): Vehicle {
+  const vehicle = state.vehicles.find((candidate) => candidate.id === vehicleId);
+  if (!vehicle) {
+    throw new OperationsDomainError("NOT_FOUND", "The vehicle could not be found.", { vehicleId });
+  }
+  return vehicle;
 }
 
 function findShipment(state: DemoOperationsState, shipmentId: EntityId): Shipment {

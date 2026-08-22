@@ -8,6 +8,12 @@ import type {
 } from "../domain/repository";
 import type {
   AppRole,
+  AvailabilityBlock,
+  AvailabilityBlockInput,
+  AvailabilityRule,
+  AvailabilityRuleInput,
+  ComplianceDocument,
+  ComplianceDocumentInput,
   CreateCustomerRequestInput,
   CustomerRequest,
   DemoOperationsState,
@@ -18,14 +24,25 @@ import type {
   FreightRequestLocationInput,
   GeoPoint,
   HosDutyStatus,
+  IsoDateTime,
+  MaintenanceOrder,
+  MaintenanceOrderInput,
+  MaintenanceOrderPatch,
   OperationsMessage,
+  Payout,
+  PayoutMethod,
+  PayoutMethodInput,
+  PayoutRail,
   ProofOfDelivery,
   ProofOfDeliveryInput,
   SendMessageInput,
   Shipment,
   ShipmentStatus,
+  Vehicle,
+  VehicleInput,
 } from "../domain/types";
 import { DEMO_STATE_VERSION } from "../domain/types";
+import { normalizePayoutHandle } from "./payoutMethodStore";
 import type { AuthIdentity } from "../lib/auth";
 import {
   ApiClient,
@@ -70,6 +87,27 @@ export interface ProductionOperationsRepositoryOptions {
   readonly uploadBaseUrl?: string;
 }
 
+/** The collections a mutation may ask `refreshState` to re-read. */
+interface ExtendedCollections {
+  readonly availabilityBlocks: readonly AvailabilityBlock[];
+  readonly availabilityRules: readonly AvailabilityRule[];
+  readonly complianceDocuments: readonly ComplianceDocument[];
+  readonly maintenanceOrders: readonly MaintenanceOrder[];
+  readonly payouts: readonly Payout[];
+  readonly vehicles: readonly Vehicle[];
+}
+
+type ExtendedRefresh = "all" | "cached" | readonly (keyof ExtendedCollections)[];
+
+const EMPTY_EXTENDED: ExtendedCollections = {
+  availabilityBlocks: [],
+  availabilityRules: [],
+  complianceDocuments: [],
+  maintenanceOrders: [],
+  payouts: [],
+  vehicles: [],
+};
+
 export class ProductionOperationsRepository implements OperationsRepository {
   readonly mode = "production" as const;
   private readonly apiClient: ApiClient;
@@ -82,6 +120,7 @@ export class ProductionOperationsRepository implements OperationsRepository {
   private readonly queueHooks: OfflineQueueHooks;
   private readonly uploadBaseUrl: string | undefined;
   private identity: AuthIdentity | null = null;
+  private extendedCollections: ExtendedCollections = EMPTY_EXTENDED;
   private state: DemoOperationsState;
 
   constructor(options: ProductionOperationsRepositoryOptions) {
@@ -102,7 +141,7 @@ export class ProductionOperationsRepository implements OperationsRepository {
       this.replaceState(createEmptyOperationsState(this.clock()));
       return { recoveryFailure: null, state: this.state };
     }
-    await this.refreshState();
+    await this.refreshState("all");
     await this.syncOfflineMutations();
     return { recoveryFailure: null, state: this.state };
   }
@@ -336,6 +375,314 @@ export class ProductionOperationsRepository implements OperationsRepository {
     return this.requireMessage(messageId);
   }
 
+  /**
+   * Fleet, availability, shop, compliance, and settlement writes.
+   *
+   * Each posts to its versioned endpoint and then re-reads state, so the record
+   * returned here is the one the server actually holds rather than an optimistic
+   * local guess. Role enforcement lives on the server: `authorizeMobileRequest`
+   * refuses the call before it reaches a query.
+   */
+  /**
+   * Availability goes through the offline queue rather than posting directly.
+   * A driver blocking time does it from the cab, and losing that write to a
+   * dead zone would leave dispatch believing they are available. The queue
+   * replays it through `v1/mutations` when signal returns.
+   */
+  async setAvailabilityBlock(input: AvailabilityBlockInput): Promise<AvailabilityBlock> {
+    const identity = this.requireIdentity();
+    const driverId = input.driverId ?? identity.driverId ?? "";
+    await this.enqueueAndSync({
+      entityId: input.id ?? `availability-${input.startsAt}`,
+      entityVersion: 0,
+      kind: "availability",
+      ownerUserId: identity.userId,
+      payload: { block: input },
+      shipmentId: `availability-${driverId}`,
+    });
+    await this.refreshState(["availabilityBlocks"]);
+
+    // The server assigns the id, so a block that has already synced is found by
+    // its span. One still sitting in the queue has no server row yet, and is
+    // reflected optimistically — the same treatment `transitionShipment` gives
+    // a queued status change. Queuing is a success, not a failure to report.
+    const synced = this.state.availabilityBlocks.find(
+      (block) => block.driverId === driverId &&
+        block.startsAt === input.startsAt &&
+        block.endsAt === input.endsAt,
+    );
+    if (synced) {
+      return synced;
+    }
+
+    const now = this.clock();
+    const pending: AvailabilityBlock = {
+      createdAt: now,
+      driverId,
+      endsAt: input.endsAt,
+      id: input.id ?? `pending-availability-${Date.parse(input.startsAt)}`,
+      kind: input.kind,
+      note: input.note,
+      startsAt: input.startsAt,
+      updatedAt: now,
+    };
+    this.replaceState({
+      ...this.state,
+      availabilityBlocks: [
+        ...this.state.availabilityBlocks.filter((block) => block.id !== pending.id),
+        pending,
+      ],
+      updatedAt: now,
+    });
+    return pending;
+  }
+
+  async removeAvailabilityBlock(blockId: EntityId): Promise<DemoOperationsState> {
+    const identity = this.requireIdentity();
+    await this.enqueueAndSync({
+      entityId: blockId,
+      entityVersion: 0,
+      kind: "availability_removal",
+      ownerUserId: identity.userId,
+      payload: { blockId },
+      shipmentId: `availability-${identity.driverId ?? identity.userId}`,
+    });
+    // Dropped locally first, so the calendar does not keep showing a block the
+    // driver just deleted while the queue drains.
+    this.replaceState({
+      ...this.state,
+      availabilityBlocks: this.state.availabilityBlocks.filter(
+        (block) => block.id !== blockId,
+      ),
+      updatedAt: this.clock(),
+    });
+    await this.refreshState(["availabilityBlocks"]);
+    return this.state;
+  }
+
+  async setAvailabilityRule(input: AvailabilityRuleInput): Promise<AvailabilityRule> {
+    const saved = await this.performMutation<{ readonly id: string }>(
+      "v1/availability-rules",
+      {
+        driverId: input.driverId ?? null,
+        effectiveFrom: input.effectiveFrom,
+        effectiveUntil: input.effectiveUntil ?? null,
+        endMinute: input.endMinute,
+        id: input.id ?? null,
+        kind: input.kind,
+        startMinute: input.startMinute,
+        weekday: input.weekday,
+      },
+      ["availabilityRules"],
+    );
+    const rule = this.state.availabilityRules.find((candidate) => candidate.id === saved.id);
+    if (!rule) {
+      throw new OperationsDomainError("NOT_FOUND", "That weekly pattern could not be found.");
+    }
+    return rule;
+  }
+
+  async removeAvailabilityRule(ruleId: EntityId): Promise<DemoOperationsState> {
+    await this.performMutation<{ readonly id: string }>(
+      `v1/availability-rules/${encodeId(ruleId)}/removal`,
+      {},
+      // Removing a pattern also removes the blocks it expanded into.
+      ["availabilityRules", "availabilityBlocks"],
+    );
+    return this.state;
+  }
+
+  /**
+   * Payout handles never enter `OperationsState`, so these read and write the
+   * endpoint directly. The server scopes every one of them to the calling
+   * driver; there is no path here that can name another driver's handle.
+   */
+  async listPayoutMethods(): Promise<readonly PayoutMethod[]> {
+    this.requireIdentity();
+    try {
+      return await this.apiClient.requestJson<readonly PayoutMethod[]>("v1/payout-methods");
+    } catch (error: unknown) {
+      throw toDomainNetworkError(error);
+    }
+  }
+
+  async savePayoutMethod(input: PayoutMethodInput): Promise<PayoutMethod> {
+    this.requireIdentity();
+    // Validated locally first so an obviously wrong handle never leaves the
+    // device, and so the driver gets the same message either repository gives.
+    const handle = normalizePayoutHandle(input.rail, input.handle);
+    try {
+      return await this.apiClient.requestJson<PayoutMethod>("v1/payout-methods", {
+        body: { handle, id: input.id ?? null, isDefault: input.isDefault ?? null, label: input.label ?? null, rail: input.rail },
+        idempotencyKey: this.idFactory(),
+        method: "POST",
+      });
+    } catch (error: unknown) {
+      throw toDomainNetworkError(error);
+    }
+  }
+
+  async removePayoutMethod(methodId: EntityId): Promise<readonly PayoutMethod[]> {
+    this.requireIdentity();
+    try {
+      return await this.apiClient.requestJson<readonly PayoutMethod[]>(
+        `v1/payout-methods/${encodeId(methodId)}/removal`,
+        { body: {}, idempotencyKey: this.idFactory(), method: "POST" },
+      );
+    } catch (error: unknown) {
+      throw toDomainNetworkError(error);
+    }
+  }
+
+  async setDefaultPayoutMethod(methodId: EntityId): Promise<readonly PayoutMethod[]> {
+    this.requireIdentity();
+    try {
+      return await this.apiClient.requestJson<readonly PayoutMethod[]>(
+        `v1/payout-methods/${encodeId(methodId)}/default`,
+        { body: {}, idempotencyKey: this.idFactory(), method: "POST" },
+      );
+    } catch (error: unknown) {
+      throw toDomainNetworkError(error);
+    }
+  }
+
+  async upsertVehicle(input: VehicleInput): Promise<Vehicle> {
+    const saved = await this.performMutation<{ readonly id: string }>("v1/vehicles", {
+      assignedDriverId: input.assignedDriverId ?? null,
+      id: input.id ?? null,
+      make: input.make,
+      model: input.model,
+      odometerMiles: input.odometerMiles,
+      plateNumber: input.plateNumber,
+      plateState: input.plateState,
+      status: input.status,
+      type: input.type,
+      unitNumber: input.unitNumber,
+      vin: input.vin,
+      year: input.year,
+    }, ["vehicles"]);
+    return this.requireVehicle(saved.id);
+  }
+
+  async assignVehicle(vehicleId: EntityId, driverId: EntityId | null): Promise<Vehicle> {
+    await this.performMutation<{ readonly id: string }>(
+      `v1/vehicles/${encodeId(vehicleId)}/assignment`,
+      { driverId },
+      ["vehicles"],
+    );
+    return this.requireVehicle(vehicleId);
+  }
+
+  async createMaintenanceOrder(input: MaintenanceOrderInput): Promise<MaintenanceOrder> {
+    const created = await this.performMutation<{ readonly id: string }>("v1/maintenance", {
+      costCents: input.costCents ?? null,
+      description: input.description,
+      kind: input.kind,
+      odometerMiles: input.odometerMiles ?? null,
+      reportedByDriverId: input.reportedByDriverId ?? null,
+      scheduledFor: input.scheduledFor ?? null,
+      severity: input.severity,
+      summary: input.summary,
+      vehicleId: input.vehicleId,
+      vendorName: input.vendorName ?? null,
+      // A critical order grounds the unit, so the fleet changes too.
+    }, ["maintenanceOrders", "vehicles"]);
+    return this.requireMaintenanceOrder(created.id);
+  }
+
+  async updateMaintenanceOrder(
+    orderId: EntityId,
+    patch: MaintenanceOrderPatch,
+  ): Promise<MaintenanceOrder> {
+    await this.performMutation<{ readonly id: string }>(
+      `v1/maintenance/${encodeId(orderId)}`,
+      {
+        completedAt: patch.completedAt ?? null,
+        costCents: patch.costCents ?? null,
+        description: patch.description ?? null,
+        scheduledFor: patch.scheduledFor ?? null,
+        severity: patch.severity ?? null,
+        status: patch.status ?? null,
+        vendorName: patch.vendorName ?? null,
+      },
+      // Closing the last open order returns the unit to service.
+      ["maintenanceOrders", "vehicles"],
+    );
+    return this.requireMaintenanceOrder(orderId);
+  }
+
+  async upsertComplianceDocument(input: ComplianceDocumentInput): Promise<ComplianceDocument> {
+    const saved = await this.performMutation<{ readonly id: string }>("v1/compliance", {
+      expiresOn: input.expiresOn,
+      id: input.id ?? null,
+      identifier: input.identifier,
+      issuedOn: input.issuedOn,
+      issuingState: input.issuingState,
+      kind: input.kind,
+      subjectId: input.subjectId,
+      subjectType: input.subjectType,
+    }, ["complianceDocuments"]);
+    const document = this.state.complianceDocuments.find((candidate) => candidate.id === saved.id);
+    if (!document) {
+      throw new OperationsDomainError("NOT_FOUND", "That compliance document could not be found.");
+    }
+    return document;
+  }
+
+  async issuePayout(
+    driverId: EntityId,
+    periodStart: IsoDateTime,
+    periodEnd: IsoDateTime,
+  ): Promise<Payout> {
+    const issued = await this.performMutation<{ readonly id: string }>("v1/payouts", {
+      driverId,
+      periodEnd,
+      periodStart,
+    }, ["payouts"]);
+    return this.requirePayout(issued.id);
+  }
+
+  async markPayoutPaid(payoutId: EntityId, rail: PayoutRail): Promise<Payout> {
+    await this.performMutation<{ readonly id: string }>(
+      `v1/payouts/${encodeId(payoutId)}/payment`,
+      { rail },
+      ["payouts"],
+    );
+    return this.requirePayout(payoutId);
+  }
+
+  private requireAvailabilityBlock(blockId: EntityId): AvailabilityBlock {
+    const block = this.state.availabilityBlocks.find((candidate) => candidate.id === blockId);
+    if (!block) {
+      throw new OperationsDomainError("NOT_FOUND", "That availability block could not be found.");
+    }
+    return block;
+  }
+
+  private requireVehicle(vehicleId: EntityId): Vehicle {
+    const vehicle = this.state.vehicles.find((candidate) => candidate.id === vehicleId);
+    if (!vehicle) {
+      throw new OperationsDomainError("NOT_FOUND", "The vehicle could not be found.", { vehicleId });
+    }
+    return vehicle;
+  }
+
+  private requireMaintenanceOrder(orderId: EntityId): MaintenanceOrder {
+    const order = this.state.maintenanceOrders.find((candidate) => candidate.id === orderId);
+    if (!order) {
+      throw new OperationsDomainError("NOT_FOUND", "That work order could not be found.");
+    }
+    return order;
+  }
+
+  private requirePayout(payoutId: EntityId): Payout {
+    const payout = this.state.payouts.find((candidate) => candidate.id === payoutId);
+    if (!payout) {
+      throw new OperationsDomainError("NOT_FOUND", "That settlement could not be found.");
+    }
+    return payout;
+  }
+
   getShipmentEdiTransactions(shipmentId: EntityId): readonly EdiTransaction[] {
     return this.state.ediTransactions.filter((transaction) => transaction.shipmentId === shipmentId);
   }
@@ -350,7 +697,7 @@ export class ProductionOperationsRepository implements OperationsRepository {
     }
   }
 
-  private async refreshState(): Promise<void> {
+  private async refreshState(refresh: ExtendedRefresh = "cached"): Promise<void> {
     const identity = this.identity;
     if (identity?.accessState === "pending_customer_approval") {
       await this.refreshPendingCustomerState(identity);
@@ -358,6 +705,8 @@ export class ProductionOperationsRepository implements OperationsRepository {
     }
     try {
       const bootstrap = await this.apiClient.requestJson<MobileBootstrapPayload>("v1/bootstrap");
+      const isAdmin = bootstrap.user.role === "admin";
+      const isStaff = isAdmin || bootstrap.user.role === "driver";
       const [shipments, requests, exceptions, messages] = await Promise.all([
         this.apiClient.requestJson<readonly MobileShipmentRow[]>("v1/shipments?limit=100"),
         bootstrap.user.role === "driver"
@@ -366,8 +715,19 @@ export class ProductionOperationsRepository implements OperationsRepository {
         this.apiClient.requestJson<readonly MobileExceptionRow[]>("v1/exceptions?limit=100"),
         this.apiClient.requestJson<readonly MobileMessageRow[]>("v1/messages?limit=100"),
       ]);
+
+      /**
+       * The fleet, calendar, shop, compliance, and settlement collections.
+       *
+       * Fetched only for the roles allowed to read them, and each one tolerated
+       * individually: a server that has not deployed these endpoints yet, or an
+       * endpoint that is briefly failing, leaves its screen empty rather than
+       * taking the whole session down with it.
+       */
+      const extended = await this.loadExtendedCollections(isAdmin, isStaff, refresh);
+
       const state = buildProductionOperationsState(
-        { bootstrap, exceptions, messages, requests, shipments },
+        { ...extended, bootstrap, exceptions, messages, requests, shipments },
         this.clock(),
       );
       this.replaceState(requireProductionState(state, this.identity));
@@ -396,8 +756,88 @@ export class ProductionOperationsRepository implements OperationsRepository {
     }
   }
 
+  /**
+   * Fleet, calendar, shop, compliance, and settlement collections.
+   *
+   * These are refetched only when the caller says a write touched them.
+   * `refreshState` runs after every mutation, and re-reading six endpoints each
+   * time a driver advances a stop would put five useless round-trips on a
+   * connection that is often a phone in a moving truck. Everything not
+   * refetched is served from the copy the last read produced.
+   */
+  private async loadExtendedCollections(
+    isAdmin: boolean,
+    isStaff: boolean,
+    refresh: ExtendedRefresh,
+  ): Promise<ExtendedCollections> {
+    const wanted = (key: keyof ExtendedCollections): boolean => (
+      refresh === "all" || (Array.isArray(refresh) && refresh.includes(key))
+    );
+    const cached = this.extendedCollections;
+
+    const [
+      availabilityBlocks,
+      availabilityRules,
+      vehicles,
+      maintenanceOrders,
+      complianceDocuments,
+      payouts,
+    ] = await Promise.all([
+      isStaff && wanted("availabilityBlocks")
+        ? this.optionalCollection<AvailabilityBlock>("v1/availability?limit=200")
+        : cached.availabilityBlocks,
+      isStaff && wanted("availabilityRules")
+        ? this.optionalCollection<AvailabilityRule>("v1/availability-rules?limit=200")
+        : cached.availabilityRules,
+      isAdmin && wanted("vehicles")
+        ? this.optionalCollection<Vehicle>("v1/vehicles?limit=100")
+        : cached.vehicles,
+      isAdmin && wanted("maintenanceOrders")
+        ? this.optionalCollection<MaintenanceOrder>("v1/maintenance?limit=100")
+        : cached.maintenanceOrders,
+      isAdmin && wanted("complianceDocuments")
+        ? this.optionalCollection<ComplianceDocument>("v1/compliance?limit=200")
+        : cached.complianceDocuments,
+      isStaff && wanted("payouts")
+        ? this.optionalCollection<Payout>("v1/payouts?limit=100")
+        : cached.payouts,
+    ]);
+
+    this.extendedCollections = {
+      availabilityBlocks,
+      availabilityRules,
+      complianceDocuments,
+      maintenanceOrders,
+      payouts,
+      vehicles,
+    };
+    return this.extendedCollections;
+  }
+
+  /**
+   * A collection whose absence is survivable. Returns an empty list rather than
+   * throwing, so one unavailable endpoint cannot block sign-in.
+   *
+   * The shape is checked as well as the call: an endpoint that answers with
+   * something other than a list would otherwise put a non-array straight into
+   * state, where it fails validation and takes the whole session down — the
+   * exact outcome this is meant to avoid.
+   */
+  private async optionalCollection<Row>(path: string): Promise<readonly Row[]> {
+    try {
+      const rows = await this.apiClient.requestJson<readonly Row[]>(path);
+      return Array.isArray(rows) ? rows : [];
+    } catch {
+      return [];
+    }
+  }
+
   /** Online writes return only their own result; state is re-read afterwards. */
-  private async performMutation<Result>(path: string, body: unknown): Promise<Result> {
+  private async performMutation<Result>(
+    path: string,
+    body: unknown,
+    refresh: ExtendedRefresh = "cached",
+  ): Promise<Result> {
     this.requireIdentity();
     let result: Result;
     try {
@@ -409,7 +849,7 @@ export class ProductionOperationsRepository implements OperationsRepository {
     } catch (error: unknown) {
       throw toDomainNetworkError(error);
     }
-    await this.refreshState();
+    await this.refreshState(refresh);
     return result;
   }
 
@@ -608,19 +1048,25 @@ function requireProductionState(
 function createEmptyOperationsState(updatedAt: string): DemoOperationsState {
   return {
     accounts: [],
+    availabilityBlocks: [],
+    availabilityRules: [],
+    complianceDocuments: [],
     customers: [],
     drivers: [],
     ediTransactions: [],
     exceptions: [],
     hosClocks: [],
     integrations: [],
+    maintenanceOrders: [],
     messages: [],
+    payouts: [],
     proofsOfDelivery: [],
     quotes: [],
     requests: [],
     session: { accountId: null, effectiveRole: null },
     shipments: [],
     updatedAt,
+    vehicles: [],
     version: DEMO_STATE_VERSION,
   };
 }

@@ -1,5 +1,8 @@
 import type {
   AppRole,
+  AvailabilityBlock,
+  AvailabilityRule,
+  ComplianceDocument,
   CustomerRequest,
   DemoOperationsState,
   Driver,
@@ -8,13 +11,16 @@ import type {
   ExceptionReport,
   ExceptionSeverity,
   IntegrationHealth,
+  MaintenanceOrder,
   MessageThreadKind,
   OperationsAccount,
   OperationsMessage,
+  Payout,
   PostalAddress,
   Shipment,
   ShipmentStatus,
   ShipmentStop,
+  Vehicle,
 } from "../domain/types";
 import {
   DEMO_STATE_VERSION,
@@ -84,6 +90,19 @@ export interface ProductionHydrationInput {
   readonly messages: readonly MobileMessageRow[];
   readonly requests: readonly MobileFreightRequestRow[];
   readonly shipments: readonly MobileShipmentRow[];
+  /**
+   * Fleet, calendar, shop, compliance, and settlement collections.
+   *
+   * Optional so a client pointed at a server that has not yet deployed these
+   * endpoints still hydrates, with the affected screens showing their empty
+   * state rather than the whole session failing.
+   */
+  readonly availabilityBlocks?: readonly AvailabilityBlock[];
+  readonly availabilityRules?: readonly AvailabilityRule[];
+  readonly complianceDocuments?: readonly ComplianceDocument[];
+  readonly maintenanceOrders?: readonly MaintenanceOrder[];
+  readonly payouts?: readonly Payout[];
+  readonly vehicles?: readonly Vehicle[];
 }
 
 export interface MobileDriverRow {
@@ -151,6 +170,9 @@ export function buildProductionOperationsState(
   };
   return {
     accounts: mergeContacts(account, bootstrap),
+    availabilityBlocks: input.availabilityBlocks ?? [],
+    availabilityRules: input.availabilityRules ?? [],
+    complianceDocuments: input.complianceDocuments ?? [],
     customers: [],
     drivers: bootstrap.referenceData.drivers.map(toDriver),
     ediTransactions: [],
@@ -168,13 +190,16 @@ export function buildProductionOperationsState(
       statusStartedAt: now,
     }] : [],
     integrations: bootstrap.integrations.map((integration) => toIntegration(integration, now)),
+    maintenanceOrders: input.maintenanceOrders ?? [],
     messages: input.messages.map(toOperationsMessage),
+    payouts: input.payouts ?? [],
     proofsOfDelivery: [],
     quotes: [],
     requests: input.requests.map((request) => toCustomerRequest(request, customerId)),
     session: { accessState: "active", accountId: account.id, effectiveRole: account.role },
     shipments: input.shipments.map((shipment) => toShipment(shipment, customerId)),
     updatedAt: now,
+    vehicles: input.vehicles ?? [],
     version: DEMO_STATE_VERSION,
   };
 }
@@ -265,13 +290,18 @@ export function buildPendingCustomerOperationsState(
   };
   return {
     accounts: [account],
+    availabilityBlocks: [],
+    availabilityRules: [],
+    complianceDocuments: [],
     customers: [],
     drivers: [],
     ediTransactions: [],
     exceptions: [],
     hosClocks: [],
     integrations: [],
+    maintenanceOrders: [],
     messages: [],
+    payouts: [],
     proofsOfDelivery: [],
     quotes: [],
     requests: requestRows.map((request) => toCustomerRequest(request, customerId)),
@@ -282,6 +312,7 @@ export function buildPendingCustomerOperationsState(
     },
     shipments: [],
     updatedAt: now,
+    vehicles: [],
     version: DEMO_STATE_VERSION,
   };
 }

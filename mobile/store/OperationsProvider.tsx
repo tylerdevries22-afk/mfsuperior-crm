@@ -13,9 +13,16 @@ import type { OperationsRepository } from "../domain/repository";
 import type {
   AccessState,
   AppRole,
+  AvailabilityBlock,
+  AvailabilityBlockInput,
+  AvailabilityRule,
+  AvailabilityRuleInput,
+  ComplianceDocument,
+  ComplianceDocumentInput,
   CreateCustomerRequestInput,
   CustomerRequest,
   DemoOperationsState,
+  Driver,
   EdiTransaction,
   ExceptionReportInput,
   FreightQuote,
@@ -23,12 +30,21 @@ import type {
   HosClock,
   HosDutyStatus,
   IntegrationHealth,
+  MaintenanceOrder,
+  MaintenanceOrderInput,
+  MaintenanceOrderPatch,
   OperationsMessage,
   OperationsAccount,
+  Payout,
+  PayoutMethod,
+  PayoutMethodInput,
+  PayoutRail,
   ProofOfDeliveryInput,
   SendMessageInput,
   Shipment,
   ShipmentStatus,
+  Vehicle,
+  VehicleInput,
 } from "../domain/types";
 import { createOperationsRepositoryFromEnvironment } from "./repositoryFactory";
 
@@ -58,6 +74,26 @@ export interface OperationsActions {
   sendMessage(input: SendMessageInput): Promise<boolean>;
   createCustomerRequest(input: CreateCustomerRequestInput): Promise<boolean>;
   markMessageRead(messageId: string): Promise<boolean>;
+  setAvailabilityBlock(input: AvailabilityBlockInput): Promise<boolean>;
+  removeAvailabilityBlock(blockId: string): Promise<boolean>;
+  setAvailabilityRule(input: AvailabilityRuleInput): Promise<boolean>;
+  removeAvailabilityRule(ruleId: string): Promise<boolean>;
+  upsertVehicle(input: VehicleInput): Promise<boolean>;
+  assignVehicle(vehicleId: string, driverId: string | null): Promise<boolean>;
+  createMaintenanceOrder(input: MaintenanceOrderInput): Promise<boolean>;
+  updateMaintenanceOrder(orderId: string, patch: MaintenanceOrderPatch): Promise<boolean>;
+  upsertComplianceDocument(input: ComplianceDocumentInput): Promise<boolean>;
+  issuePayout(driverId: string, periodStart: string, periodEnd: string): Promise<boolean>;
+  markPayoutPaid(payoutId: string, rail: PayoutRail): Promise<boolean>;
+  /**
+   * Payout handles are read straight off the repository rather than mirrored
+   * into context, because they live in the device keychain and must not end up
+   * in a value every screen in the tree can read.
+   */
+  listPayoutMethods(): Promise<readonly PayoutMethod[]>;
+  savePayoutMethod(input: PayoutMethodInput): Promise<boolean>;
+  removePayoutMethod(methodId: string): Promise<boolean>;
+  setDefaultPayoutMethod(methodId: string): Promise<boolean>;
   clearError(): void;
 }
 
@@ -76,6 +112,14 @@ export interface OperationsContextValue {
   readonly messages: readonly OperationsMessage[];
   readonly ediTransactions: readonly EdiTransaction[];
   readonly integrations: readonly IntegrationHealth[];
+  /** The signed-in driver's own record, when a driver is signed in. */
+  readonly currentDriver: Driver | null;
+  readonly vehicles: readonly Vehicle[];
+  readonly availabilityBlocks: readonly AvailabilityBlock[];
+  readonly availabilityRules: readonly AvailabilityRule[];
+  readonly maintenanceOrders: readonly MaintenanceOrder[];
+  readonly complianceDocuments: readonly ComplianceDocument[];
+  readonly payouts: readonly Payout[];
   readonly error: OperationsFailure | null;
   readonly actions: OperationsActions;
 }
@@ -179,6 +223,48 @@ export function OperationsProvider({
         () => repository.createCustomerRequest(input),
       ),
       markMessageRead: (messageId) => runMutation(() => repository.markMessageRead(messageId)),
+      setAvailabilityBlock: (input) => runMutation(() => repository.setAvailabilityBlock(input)),
+      removeAvailabilityBlock: (blockId) => runMutation(
+        () => repository.removeAvailabilityBlock(blockId),
+      ),
+      setAvailabilityRule: (input) => runMutation(() => repository.setAvailabilityRule(input)),
+      removeAvailabilityRule: (ruleId) => runMutation(
+        () => repository.removeAvailabilityRule(ruleId),
+      ),
+      upsertVehicle: (input) => runMutation(() => repository.upsertVehicle(input)),
+      assignVehicle: (vehicleId, driverId) => runMutation(
+        () => repository.assignVehicle(vehicleId, driverId),
+      ),
+      createMaintenanceOrder: (input) => runMutation(
+        () => repository.createMaintenanceOrder(input),
+      ),
+      updateMaintenanceOrder: (orderId, patch) => runMutation(
+        () => repository.updateMaintenanceOrder(orderId, patch),
+      ),
+      upsertComplianceDocument: (input) => runMutation(
+        () => repository.upsertComplianceDocument(input),
+      ),
+      issuePayout: (driverId, periodStart, periodEnd) => runMutation(
+        () => repository.issuePayout(driverId, periodStart, periodEnd),
+      ),
+      markPayoutPaid: (payoutId, rail) => runMutation(
+        () => repository.markPayoutPaid(payoutId, rail),
+      ),
+      // A read, so it surfaces its own failure to the caller rather than
+      // routing through runMutation, which only reports success as a boolean.
+      listPayoutMethods: async () => {
+        try {
+          return await repository.listPayoutMethods();
+        } catch (readError: unknown) {
+          setError(toOperationsFailure(readError));
+          return [];
+        }
+      },
+      savePayoutMethod: (input) => runMutation(() => repository.savePayoutMethod(input)),
+      removePayoutMethod: (methodId) => runMutation(() => repository.removePayoutMethod(methodId)),
+      setDefaultPayoutMethod: (methodId) => runMutation(
+        () => repository.setDefaultPayoutMethod(methodId),
+      ),
       clearError: () => setError(null),
     };
   }, [repository]);
@@ -218,6 +304,28 @@ export function OperationsProvider({
     const quotes = effectiveRole === "admin"
       ? state.quotes
       : state.quotes.filter((quote) => quote.customerId === customerId);
+    const currentDriver = driverId
+      ? state.drivers.find((driver) => driver.id === driverId) ?? null
+      : null;
+    // Admins see the whole board; a driver sees only their own calendar and
+    // their own settlements. A customer sees neither.
+    const availabilityBlocks = effectiveRole === "admin"
+      ? state.availabilityBlocks
+      : driverId
+        ? state.availabilityBlocks.filter((block) => block.driverId === driverId)
+        : [];
+    const availabilityRules = effectiveRole === "admin"
+      ? state.availabilityRules
+      : driverId
+        ? state.availabilityRules.filter((rule) => rule.driverId === driverId)
+        : [];
+    const payouts = effectiveRole === "admin"
+      ? state.payouts
+      : driverId
+        ? state.payouts.filter((payout) => payout.driverId === driverId)
+        : [];
+    // The fleet, the shop, and the compliance register are dispatch concerns.
+    const isAdmin = effectiveRole === "admin";
 
     return {
       state,
@@ -234,6 +342,13 @@ export function OperationsProvider({
       messages: state.messages,
       ediTransactions: state.ediTransactions,
       integrations: state.integrations,
+      currentDriver,
+      vehicles: isAdmin ? state.vehicles : [],
+      availabilityBlocks,
+      availabilityRules,
+      maintenanceOrders: isAdmin ? state.maintenanceOrders : [],
+      complianceDocuments: isAdmin ? state.complianceDocuments : [],
+      payouts,
       error,
       actions,
     };

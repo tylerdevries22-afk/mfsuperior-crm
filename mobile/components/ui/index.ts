@@ -1,4 +1,4 @@
-export { Badge, StatusBadge, type BadgeProps, type BadgeSize, type BadgeTone, type StatusBadgeProps } from "./Badge";
+export { Badge, StatusBadge, statusLabel, type BadgeProps, type BadgeSize, type BadgeTone, type StatusBadgeProps } from "./Badge";
 export {
   AnimatedButton,
   type AnimatedButtonProps,

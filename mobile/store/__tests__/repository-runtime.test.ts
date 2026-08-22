@@ -296,6 +296,18 @@ function createApiFetch(
       if (url.includes("/v1/requests")) return jsonResponse(envelope(requestPayload(state)));
       if (url.includes("/v1/exceptions")) return jsonResponse(envelope(exceptionPayload(state)));
       if (url.includes("/v1/messages")) return jsonResponse(envelope(messagePayload(state)));
+      // Fleet, calendar, shop, compliance, and settlement reads. An empty list
+      // is what a freshly provisioned carrier actually returns, and it keeps
+      // these out of the online-write capture below.
+      if (
+        url.includes("/v1/availability") ||
+        url.includes("/v1/vehicles") ||
+        url.includes("/v1/maintenance") ||
+        url.includes("/v1/compliance") ||
+        url.includes("/v1/payouts")
+      ) {
+        return jsonResponse(envelope([]));
+      }
     }
     if (url.endsWith("/v1/documents/upload-intent")) {
       const body = JSON.parse(String(init?.body)) as { contentType: string; fileName: string };

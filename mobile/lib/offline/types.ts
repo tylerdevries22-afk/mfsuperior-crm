@@ -1,4 +1,5 @@
 import type {
+  AvailabilityBlockInput,
   ExceptionReportInput,
   GeoPoint,
   HosDutyStatus,
@@ -14,6 +15,11 @@ export const OFFLINE_MUTATION_KINDS = [
   "shipment_status",
   "signature",
   "pod",
+  // A driver marking themselves unavailable does it from the cab, often with
+  // no signal. It is the only one of the new writes that happens away from a
+  // desk, so it is the only one that queues.
+  "availability",
+  "availability_removal",
 ] as const;
 
 export type OfflineMutationKind = (typeof OFFLINE_MUTATION_KINDS)[number];
@@ -25,7 +31,9 @@ export type OfflineMutationPayload =
   | { readonly fileName: string; readonly fileUri: string; readonly mimeType: string }
   | { readonly status: ShipmentStatus; readonly stopId?: string }
   | { readonly signatureData: string }
-  | { readonly input: ProofOfDeliveryInput };
+  | { readonly input: ProofOfDeliveryInput }
+  | { readonly block: AvailabilityBlockInput }
+  | { readonly blockId: string };
 
 export interface OfflineMutationDraft {
   readonly entityId: string;

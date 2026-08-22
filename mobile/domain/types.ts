@@ -372,11 +372,224 @@ export interface IntegrationHealth {
 }
 
 /**
- * Bumped to 2 when the demo fleet grew from two drivers to five. Persisted v1
- * state fails validation and is rebuilt, which is what a fixture change of
- * this size needs — otherwise a saved demo keeps showing the old fleet.
+ * Fleet, availability, maintenance, compliance, and payout records.
+ *
+ * Every timestamp below is a full `IsoDateTime` rather than a calendar date
+ * because `anchorDemoStateTo` shifts the demo clock by walking the state for
+ * parseable ISO strings. A bare "2026-09-03" would not move, so a document
+ * seeded to expire twelve days out would drift further away every day.
  */
-export const DEMO_STATE_VERSION = 2 as const;
+
+export const AVAILABILITY_KINDS = [
+  "available",
+  "unavailable",
+  "time_off",
+  "preferred",
+] as const;
+
+export type AvailabilityKind = (typeof AVAILABILITY_KINDS)[number];
+
+/** A concrete span on one driver's calendar. */
+export interface AvailabilityBlock {
+  readonly id: EntityId;
+  readonly driverId: EntityId;
+  readonly startsAt: IsoDateTime;
+  readonly endsAt: IsoDateTime;
+  readonly kind: AvailabilityKind;
+  readonly note?: string;
+  /** Set when the block was expanded from a recurring rule. */
+  readonly ruleId?: EntityId;
+  readonly createdAt: IsoDateTime;
+  readonly updatedAt: IsoDateTime;
+}
+
+/**
+ * A repeating weekly pattern. Minutes are local to the driver's schedule
+ * timezone and measured from midnight, so a rule survives a DST boundary that
+ * a stored wall-clock timestamp would not.
+ */
+export interface AvailabilityRule {
+  readonly id: EntityId;
+  readonly driverId: EntityId;
+  /** 0 is Sunday, matching `Date.prototype.getDay`. */
+  readonly weekday: 0 | 1 | 2 | 3 | 4 | 5 | 6;
+  readonly startMinute: number;
+  readonly endMinute: number;
+  readonly kind: AvailabilityKind;
+  readonly effectiveFrom: IsoDateTime;
+  readonly effectiveUntil?: IsoDateTime;
+  readonly createdAt: IsoDateTime;
+  readonly updatedAt: IsoDateTime;
+}
+
+export const VEHICLE_TYPES = ["tractor", "trailer"] as const;
+
+export type VehicleType = (typeof VEHICLE_TYPES)[number];
+
+export const VEHICLE_STATUSES = [
+  "active",
+  "in_shop",
+  "out_of_service",
+  "retired",
+] as const;
+
+export type VehicleStatus = (typeof VEHICLE_STATUSES)[number];
+
+export interface Vehicle {
+  readonly id: EntityId;
+  readonly unitNumber: string;
+  readonly type: VehicleType;
+  readonly vin: string;
+  readonly make: string;
+  readonly model: string;
+  readonly year: number;
+  readonly plateNumber: string;
+  readonly plateState: string;
+  readonly status: VehicleStatus;
+  readonly odometerMiles: number;
+  readonly assignedDriverId?: EntityId;
+  readonly createdAt: IsoDateTime;
+  readonly updatedAt: IsoDateTime;
+}
+
+export const MAINTENANCE_KINDS = ["repair", "preventive", "inspection"] as const;
+
+export type MaintenanceKind = (typeof MAINTENANCE_KINDS)[number];
+
+export const MAINTENANCE_STATUSES = [
+  "open",
+  "scheduled",
+  "in_progress",
+  "completed",
+  "cancelled",
+] as const;
+
+export type MaintenanceStatus = (typeof MAINTENANCE_STATUSES)[number];
+
+export const MAINTENANCE_SEVERITIES = ["low", "medium", "high", "critical"] as const;
+
+export type MaintenanceSeverity = (typeof MAINTENANCE_SEVERITIES)[number];
+
+export interface MaintenanceOrder {
+  readonly id: EntityId;
+  readonly vehicleId: EntityId;
+  readonly kind: MaintenanceKind;
+  readonly status: MaintenanceStatus;
+  readonly severity: MaintenanceSeverity;
+  readonly summary: string;
+  readonly description: string;
+  readonly openedAt: IsoDateTime;
+  readonly scheduledFor?: IsoDateTime;
+  readonly completedAt?: IsoDateTime;
+  readonly odometerMiles?: number;
+  readonly vendorName?: string;
+  readonly costCents?: number;
+  readonly reportedByDriverId?: EntityId;
+  readonly updatedAt: IsoDateTime;
+}
+
+export const COMPLIANCE_SUBJECT_TYPES = ["vehicle", "driver"] as const;
+
+export type ComplianceSubjectType = (typeof COMPLIANCE_SUBJECT_TYPES)[number];
+
+export const COMPLIANCE_DOCUMENT_KINDS = [
+  "registration",
+  "ifta",
+  "annual_inspection",
+  "insurance",
+  "cdl",
+  "medical_card",
+  "hazmat_endorsement",
+] as const;
+
+export type ComplianceDocumentKind = (typeof COMPLIANCE_DOCUMENT_KINDS)[number];
+
+export interface ComplianceDocument {
+  readonly id: EntityId;
+  readonly subjectType: ComplianceSubjectType;
+  readonly subjectId: EntityId;
+  readonly kind: ComplianceDocumentKind;
+  readonly identifier: string;
+  readonly issuingState: string;
+  readonly issuedOn: IsoDateTime;
+  readonly expiresOn: IsoDateTime;
+  readonly updatedAt: IsoDateTime;
+}
+
+/**
+ * Where a driver wants to be paid. The handle is an account identifier a
+ * driver publishes anyway — a Venmo username, a Cash App cashtag, the phone
+ * or email behind Zelle or Apple Cash. It is never a card number, a bank
+ * account, or a credential, and nothing in this app moves money.
+ */
+export const PAYOUT_RAILS = ["apple_cash", "venmo", "cash_app", "zelle"] as const;
+
+export type PayoutRail = (typeof PAYOUT_RAILS)[number];
+
+export interface PayoutMethod {
+  readonly id: EntityId;
+  readonly driverId: EntityId;
+  readonly rail: PayoutRail;
+  readonly handle: string;
+  readonly label?: string;
+  readonly isDefault: boolean;
+  readonly createdAt: IsoDateTime;
+  readonly updatedAt: IsoDateTime;
+}
+
+export const PAYOUT_STATUSES = ["pending", "processing", "paid", "failed"] as const;
+
+export type PayoutStatus = (typeof PAYOUT_STATUSES)[number];
+
+export const PAYOUT_LINE_ITEM_KINDS = [
+  "linehaul",
+  "accessorial",
+  "detention",
+  "fuel",
+  "advance",
+  "deduction",
+] as const;
+
+export type PayoutLineItemKind = (typeof PAYOUT_LINE_ITEM_KINDS)[number];
+
+export interface PayoutLineItem {
+  readonly id: EntityId;
+  readonly shipmentId?: EntityId;
+  readonly kind: PayoutLineItemKind;
+  readonly description: string;
+  /** Negative for deductions, so the line items always sum to `netCents`. */
+  readonly amountCents: number;
+}
+
+/**
+ * A settlement record. `markPayoutPaid` records that a transfer happened on
+ * the named rail; it does not initiate one.
+ */
+export interface Payout {
+  readonly id: EntityId;
+  readonly driverId: EntityId;
+  readonly periodStart: IsoDateTime;
+  readonly periodEnd: IsoDateTime;
+  readonly status: PayoutStatus;
+  readonly grossCents: number;
+  readonly deductionCents: number;
+  readonly netCents: number;
+  readonly rail?: PayoutRail;
+  readonly methodId?: EntityId;
+  readonly issuedAt?: IsoDateTime;
+  readonly paidAt?: IsoDateTime;
+  readonly lineItems: readonly PayoutLineItem[];
+  readonly createdAt: IsoDateTime;
+  readonly updatedAt: IsoDateTime;
+}
+
+/**
+ * Bumped to 3 when the state grew the fleet, availability, maintenance,
+ * compliance, and payout collections. Persisted v2 state fails validation and
+ * is rebuilt, which is what a shape change of this size needs — otherwise a
+ * saved demo keeps showing a workspace with no vehicles in it.
+ */
+export const DEMO_STATE_VERSION = 3 as const;
 
 export interface OperationsState {
   readonly version: typeof DEMO_STATE_VERSION;
@@ -393,6 +606,12 @@ export interface OperationsState {
   readonly requests: readonly CustomerRequest[];
   readonly quotes: readonly FreightQuote[];
   readonly integrations: readonly IntegrationHealth[];
+  readonly vehicles: readonly Vehicle[];
+  readonly availabilityBlocks: readonly AvailabilityBlock[];
+  readonly availabilityRules: readonly AvailabilityRule[];
+  readonly maintenanceOrders: readonly MaintenanceOrder[];
+  readonly complianceDocuments: readonly ComplianceDocument[];
+  readonly payouts: readonly Payout[];
   readonly updatedAt: IsoDateTime;
 }
 
@@ -438,4 +657,83 @@ export interface CreateCustomerRequestInput {
   readonly shipmentId?: EntityId;
   readonly origin?: FreightRequestLocationInput;
   readonly destination?: FreightRequestLocationInput;
+}
+
+export interface AvailabilityBlockInput {
+  /** Admins may write any driver's calendar; drivers may only write their own. */
+  readonly driverId?: EntityId;
+  /** Omitted when creating; supplied to replace an existing block in place. */
+  readonly id?: EntityId;
+  readonly startsAt: IsoDateTime;
+  readonly endsAt: IsoDateTime;
+  readonly kind: AvailabilityKind;
+  readonly note?: string;
+}
+
+export interface AvailabilityRuleInput {
+  readonly driverId?: EntityId;
+  readonly id?: EntityId;
+  readonly weekday: AvailabilityRule["weekday"];
+  readonly startMinute: number;
+  readonly endMinute: number;
+  readonly kind: AvailabilityKind;
+  readonly effectiveFrom: IsoDateTime;
+  readonly effectiveUntil?: IsoDateTime;
+}
+
+export interface PayoutMethodInput {
+  readonly id?: EntityId;
+  readonly rail: PayoutRail;
+  readonly handle: string;
+  readonly label?: string;
+  readonly isDefault?: boolean;
+}
+
+export interface VehicleInput {
+  readonly id?: EntityId;
+  readonly unitNumber: string;
+  readonly type: VehicleType;
+  readonly vin: string;
+  readonly make: string;
+  readonly model: string;
+  readonly year: number;
+  readonly plateNumber: string;
+  readonly plateState: string;
+  readonly status: VehicleStatus;
+  readonly odometerMiles: number;
+  readonly assignedDriverId?: EntityId;
+}
+
+export interface MaintenanceOrderInput {
+  readonly vehicleId: EntityId;
+  readonly kind: MaintenanceKind;
+  readonly severity: MaintenanceSeverity;
+  readonly summary: string;
+  readonly description: string;
+  readonly scheduledFor?: IsoDateTime;
+  readonly odometerMiles?: number;
+  readonly vendorName?: string;
+  readonly costCents?: number;
+  readonly reportedByDriverId?: EntityId;
+}
+
+export interface MaintenanceOrderPatch {
+  readonly status?: MaintenanceStatus;
+  readonly severity?: MaintenanceSeverity;
+  readonly scheduledFor?: IsoDateTime;
+  readonly completedAt?: IsoDateTime;
+  readonly vendorName?: string;
+  readonly costCents?: number;
+  readonly description?: string;
+}
+
+export interface ComplianceDocumentInput {
+  readonly id?: EntityId;
+  readonly subjectType: ComplianceSubjectType;
+  readonly subjectId: EntityId;
+  readonly kind: ComplianceDocumentKind;
+  readonly identifier: string;
+  readonly issuingState: string;
+  readonly issuedOn: IsoDateTime;
+  readonly expiresOn: IsoDateTime;
 }

@@ -1,15 +1,21 @@
 import { OperationsDomainError } from "../domain/errors";
 import {
   APP_ROLES,
+  AVAILABILITY_KINDS,
   DEMO_STATE_VERSION,
   HOS_DUTY_STATUSES,
+  PAYOUT_STATUSES,
   SHIPMENT_STATUSES,
+  VEHICLE_STATUSES,
   type DemoOperationsState,
 } from "../domain/types";
 
 const roleSet = new Set<string>(APP_ROLES);
 const shipmentStatusSet = new Set<string>(SHIPMENT_STATUSES);
 const dutyStatusSet = new Set<string>(HOS_DUTY_STATUSES);
+const availabilityKindSet = new Set<string>(AVAILABILITY_KINDS);
+const payoutStatusSet = new Set<string>(PAYOUT_STATUSES);
+const vehicleStatusSet = new Set<string>(VEHICLE_STATUSES);
 
 export function serializeDemoOperationsState(state: DemoOperationsState): string {
   return JSON.stringify(state);
@@ -54,7 +60,13 @@ export function isDemoOperationsState(value: unknown): value is DemoOperationsSt
     !isRecordArray(value.ediTransactions) ||
     !isRecordArray(value.requests) ||
     !isRecordArray(value.quotes) ||
-    !isRecordArray(value.integrations)
+    !isRecordArray(value.integrations) ||
+    !isRecordArray(value.vehicles) ||
+    !isRecordArray(value.availabilityBlocks) ||
+    !isRecordArray(value.availabilityRules) ||
+    !isRecordArray(value.maintenanceOrders) ||
+    !isRecordArray(value.complianceDocuments) ||
+    !isRecordArray(value.payouts)
   ) {
     return false;
   }
@@ -64,6 +76,17 @@ export function isDemoOperationsState(value: unknown): value is DemoOperationsSt
   }
 
   if (!value.shipments.every(isShipment) || !value.hosClocks.every(isHosClock)) {
+    return false;
+  }
+
+  if (
+    !value.vehicles.every(isVehicle) ||
+    !value.availabilityBlocks.every(isAvailabilityBlock) ||
+    !value.availabilityRules.every(isAvailabilityRule) ||
+    !value.maintenanceOrders.every(isMaintenanceOrder) ||
+    !value.complianceDocuments.every(isComplianceDocument) ||
+    !value.payouts.every(isPayout)
+  ) {
     return false;
   }
 
@@ -182,6 +205,90 @@ function isHosClock(value: Record<string, unknown>): boolean {
     isNonNegativeNumber(value.minutesSinceQualifyingBreak) &&
     Array.isArray(value.entries)
   );
+}
+
+function isVehicle(value: Record<string, unknown>): boolean {
+  return (
+    hasStringId(value) &&
+    isNonEmptyString(value.unitNumber) &&
+    typeof value.status === "string" &&
+    vehicleStatusSet.has(value.status) &&
+    isNonNegativeNumber(value.odometerMiles)
+  );
+}
+
+function isAvailabilityBlock(value: Record<string, unknown>): boolean {
+  return (
+    hasStringId(value) &&
+    isNonEmptyString(value.driverId) &&
+    typeof value.kind === "string" &&
+    availabilityKindSet.has(value.kind) &&
+    isIsoDateTime(value.startsAt) &&
+    isIsoDateTime(value.endsAt) &&
+    Date.parse(value.endsAt) > Date.parse(value.startsAt)
+  );
+}
+
+function isAvailabilityRule(value: Record<string, unknown>): boolean {
+  return (
+    hasStringId(value) &&
+    isNonEmptyString(value.driverId) &&
+    typeof value.kind === "string" &&
+    availabilityKindSet.has(value.kind) &&
+    isFiniteNumber(value.weekday) &&
+    value.weekday >= 0 &&
+    value.weekday <= 6 &&
+    isNonNegativeNumber(value.startMinute) &&
+    isNonNegativeNumber(value.endMinute) &&
+    value.endMinute > value.startMinute &&
+    value.endMinute <= 1440 &&
+    isIsoDateTime(value.effectiveFrom)
+  );
+}
+
+function isMaintenanceOrder(value: Record<string, unknown>): boolean {
+  return (
+    hasStringId(value) &&
+    isNonEmptyString(value.vehicleId) &&
+    isNonEmptyString(value.summary) &&
+    isIsoDateTime(value.openedAt)
+  );
+}
+
+function isComplianceDocument(value: Record<string, unknown>): boolean {
+  return (
+    hasStringId(value) &&
+    isNonEmptyString(value.subjectId) &&
+    (value.subjectType === "vehicle" || value.subjectType === "driver") &&
+    isIsoDateTime(value.expiresOn)
+  );
+}
+
+/**
+ * Line items carry deductions as negative amounts, so they must sum to
+ * `netCents`. A blob whose arithmetic disagrees would render a payout screen
+ * that contradicts itself, which is worse than rebuilding from fixtures.
+ */
+function isPayout(value: Record<string, unknown>): boolean {
+  if (
+    !hasStringId(value) ||
+    !isNonEmptyString(value.driverId) ||
+    typeof value.status !== "string" ||
+    !payoutStatusSet.has(value.status) ||
+    !isFiniteNumber(value.netCents) ||
+    !Array.isArray(value.lineItems)
+  ) {
+    return false;
+  }
+
+  let total = 0;
+  for (const lineItem of value.lineItems) {
+    if (!isRecord(lineItem) || !hasStringId(lineItem) || !isFiniteNumber(lineItem.amountCents)) {
+      return false;
+    }
+    total += lineItem.amountCents;
+  }
+  return total === value.netCents;
 }
 
 function hasValidSessionAccount(state: Record<string, unknown>): boolean {

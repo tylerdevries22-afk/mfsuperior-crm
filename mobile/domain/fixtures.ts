@@ -1,10 +1,16 @@
 import type {
+  AvailabilityBlock,
+  AvailabilityRule,
+  ComplianceDocument,
   DemoAccount,
   DemoOperationsState,
+  MaintenanceOrder,
+  Payout,
   PostalAddress,
   Shipment,
   ShipmentEvent,
   ShipmentStop,
+  Vehicle,
 } from "./types";
 import { DEMO_STATE_VERSION } from "./types";
 
@@ -356,6 +362,411 @@ const shipments: readonly Shipment[] = [
   },
 ];
 
+/**
+ * The demo fleet. Two tractors and two trailers is the smallest set that still
+ * shows every state the fleet screens have to render: an assigned unit, a unit
+ * in the shop behind an open repair, and a spare with no driver on it.
+ */
+const vehicles: readonly Vehicle[] = [
+  {
+    id: "vehicle-t101",
+    unitNumber: "T-101",
+    type: "tractor",
+    vin: "1FUJGLDR8CLBP8834",
+    make: "Freightliner",
+    model: "Cascadia",
+    year: 2022,
+    plateNumber: "CO-77412",
+    plateState: "CO",
+    status: "active",
+    odometerMiles: 412_880,
+    assignedDriverId: "driver-brenna",
+    createdAt: "2026-01-12T15:00:00.000Z",
+    updatedAt: "2026-08-20T12:44:00.000Z",
+  },
+  {
+    id: "vehicle-t102",
+    unitNumber: "T-102",
+    type: "tractor",
+    vin: "3AKJHHDR9LSLL4471",
+    make: "Kenworth",
+    model: "T680",
+    year: 2021,
+    plateNumber: "CO-77518",
+    plateState: "CO",
+    status: "in_shop",
+    odometerMiles: 507_210,
+    assignedDriverId: "driver-alicia",
+    createdAt: "2026-01-12T15:00:00.000Z",
+    updatedAt: "2026-08-19T21:10:00.000Z",
+  },
+  {
+    id: "vehicle-tr220",
+    unitNumber: "TR-220",
+    type: "trailer",
+    vin: "1UYVS2537NU221004",
+    make: "Utility",
+    model: "3000R Reefer",
+    year: 2023,
+    plateNumber: "CO-91220",
+    plateState: "CO",
+    status: "active",
+    odometerMiles: 96_440,
+    assignedDriverId: "driver-ray",
+    createdAt: "2026-02-02T15:00:00.000Z",
+    updatedAt: "2026-08-20T11:02:00.000Z",
+  },
+  {
+    id: "vehicle-tr221",
+    unitNumber: "TR-221",
+    type: "trailer",
+    vin: "1JJV532D8PL221880",
+    make: "Wabash",
+    model: "DuraPlate Dry Van",
+    year: 2020,
+    plateNumber: "CO-91221",
+    plateState: "CO",
+    status: "active",
+    odometerMiles: 148_905,
+    createdAt: "2026-02-02T15:00:00.000Z",
+    updatedAt: "2026-08-15T18:30:00.000Z",
+  },
+];
+
+/**
+ * Concrete calendar spans. These sit close to the fixture clock on purpose so
+ * the availability month always opens on a week that has something in it.
+ */
+const availabilityBlocks: readonly AvailabilityBlock[] = [
+  {
+    id: "availability-brenna-time-off",
+    driverId: "driver-brenna",
+    startsAt: "2026-08-22T06:00:00.000Z",
+    endsAt: "2026-08-23T05:59:00.000Z",
+    kind: "time_off",
+    note: "Family commitment — no dispatch.",
+    createdAt: "2026-08-14T17:20:00.000Z",
+    updatedAt: "2026-08-14T17:20:00.000Z",
+  },
+  {
+    id: "availability-brenna-morning",
+    driverId: "driver-brenna",
+    startsAt: "2026-08-21T06:00:00.000Z",
+    endsAt: "2026-08-21T18:00:00.000Z",
+    kind: "unavailable",
+    note: "Medical appointment.",
+    createdAt: "2026-08-17T14:05:00.000Z",
+    updatedAt: "2026-08-17T14:05:00.000Z",
+  },
+  {
+    id: "availability-samuel-preferred",
+    driverId: "driver-samuel",
+    startsAt: "2026-08-21T12:00:00.000Z",
+    endsAt: "2026-08-22T02:00:00.000Z",
+    kind: "preferred",
+    note: "Prefers long-haul departures after noon.",
+    createdAt: "2026-08-16T19:40:00.000Z",
+    updatedAt: "2026-08-16T19:40:00.000Z",
+  },
+  {
+    id: "availability-alicia-time-off",
+    driverId: "driver-alicia",
+    startsAt: "2026-08-24T06:00:00.000Z",
+    endsAt: "2026-08-27T05:59:00.000Z",
+    kind: "time_off",
+    note: "Scheduled PTO.",
+    createdAt: "2026-07-30T16:00:00.000Z",
+    updatedAt: "2026-07-30T16:00:00.000Z",
+  },
+  {
+    id: "availability-kenji-available",
+    driverId: "driver-kenji",
+    startsAt: "2026-08-20T12:00:00.000Z",
+    endsAt: "2026-08-21T04:00:00.000Z",
+    kind: "available",
+    createdAt: "2026-08-19T22:15:00.000Z",
+    updatedAt: "2026-08-19T22:15:00.000Z",
+  },
+];
+
+/** Standing weekly patterns the calendar expands over any visible range. */
+const availabilityRules: readonly AvailabilityRule[] = [
+  {
+    id: "availability-rule-brenna-sunday",
+    driverId: "driver-brenna",
+    weekday: 0,
+    startMinute: 0,
+    endMinute: 1_440,
+    kind: "unavailable",
+    effectiveFrom: "2026-06-01T06:00:00.000Z",
+    createdAt: "2026-05-28T15:00:00.000Z",
+    updatedAt: "2026-05-28T15:00:00.000Z",
+  },
+  {
+    id: "availability-rule-samuel-saturday",
+    driverId: "driver-samuel",
+    weekday: 6,
+    startMinute: 0,
+    endMinute: 1_440,
+    kind: "unavailable",
+    effectiveFrom: "2026-06-01T06:00:00.000Z",
+    createdAt: "2026-05-28T15:00:00.000Z",
+    updatedAt: "2026-05-28T15:00:00.000Z",
+  },
+];
+
+const maintenanceOrders: readonly MaintenanceOrder[] = [
+  {
+    id: "maintenance-t102-aftertreatment",
+    vehicleId: "vehicle-t102",
+    kind: "repair",
+    status: "in_progress",
+    severity: "high",
+    summary: "Aftertreatment fault — derate warning",
+    description:
+      "Driver reported a dash derate warning north of Pueblo. Unit towed to the Denver shop for aftertreatment diagnosis.",
+    openedAt: "2026-08-19T20:35:00.000Z",
+    odometerMiles: 507_210,
+    vendorName: "Rocky Mountain Truck Service",
+    reportedByDriverId: "driver-alicia",
+    updatedAt: "2026-08-20T09:15:00.000Z",
+  },
+  {
+    id: "maintenance-t101-pm-a",
+    vehicleId: "vehicle-t101",
+    kind: "preventive",
+    status: "scheduled",
+    severity: "low",
+    summary: "PM-A service — 415,000 mi interval",
+    description: "Oil, filters, chassis lube, and a full brake measurement.",
+    openedAt: "2026-08-12T16:00:00.000Z",
+    scheduledFor: "2026-08-26T14:00:00.000Z",
+    odometerMiles: 412_880,
+    vendorName: "MF Superior Shop",
+    costCents: 68_500,
+    updatedAt: "2026-08-12T16:00:00.000Z",
+  },
+  {
+    id: "maintenance-tr220-inspection",
+    vehicleId: "vehicle-tr220",
+    kind: "inspection",
+    status: "completed",
+    severity: "medium",
+    summary: "Annual DOT inspection",
+    description: "Reefer unit, brakes, and lighting passed. Replaced two marker lamps.",
+    openedAt: "2026-07-28T15:00:00.000Z",
+    completedAt: "2026-07-29T18:40:00.000Z",
+    odometerMiles: 94_120,
+    vendorName: "Front Range Trailer",
+    costCents: 41_200,
+    updatedAt: "2026-07-29T18:40:00.000Z",
+  },
+];
+
+/**
+ * Expiries are staggered across every bucket the licensing screen renders:
+ * one already expired, two inside thirty days, one inside ninety, and the rest
+ * comfortably clear.
+ *
+ * These are calendar dates rather than instants, so they are stamped at midday
+ * UTC. Midnight UTC lands on the previous local day everywhere west of
+ * Greenwich, which would show a registration as expiring a day early for every
+ * driver in the fleet.
+ */
+const complianceDocuments: readonly ComplianceDocument[] = [
+  {
+    id: "compliance-t101-registration",
+    subjectType: "vehicle",
+    subjectId: "vehicle-t101",
+    kind: "registration",
+    identifier: "CO-77412",
+    issuingState: "CO",
+    issuedOn: "2025-09-01T12:00:00.000Z",
+    expiresOn: "2026-09-01T12:00:00.000Z",
+    updatedAt: "2025-09-01T00:00:00.000Z",
+  },
+  {
+    id: "compliance-t101-inspection",
+    subjectType: "vehicle",
+    subjectId: "vehicle-t101",
+    kind: "annual_inspection",
+    identifier: "INSP-2026-1180",
+    issuingState: "CO",
+    issuedOn: "2026-03-15T12:00:00.000Z",
+    expiresOn: "2027-03-15T12:00:00.000Z",
+    updatedAt: "2026-03-15T00:00:00.000Z",
+  },
+  {
+    id: "compliance-t102-registration",
+    subjectType: "vehicle",
+    subjectId: "vehicle-t102",
+    kind: "registration",
+    identifier: "CO-77518",
+    issuingState: "CO",
+    issuedOn: "2025-11-30T12:00:00.000Z",
+    expiresOn: "2026-11-30T12:00:00.000Z",
+    updatedAt: "2025-11-30T00:00:00.000Z",
+  },
+  {
+    id: "compliance-tr220-registration",
+    subjectType: "vehicle",
+    subjectId: "vehicle-tr220",
+    kind: "registration",
+    identifier: "CO-91220",
+    issuingState: "CO",
+    issuedOn: "2025-12-15T12:00:00.000Z",
+    expiresOn: "2026-12-15T12:00:00.000Z",
+    updatedAt: "2025-12-15T00:00:00.000Z",
+  },
+  {
+    id: "compliance-tr221-inspection",
+    subjectType: "vehicle",
+    subjectId: "vehicle-tr221",
+    kind: "annual_inspection",
+    identifier: "INSP-2025-0904",
+    issuingState: "CO",
+    issuedOn: "2025-10-05T12:00:00.000Z",
+    expiresOn: "2026-10-05T12:00:00.000Z",
+    updatedAt: "2025-10-05T00:00:00.000Z",
+  },
+  {
+    id: "compliance-brenna-cdl",
+    subjectType: "driver",
+    subjectId: "driver-brenna",
+    kind: "cdl",
+    identifier: "CO-DMO-48271",
+    issuingState: "CO",
+    issuedOn: "2024-04-12T12:00:00.000Z",
+    expiresOn: "2028-04-12T12:00:00.000Z",
+    updatedAt: "2024-04-12T00:00:00.000Z",
+  },
+  {
+    id: "compliance-brenna-medical",
+    subjectType: "driver",
+    subjectId: "driver-brenna",
+    kind: "medical_card",
+    identifier: "MED-2024-55190",
+    issuingState: "CO",
+    issuedOn: "2024-09-14T12:00:00.000Z",
+    expiresOn: "2026-09-14T12:00:00.000Z",
+    updatedAt: "2024-09-14T00:00:00.000Z",
+  },
+  {
+    id: "compliance-ray-cdl",
+    subjectType: "driver",
+    subjectId: "driver-ray",
+    kind: "cdl",
+    identifier: "CO-DMO-51884",
+    issuingState: "CO",
+    issuedOn: "2023-07-01T12:00:00.000Z",
+    expiresOn: "2027-07-01T12:00:00.000Z",
+    updatedAt: "2023-07-01T00:00:00.000Z",
+  },
+  {
+    id: "compliance-kenji-hazmat",
+    subjectType: "driver",
+    subjectId: "driver-kenji",
+    kind: "hazmat_endorsement",
+    identifier: "HME-2021-33017",
+    issuingState: "CO",
+    issuedOn: "2021-08-18T12:00:00.000Z",
+    expiresOn: "2026-08-18T12:00:00.000Z",
+    updatedAt: "2021-08-18T00:00:00.000Z",
+  },
+];
+
+/**
+ * Two closed settlement periods, both prior to the week the fixture clock sits
+ * in. The one delivered load lands on Tuesday of the current week and is
+ * deliberately left unsettled, so the admin console always has a real period
+ * to issue and the driver always has something genuinely outstanding.
+ *
+ * Line items always sum to `netCents`, because deductions carry negative
+ * amounts.
+ */
+const payouts: readonly Payout[] = [
+  {
+    id: "payout-2026-w31",
+    driverId: "driver-brenna",
+    periodStart: "2026-08-02T06:00:00.000Z",
+    periodEnd: "2026-08-09T05:59:00.000Z",
+    status: "paid",
+    grossCents: 294_820,
+    deductionCents: 31_240,
+    netCents: 263_580,
+    rail: "venmo",
+    issuedAt: "2026-08-09T16:00:00.000Z",
+    paidAt: "2026-08-10T15:12:00.000Z",
+    lineItems: [
+      {
+        id: "payout-line-w31-linehaul-front-range",
+        kind: "linehaul",
+        description: "Front Range regional runs · 1,014 mi",
+        amountCents: 124_200,
+      },
+      {
+        id: "payout-line-w31-linehaul-corridor",
+        kind: "linehaul",
+        description: "I-25 corridor runs · 1,132 mi",
+        amountCents: 150_620,
+      },
+      {
+        id: "payout-line-w31-detention",
+        kind: "detention",
+        description: "Detention at Front Range Grocery · 2.0 hr",
+        amountCents: 20_000,
+      },
+      {
+        id: "payout-line-w31-advance",
+        kind: "advance",
+        description: "Fuel advance repayment",
+        amountCents: -25_000,
+      },
+      {
+        id: "payout-line-w31-occupational",
+        kind: "deduction",
+        description: "Occupational accident coverage",
+        amountCents: -6_240,
+      },
+    ],
+    createdAt: "2026-08-09T16:00:00.000Z",
+    updatedAt: "2026-08-10T15:12:00.000Z",
+  },
+  {
+    id: "payout-2026-w32",
+    driverId: "driver-brenna",
+    periodStart: "2026-08-09T06:00:00.000Z",
+    periodEnd: "2026-08-16T05:59:00.000Z",
+    status: "pending",
+    grossCents: 146_350,
+    deductionCents: 6_240,
+    netCents: 140_110,
+    issuedAt: "2026-08-16T06:00:00.000Z",
+    lineItems: [
+      {
+        id: "payout-line-w32-linehaul",
+        kind: "linehaul",
+        description: "Denver to Colorado Springs turns · 1,034 mi",
+        amountCents: 137_800,
+      },
+      {
+        id: "payout-line-w32-lumper",
+        kind: "accessorial",
+        description: "Lumper receipt · Aurora DC",
+        amountCents: 8_550,
+      },
+      {
+        id: "payout-line-w32-occupational",
+        kind: "deduction",
+        description: "Occupational accident coverage",
+        amountCents: -6_240,
+      },
+    ],
+    createdAt: "2026-08-16T06:00:00.000Z",
+    updatedAt: "2026-08-16T06:00:00.000Z",
+  },
+];
+
 export function createDemoOperationsState(): DemoOperationsState {
   return {
     version: DEMO_STATE_VERSION,
@@ -703,6 +1114,15 @@ export function createDemoOperationsState(): DemoOperationsState {
         isSimulation: false,
       },
     ],
+    vehicles: vehicles.map((vehicle) => ({ ...vehicle })),
+    availabilityBlocks: availabilityBlocks.map((block) => ({ ...block })),
+    availabilityRules: availabilityRules.map((rule) => ({ ...rule })),
+    maintenanceOrders: maintenanceOrders.map((order) => ({ ...order })),
+    complianceDocuments: complianceDocuments.map((document) => ({ ...document })),
+    payouts: payouts.map((payout) => ({
+      ...payout,
+      lineItems: payout.lineItems.map((lineItem) => ({ ...lineItem })),
+    })),
     updatedAt: FIXTURE_NOW,
   };
 }
