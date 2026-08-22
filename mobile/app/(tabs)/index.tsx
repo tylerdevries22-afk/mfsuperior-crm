@@ -6,6 +6,7 @@ import { Image, Pressable, ScrollView, StyleSheet, Text, View, type ImageSourceP
 
 import { AnimatedPressable, Header, HorizontalCarousel, WorkspaceCard } from "@/components/ui";
 import type { AppRole, Shipment } from "@/domain/types";
+import { DriverAvatar } from "@/components/operations";
 import { useOperations } from "@/store";
 import { FONTS, RADIUS, RADIUS_DENSE, SPACE, TYPO, useTheme } from "@/theme";
 
@@ -55,7 +56,9 @@ function CustomerHero({ name, onRequest }: { readonly name: string; readonly onR
 function CurrentShipment({ shipment }: { readonly shipment: Shipment }) {
   const router = useRouter();
   const theme = useTheme();
-  return <View style={styles.currentSection}><Text style={[styles.smallEyebrow, { color: theme.textMuted }]}>TODAY AT A GLANCE</Text><WorkspaceCard><View style={styles.shipmentTop}><View style={[styles.driverAvatar, { backgroundColor: theme.primaryMuted }]}><Image source={driverArt} style={styles.driverAvatarImage} /></View><View style={styles.grow}><Text style={[styles.currentTitle, { color: theme.text }]}>Your shipment is {shipment.status.replaceAll("_", " ")}</Text><Text style={[styles.currentMeta, { color: theme.textSecondary }]}>{shipment.loadNumber} · {shipment.stops.at(-1)?.facilityName}</Text></View></View><AnimatedPressable haptic="light" onPress={() => router.push({ pathname: "/load/[id]", params: { id: shipment.id } })} style={[styles.trackButton, { backgroundColor: theme.surfaceElevated }]}><Text style={[styles.trackButtonText, { color: theme.text }]}>Track shipment</Text><Feather color={theme.text} name="arrow-right" size={15} /></AnimatedPressable></WorkspaceCard></View>;
+  const { state } = useOperations();
+  const assignedDriver = state.drivers.find((driver) => driver.id === shipment.assignedDriverId);
+  return <View style={styles.currentSection}><Text style={[styles.smallEyebrow, { color: theme.textMuted }]}>TODAY AT A GLANCE</Text><WorkspaceCard><View style={styles.shipmentTop}><View style={[styles.driverAvatar, { backgroundColor: theme.primaryMuted }]}>{assignedDriver ? <DriverAvatar driver={assignedDriver} ring={false} size={46} /> : <Image source={driverArt} style={styles.driverAvatarImage} />}</View><View style={styles.grow}><Text style={[styles.currentTitle, { color: theme.text }]}>Your shipment is {shipment.status.replaceAll("_", " ")}</Text><Text style={[styles.currentMeta, { color: theme.textSecondary }]}>{shipment.loadNumber} · {shipment.stops.at(-1)?.facilityName}</Text></View></View><AnimatedPressable haptic="light" onPress={() => router.push({ pathname: "/load/[id]", params: { id: shipment.id } })} style={[styles.trackButton, { backgroundColor: theme.surfaceElevated }]}><Text style={[styles.trackButtonText, { color: theme.text }]}>Track shipment</Text><Feather color={theme.text} name="arrow-right" size={15} /></AnimatedPressable></WorkspaceCard></View>;
 }
 
 function CustomerActionRow({ action, index }: { readonly action: HomeAction; readonly index: number }) {
@@ -108,7 +111,9 @@ function SectionLabel({ title, action, onAction }: { readonly title: string; rea
 function DriverStrip() {
   const theme = useTheme();
   const { state } = useOperations();
-  return <HorizontalCarousel accessibilityLabel="Driver team" data={state.drivers} keyExtractor={(item) => item.id} renderItem={({ item, index }) => <View style={styles.driverChip}><View style={[styles.driverChipAvatar, { backgroundColor: theme.surfaceElevated, borderColor: item.status === "available" ? theme.success : theme.border }]}>{index === 0 ? <Image source={driverArt} style={styles.driverChipImage} /> : <Text style={[styles.driverInitials, { color: theme.textMuted }]}>{item.firstName[0]}{item.lastName[0]}</Text>}</View><Text numberOfLines={1} style={[styles.driverName, { color: theme.textSecondary }]}>{item.firstName}</Text></View>} />;
+  // Each driver renders their own portrait. The previous `index === 0` check
+  // gave the first driver a generic stock image and everyone else initials.
+  return <HorizontalCarousel accessibilityLabel="Driver team" data={state.drivers} keyExtractor={(item) => item.id} renderItem={({ item }) => <View style={styles.driverChip}><View style={[styles.driverChipAvatar, { borderColor: item.status === "available" ? theme.success : theme.border }]}><DriverAvatar driver={item} ring={false} size={46} /></View><Text numberOfLines={1} style={[styles.driverName, { color: theme.textSecondary }]}>{item.firstName}</Text></View>} />;
 }
 
 function LoadPreview({ shipment, wide = false }: { readonly shipment: Shipment; readonly wide?: boolean }) {

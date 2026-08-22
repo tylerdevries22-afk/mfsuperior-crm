@@ -179,6 +179,8 @@ export interface Driver {
   readonly licenseNumber: string;
   readonly licenseState: string;
   readonly licenseClass: "A";
+  /** Portrait served by the API. Demo drivers fall back to a bundled asset. */
+  readonly avatarUrl?: string;
   readonly status: DriverAvailability;
   readonly currentLocation: GeoPoint;
   readonly locationUpdatedAt: IsoDateTime;

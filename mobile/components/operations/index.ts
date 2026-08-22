@@ -1,3 +1,4 @@
+export { DriverAvatar, driverColor, resolveDriverAvatar } from "./DriverAvatar";
 export {
   ProgressTrack,
   ShipmentCard,
