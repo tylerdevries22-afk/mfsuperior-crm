@@ -17,7 +17,6 @@ import type {
   CustomerRequest,
   DemoOperationsState,
   EdiTransaction,
-  Equipment,
   ExceptionReportInput,
   FreightQuote,
   GeoPoint,
@@ -40,12 +39,7 @@ export interface OperationsActions {
   switchDemoRole(role: AppRole): Promise<boolean>;
   resetDemo(): Promise<boolean>;
   respondToTender(shipmentId: string, response: "accepted" | "declined"): Promise<boolean>;
-  assignShipment(
-    shipmentId: string,
-    driverId: string,
-    tractorId?: string,
-    trailerId?: string,
-  ): Promise<boolean>;
+  assignShipment(shipmentId: string, driverId: string): Promise<boolean>;
   transitionShipment(
     shipmentId: string,
     nextStatus: ShipmentStatus,
@@ -79,7 +73,6 @@ export interface OperationsContextValue {
   readonly hosClock: HosClock | null;
   readonly customerRequests: readonly CustomerRequest[];
   readonly quotes: readonly FreightQuote[];
-  readonly equipment: readonly Equipment[];
   readonly messages: readonly OperationsMessage[];
   readonly ediTransactions: readonly EdiTransaction[];
   readonly integrations: readonly IntegrationHealth[];
@@ -157,8 +150,8 @@ export function OperationsProvider({
       respondToTender: (shipmentId, response) => runMutation(
         () => repository.respondToTender(shipmentId, response),
       ),
-      assignShipment: (shipmentId, driverId, tractorId, trailerId) => runMutation(
-        () => repository.assignShipment(shipmentId, driverId, tractorId, trailerId),
+      assignShipment: (shipmentId, driverId) => runMutation(
+        () => repository.assignShipment(shipmentId, driverId),
       ),
       transitionShipment: (shipmentId, nextStatus, stopId) => runMutation(
         () => repository.transitionShipment(shipmentId, nextStatus, stopId),
@@ -238,7 +231,6 @@ export function OperationsProvider({
       hosClock,
       customerRequests,
       quotes,
-      equipment: state.equipment,
       messages: state.messages,
       ediTransactions: state.ediTransactions,
       integrations: state.integrations,

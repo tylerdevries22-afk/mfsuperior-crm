@@ -38,12 +38,7 @@ export interface OperationsRepository {
     shipmentId: EntityId,
     response: "accepted" | "declined",
   ): Promise<Shipment>;
-  assignShipment(
-    shipmentId: EntityId,
-    driverId: EntityId,
-    tractorId?: EntityId,
-    trailerId?: EntityId,
-  ): Promise<Shipment>;
+  assignShipment(shipmentId: EntityId, driverId: EntityId): Promise<Shipment>;
   transitionShipment(
     shipmentId: EntityId,
     nextStatus: ShipmentStatus,

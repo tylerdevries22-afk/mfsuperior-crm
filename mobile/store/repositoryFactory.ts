@@ -110,7 +110,6 @@ function emptyState(): DemoOperationsState {
     customers: [],
     drivers: [],
     ediTransactions: [],
-    equipment: [],
     exceptions: [],
     hosClocks: [],
     integrations: [],

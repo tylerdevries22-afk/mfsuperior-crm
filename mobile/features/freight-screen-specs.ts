@@ -2,7 +2,6 @@ import type {
   FreightCollectionSpec,
   FreightDetailSpec,
   FreightFormSpec,
-  FreightMarketplaceSpec,
 } from "@/route-support/freight";
 
 const operationsMetrics = [
@@ -216,90 +215,6 @@ export const EDI_CODES_SPEC = {
   ],
 } satisfies FreightCollectionSpec;
 
-export const ASSETS_SPEC = {
-  eyebrow: "CAPACITY REGISTRY",
-  title: "Capacity",
-  description: "Tractors, trailers, reefers, assigned units, safety supplies, and utilization readiness.",
-  metrics: [
-    { label: "READY", value: "14", detail: "82% utilization", tone: "success" },
-    { label: "ASSIGNED", value: "9", detail: "4 in transit", tone: "brand" },
-    { label: "ATTENTION", value: "2", detail: "Inspection due", tone: "warning" },
-  ],
-  segments: ["All", "Power", "Trailers"],
-  records: [
-    { id: "asset-1", title: "Tractor 104", subtitle: "2024 Freightliner Cascadia · Brenna Lewis", meta: "In transit · 48,210 mi", status: "assigned", tone: "success", icon: "truck", route: "/capacity/tractor-104" },
-    { id: "asset-2", title: "Trailer R-218", subtitle: "53′ reefer · Carrier unit online", meta: "36°F · Fuel 72%", status: "ready", tone: "success", icon: "thermometer", route: "/capacity/trailer-r218" },
-    { id: "asset-3", title: "Trailer DV-092", subtitle: "53′ dry van · Door seal inspection", meta: "Inspection due Aug 23", status: "attention", tone: "warning", icon: "tool", route: "/capacity/trailer-dv092" },
-  ],
-  primaryAction: { label: "Scan asset", icon: "maximize", route: "/capacity/scan" },
-} satisfies FreightCollectionSpec;
-
-export const CAPACITY_ORDERS_SPEC = {
-  eyebrow: "CAPACITY BOOKINGS",
-  title: "Bookings",
-  description: "Shortlisted carrier capacity, booking status, cancellations, and claims.",
-  metrics: [
-    { label: "ACTIVE", value: "3", detail: "$7.8k committed", tone: "brand" },
-    { label: "CLAIMS", value: "1", detail: "Evidence pending", tone: "warning" },
-  ],
-  segments: ["Active", "Completed", "Cancelled"],
-  records: [
-    { id: "book-1", title: "BK-9914 · Denver → Cheyenne", subtitle: "53′ dry van · Pickup Aug 23", meta: "$1,440 · Confirmation pending", status: "requested", tone: "warning", icon: "truck", route: "/capacity-marketplace/booking-detail" },
-    { id: "book-2", title: "BK-9908 · Aurora → Grand Junction", subtitle: "Team capacity · Delivered", meta: "$3,920 · POD verified", status: "complete", tone: "success", icon: "check-circle", route: "/capacity-marketplace/booking-detail" },
-  ],
-} satisfies FreightCollectionSpec;
-
-export const EQUIPMENT_ORDERS_SPEC = {
-  eyebrow: "EQUIPMENT REQUESTS",
-  title: "Orders",
-  description: "Acquisition, lease, delivery, and return status for capacity equipment requests.",
-  metrics: [
-    { label: "OPEN", value: "2", detail: "$5.1k monthly", tone: "brand" },
-    { label: "DELIVERED", value: "4", detail: "This quarter", tone: "success" },
-  ],
-  segments: ["Open", "Delivered", "Returns"],
-  records: [
-    { id: "order-1", title: "EQ-408 · 2025 dry van lease", subtitle: "12-month term · Denver pickup", meta: "$1,280/mo · Documents due", status: "review", tone: "warning", icon: "file-text", route: "/equipment-marketplace/order-detail" },
-    { id: "order-2", title: "EQ-392 · Reefer rental", subtitle: "30-day term · Carrier unit included", meta: "Delivered Aug 16", status: "active", tone: "success", icon: "thermometer", route: "/equipment-marketplace/order-detail" },
-  ],
-} satisfies FreightCollectionSpec;
-
-export const CAPACITY_MARKETPLACE_SPEC = {
-  eyebrow: "TRUSTED CAPACITY",
-  title: "Capacity marketplace",
-  description: "Find verified carrier capacity without overstating a provider connection.",
-  art: "capacity",
-  searchRoute: "/capacity-marketplace/search",
-  cartRoute: "/capacity-marketplace/cart",
-  categories: [
-    { id: "cat-dry", title: "Dry van", subtitle: "Same-day and contract", icon: "box", route: "/capacity-marketplace/search" },
-    { id: "cat-reefer", title: "Reefer", subtitle: "Temperature controlled", icon: "thermometer", route: "/capacity-marketplace/search" },
-    { id: "cat-team", title: "Team", subtitle: "Expedited capacity", icon: "users", route: "/capacity-marketplace/search" },
-  ],
-  featured: [
-    { id: "cap-1", title: "Denver → Salt Lake City", subtitle: "53′ dry van · Pickup within 24h", meta: "$2.74/mi · Verified insurance", status: "available", tone: "success", icon: "truck", route: "/capacity-marketplace/capacity-detail" },
-    { id: "cap-2", title: "Aurora → Albuquerque", subtitle: "Reefer · 34–38°F continuous", meta: "$3.21/mi · 2 units", status: "limited", tone: "warning", icon: "thermometer", route: "/capacity-marketplace/capacity-detail" },
-  ],
-} satisfies FreightMarketplaceSpec;
-
-export const EQUIPMENT_MARKETPLACE_SPEC = {
-  eyebrow: "EQUIPMENT NETWORK",
-  title: "Equipment marketplace",
-  description: "Compare provider-neutral acquisition, rental, and lease options for capacity assets.",
-  art: "equipment",
-  searchRoute: "/equipment-marketplace/search",
-  cartRoute: "/equipment-marketplace/cart",
-  categories: [
-    { id: "eq-trailer", title: "Trailers", subtitle: "Dry van, reefer, flatbed", icon: "box", route: "/equipment-marketplace/search" },
-    { id: "eq-power", title: "Power units", subtitle: "Day cab and sleeper", icon: "truck", route: "/equipment-marketplace/search" },
-    { id: "eq-tech", title: "Telematics", subtitle: "Tracking and sensors", icon: "wifi", route: "/equipment-marketplace/search" },
-  ],
-  featured: [
-    { id: "eq-1", title: "2025 53′ dry van", subtitle: "Air ride · swing doors · lease", meta: "$1,280/mo · Denver", status: "available", tone: "success", icon: "box", route: "/equipment-marketplace/equipment-detail" },
-    { id: "eq-2", title: "Reefer with Carrier unit", subtitle: "Multi-temp · remote telemetry", meta: "$2,460/mo · Aurora", status: "2 left", tone: "warning", icon: "thermometer", route: "/equipment-marketplace/equipment-detail" },
-  ],
-} satisfies FreightMarketplaceSpec;
-
 export const SHIPPER_DETAIL_SPEC = {
   eyebrow: "SHIPPER ACCOUNT",
   title: "Front Range Grocery",
@@ -323,29 +238,6 @@ export const SHIPPER_DETAIL_SPEC = {
   ],
 } satisfies FreightDetailSpec;
 
-export const ASSET_DETAIL_SPEC = {
-  eyebrow: "CAPACITY ASSET",
-  title: "Tractor 104",
-  subtitle: "2024 Freightliner Cascadia · VIN ending 8274 · Assigned to Brenna Lewis.",
-  status: "in transit",
-  statusTone: "success",
-  metrics: [
-    { label: "ODOMETER", value: "48,210 mi", detail: "Updated 10:40 AM" },
-    { label: "FUEL", value: "68%", detail: "Est. 514 mi" },
-    { label: "INSPECTION", value: "Passed", detail: "Aug 21" },
-    { label: "UTILIZATION", value: "87%", detail: "Last 30 days" },
-  ],
-  timeline: [
-    { id: "a-1", title: "Location received", subtitle: "I-25 N near Erie, Colorado.", meta: "10:40 AM", tone: "success" },
-    { id: "a-2", title: "Pre-trip inspection passed", subtitle: "No defects reported by Brenna Lewis.", meta: "6:48 AM", tone: "success" },
-    { id: "a-3", title: "Assigned to MF-2048", subtitle: "Aurora to Loveland retail freight.", meta: "Yesterday · 4:12 PM", tone: "brand" },
-  ],
-  actions: [
-    { label: "Reassign", icon: "repeat", route: "/capacity/transfer" },
-    { label: "Run triage", icon: "activity", route: "/diagnostics/vehicle" },
-  ],
-} satisfies FreightDetailSpec;
-
 export const MARKETPLACE_DETAIL_SPEC = {
   eyebrow: "VERIFIED AVAILABILITY",
   title: "Denver → Salt Lake City",
@@ -366,29 +258,6 @@ export const MARKETPLACE_DETAIL_SPEC = {
   actions: [
     { label: "Add to shortlist", icon: "bookmark", route: "/capacity-marketplace/cart" },
     { label: "Ask a question", icon: "message-circle", route: "/messages" },
-  ],
-} satisfies FreightDetailSpec;
-
-export const EQUIPMENT_DETAIL_SPEC = {
-  eyebrow: "EQUIPMENT OPTION",
-  title: "2025 53′ dry van",
-  subtitle: "Air-ride suspension · swing doors · tire-inflation system · Denver pickup.",
-  status: "available",
-  statusTone: "success",
-  metrics: [
-    { label: "LEASE", value: "$1,280/mo", detail: "12-month term" },
-    { label: "DEPOSIT", value: "$1,000", detail: "Refundable" },
-    { label: "GVWR", value: "68,000 lb", detail: "Plate trailer" },
-    { label: "READY", value: "Aug 25", detail: "Denver, CO" },
-  ],
-  timeline: [
-    { id: "eq-1", title: "Availability confirmed", subtitle: "Provider inventory refreshed.", meta: "Today · 9:14 AM", tone: "success" },
-    { id: "eq-2", title: "Inspection report published", subtitle: "Brakes, tires, doors, and floor passed.", meta: "Aug 20", tone: "success" },
-    { id: "eq-3", title: "Terms reviewed", subtitle: "Lease terms are ready for admin approval.", meta: "Aug 20", tone: "brand" },
-  ],
-  actions: [
-    { label: "Add to request", icon: "shopping-bag", route: "/equipment-marketplace/cart" },
-    { label: "Compare", icon: "columns", route: "/equipment-marketplace/search" },
   ],
 } satisfies FreightDetailSpec;
 

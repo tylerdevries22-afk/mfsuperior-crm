@@ -302,8 +302,9 @@ export const shipmentTenderResponseSchema = z
   .strict();
 
 /**
- * Tractor and trailer assignment is intentionally absent: there is no
- * server-side equipment registry, so accepting those ids would drop them.
+ * Assignment is driver-only. The equipment register the mobile client once
+ * carried (tractors, trailers, reefer units) has been removed from the
+ * product, so there is nothing on either side to assign.
  */
 export const shipmentAssignmentSchema = z
   .object({

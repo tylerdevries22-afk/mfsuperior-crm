@@ -10,7 +10,7 @@ export default function FreightDocumentGuideScreen() {
     <FreightDetailScreen
       spec={{
         actions: [
-          { icon: "camera", label: "Capture document", route: "/capacity/document-scan" },
+          { icon: "camera", label: "Capture document", route: "/freight-document-viewer" },
           { icon: "message-circle", label: "Ask operations", route: "/messages" },
         ],
         eyebrow: "SERVICE DOCUMENT",

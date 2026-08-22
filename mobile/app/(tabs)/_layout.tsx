@@ -5,7 +5,7 @@ import type { ColorValue } from "react-native";
 import { useOperations } from "@/store";
 import { useTheme } from "@/theme";
 
-const INTERNAL_TABS = new Set(["schedule", "assistant", "inventory"]);
+const INTERNAL_TABS = new Set(["schedule", "assistant", "hq"]);
 const CUSTOMER_TABS = new Set(["shipments", "requests"]);
 
 // Expo Router's public prop is typed as ColorValue even though the iOS native
@@ -52,12 +52,12 @@ export default function TabLayout() {
         <Label>Assistant</Label>
       </NativeTabs.Trigger>
 
-      <NativeTabs.Trigger name="inventory" hidden={!isStaff}>
+      <NativeTabs.Trigger name="hq" hidden={!isStaff}>
         <Icon
-          drawable="inventory_2"
-          sf={{ default: "shippingbox", selected: "shippingbox.fill" }}
+          drawable="map"
+          sf={{ default: "map", selected: "map.fill" }}
         />
-        <Label>Capacity</Label>
+        <Label>HQ</Label>
       </NativeTabs.Trigger>
 
       <NativeTabs.Trigger name="shipments" hidden={!isCustomer}>

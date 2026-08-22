@@ -35,21 +35,14 @@ const COLLECTION_SPECS: readonly FreightCollectionSpec[] = [
   freightSpecs.INTEGRATION_EVENTS_SPEC,
   freightSpecs.KNOWLEDGE_SPEC,
   freightSpecs.EDI_CODES_SPEC,
-  freightSpecs.ASSETS_SPEC,
-  freightSpecs.CAPACITY_ORDERS_SPEC,
-  freightSpecs.EQUIPMENT_ORDERS_SPEC,
 ];
 
 const DETAIL_SPECS: readonly FreightDetailSpec[] = [
   freightSpecs.SHIPPER_DETAIL_SPEC,
-  freightSpecs.ASSET_DETAIL_SPEC,
   freightSpecs.MARKETPLACE_DETAIL_SPEC,
-  freightSpecs.EQUIPMENT_DETAIL_SPEC,
 ];
 
 const MARKETPLACE_SPECS: readonly FreightMarketplaceSpec[] = [
-  freightSpecs.CAPACITY_MARKETPLACE_SPEC,
-  freightSpecs.EQUIPMENT_MARKETPLACE_SPEC,
 ];
 
 const FORM_SPECS: readonly FreightFormSpec[] = [
@@ -156,17 +149,10 @@ describe("freight partner contract", () => {
 describe("freight screen fixture contracts", () => {
   it("pins the complete exported fixture inventory", () => {
     expect(Object.keys(freightSpecs).sort()).toEqual([
-      "ASSETS_SPEC",
-      "ASSET_DETAIL_SPEC",
-      "CAPACITY_MARKETPLACE_SPEC",
-      "CAPACITY_ORDERS_SPEC",
       "CLAIM_FORM",
       "CONTRACTS_SPEC",
       "DRIVERS_SPEC",
       "EDI_CODES_SPEC",
-      "EQUIPMENT_DETAIL_SPEC",
-      "EQUIPMENT_MARKETPLACE_SPEC",
-      "EQUIPMENT_ORDERS_SPEC",
       "INTEGRATION_EVENTS_SPEC",
       "INVOICES_SPEC",
       "KNOWLEDGE_SPEC",

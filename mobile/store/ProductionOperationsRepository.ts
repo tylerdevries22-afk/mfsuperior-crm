@@ -154,20 +154,7 @@ export class ProductionOperationsRepository implements OperationsRepository {
     return this.requireShipment(shipmentId);
   }
 
-  async assignShipment(
-    shipmentId: EntityId,
-    driverId: EntityId,
-    tractorId?: EntityId,
-    trailerId?: EntityId,
-  ): Promise<Shipment> {
-    // Production has no server-side equipment registry, so silently dropping a
-    // tractor or trailer selection would misreport what was assigned.
-    if (tractorId || trailerId) {
-      throw new OperationsDomainError(
-        "VALIDATION_FAILED",
-        "Tractor and trailer assignment is not available in production yet.",
-      );
-    }
+  async assignShipment(shipmentId: EntityId, driverId: EntityId): Promise<Shipment> {
     await this.performMutation<{ readonly driverId: string }>(
       `v1/shipments/${encodeId(shipmentId)}/assignment`,
       { driverId },
@@ -624,7 +611,6 @@ function createEmptyOperationsState(updatedAt: string): DemoOperationsState {
     customers: [],
     drivers: [],
     ediTransactions: [],
-    equipment: [],
     exceptions: [],
     hosClocks: [],
     integrations: [],

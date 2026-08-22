@@ -1,4 +1,6 @@
 import {
+  NOT_PORTED_REASON,
+  NOT_PORTED_ROUTES,
   PARITY_MANIFEST,
   PARITY_STATES,
   REFERENCE_ROUTES,
@@ -8,12 +10,35 @@ import {
 } from "../parity-manifest";
 
 describe("reference parity manifest", () => {
-  it("maps every pinned reference route exactly once", () => {
-    const mappedRoutes = PARITY_MANIFEST.map(({ referenceRoute }) => referenceRoute);
+  /**
+   * Every pinned reference route is accounted for exactly once: either it is
+   * ported and appears in the manifest, or it is deliberately not ported and
+   * appears in NOT_PORTED_ROUTES. Neither list may quietly lose a route, and
+   * no route may appear in both.
+   */
+  it("accounts for every pinned reference route exactly once", () => {
+    const mapped = PARITY_MANIFEST.map(({ referenceRoute }) => referenceRoute);
+    const notPorted = NOT_PORTED_ROUTES.map(({ referenceRoute }) => referenceRoute);
+
     expect(REFERENCE_ROUTES).toHaveLength(66);
-    expect(mappedRoutes).toHaveLength(REFERENCE_ROUTES.length);
-    expect(new Set(mappedRoutes).size).toBe(REFERENCE_ROUTES.length);
-    expect(new Set(mappedRoutes)).toEqual(new Set(REFERENCE_ROUTES));
+    expect(new Set(mapped).size).toBe(mapped.length);
+    expect(new Set(notPorted).size).toBe(notPorted.length);
+
+    // Disjoint.
+    for (const route of notPorted) expect(mapped).not.toContain(route);
+
+    // Exhaustive.
+    expect(new Set([...mapped, ...notPorted])).toEqual(new Set(REFERENCE_ROUTES));
+    expect(mapped.length + notPorted.length).toBe(REFERENCE_ROUTES.length);
+  });
+
+  it("records why the dropped routes were not ported", () => {
+    expect(NOT_PORTED_ROUTES.length).toBeGreaterThan(0);
+    expect(NOT_PORTED_REASON).toMatch(/freight/i);
+    // The equipment register, equipment models, and both parts storefronts.
+    for (const prefix of ["/parts", "/models", "/marcone-parts", "/encompass-parts"]) {
+      expect(NOT_PORTED_ROUTES.some((r) => r.referenceRoute.startsWith(prefix))).toBe(true);
+    }
   });
 
   it("covers every role and deterministic UI state without empty contracts", () => {
@@ -47,9 +72,11 @@ describe("reference parity manifest", () => {
     }
   });
 
-  it("keeps supplier suites provider-neutral", () => {
-    expect(getParityMapping("/encompass-parts").mfRoute).toBe("/capacity-marketplace");
-    expect(getParityMapping("/marcone-parts").mfRoute).toBe("/equipment-marketplace");
+  it("keeps the remaining supplier suite provider-neutral", () => {
     expect(getParityMapping("/union-parts").mfRoute).toBe("/suppliers");
+  });
+
+  it("routes the inventory tab to HQ", () => {
+    expect(getParityMapping("/(tabs)/inventory").mfRoute).toBe("/(tabs)/hq");
   });
 });

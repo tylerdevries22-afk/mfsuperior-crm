@@ -24,7 +24,6 @@ import type {
   EdiTransaction,
   EdiTransactionType,
   EntityId,
-  Equipment,
   ExceptionReport,
   ExceptionReportInput,
   GeoPoint,
@@ -249,12 +248,7 @@ export class DemoOperationsRepository implements OperationsRepository {
     });
   }
 
-  assignShipment(
-    shipmentId: EntityId,
-    driverId: EntityId,
-    tractorId?: EntityId,
-    trailerId?: EntityId,
-  ): Promise<Shipment> {
+  assignShipment(shipmentId: EntityId, driverId: EntityId): Promise<Shipment> {
     return this.commit((state, occurredAt) => {
       const context = getSessionContext(state);
       requireRole(context, "admin", "Only an admin can assign a shipment.");
@@ -266,42 +260,13 @@ export class DemoOperationsRepository implements OperationsRepository {
         );
       }
       assertDriverAssignable(state, shipment, driverId);
-      const resolvedTractorId = tractorId ?? shipment.assignedTractorId;
-      const resolvedTrailerId = trailerId ?? shipment.assignedTrailerId;
-      const tractor = assertEquipmentAssignable(state, shipment, resolvedTractorId, "tractor");
-      const trailer = assertEquipmentAssignable(state, shipment, resolvedTrailerId, "trailer");
-      if (!trailer) {
-        throw new OperationsDomainError("VALIDATION_FAILED", "Select a trailer before assigning this load.");
-      }
-      if (trailer.compatibleEquipmentType !== shipment.equipmentType) {
-        throw new OperationsDomainError(
-          "VALIDATION_FAILED",
-          `Select a ${shipment.equipmentType.replaceAll("_", " ")} trailer for this load.`,
-          { shipmentId, trailerId: trailer.id },
-        );
-      }
 
       const assignedShipment: Shipment = {
         ...shipment,
         assignedDriverId: driverId,
-        assignedTractorId: tractor?.id,
-        assignedTrailerId: trailer.id,
         updatedAt: occurredAt,
       };
-      const assignedEquipmentIds = new Set([tractor?.id, trailer.id].filter(Boolean));
-      const previousEquipmentIds = new Set([shipment.assignedTractorId, shipment.assignedTrailerId].filter(Boolean));
-      const nextState: DemoOperationsState = {
-        ...replaceShipment(state, assignedShipment, occurredAt),
-        equipment: state.equipment.map((equipment) => {
-          if (assignedEquipmentIds.has(equipment.id)) {
-            return { ...equipment, status: "assigned", assignedDriverId: driverId, updatedAt: occurredAt };
-          }
-          if (previousEquipmentIds.has(equipment.id)) {
-            return { ...equipment, status: "available", assignedDriverId: undefined, updatedAt: occurredAt };
-          }
-          return equipment;
-        }),
-      };
+      const nextState: DemoOperationsState = replaceShipment(state, assignedShipment, occurredAt);
       return { state: nextState, result: assignedShipment };
     });
   }
@@ -942,47 +907,6 @@ function assertDriverAssignable(
       { shipmentId: conflict.id, driverId },
     );
   }
-}
-
-function assertEquipmentAssignable(
-  state: DemoOperationsState,
-  shipment: Shipment,
-  equipmentId: EntityId | undefined,
-  expectedKind: "tractor" | "trailer",
-): Equipment | undefined {
-  if (!equipmentId) {
-    if (expectedKind === "trailer") {
-      throw new OperationsDomainError("VALIDATION_FAILED", "Select a trailer before assigning this load.");
-    }
-    return undefined;
-  }
-  const equipment = state.equipment.find((candidate) => candidate.id === equipmentId);
-  if (!equipment || equipment.kind !== expectedKind) {
-    throw new OperationsDomainError(
-      "NOT_FOUND",
-      `The selected ${expectedKind} could not be found.`,
-      { equipmentId },
-    );
-  }
-  if (equipment.status === "maintenance" || equipment.status === "out_of_service") {
-    throw new OperationsDomainError(
-      "VALIDATION_FAILED",
-      `The selected ${expectedKind} is not available for dispatch.`,
-      { equipmentId },
-    );
-  }
-  const conflict = state.shipments.find((candidate) =>
-    candidate.id !== shipment.id
-    && RESERVED_SHIPMENT_STATUSES.has(candidate.status)
-    && (candidate.assignedTractorId === equipmentId || candidate.assignedTrailerId === equipmentId));
-  if (conflict) {
-    throw new OperationsDomainError(
-      "VALIDATION_FAILED",
-      `The selected ${expectedKind} is already assigned to ${conflict.loadNumber}.`,
-      { shipmentId: conflict.id, equipmentId },
-    );
-  }
-  return equipment;
 }
 
 function appendEdiTransaction(

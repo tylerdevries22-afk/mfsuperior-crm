@@ -150,8 +150,6 @@ export interface Shipment {
   readonly proNumber: string;
   readonly customerId: EntityId;
   readonly assignedDriverId?: EntityId;
-  readonly assignedTractorId?: EntityId;
-  readonly assignedTrailerId?: EntityId;
   readonly status: ShipmentStatus;
   readonly commodity: string;
   readonly weightPounds: number;
@@ -324,30 +322,6 @@ export interface EdiTransaction {
   readonly isSimulated: boolean;
 }
 
-export type EquipmentKind =
-  | "tractor"
-  | "trailer"
-  | "reefer_unit"
-  | "safety_gear"
-  | "load_securement"
-  | "supply"
-  | "maintenance_part";
-
-export type EquipmentStatus = "available" | "assigned" | "maintenance" | "out_of_service";
-
-export interface Equipment {
-  readonly id: EntityId;
-  readonly kind: EquipmentKind;
-  readonly compatibleEquipmentType?: EquipmentType;
-  readonly status: EquipmentStatus;
-  readonly name: string;
-  readonly assetNumber: string;
-  readonly description: string;
-  readonly quantity: number;
-  readonly assignedDriverId?: EntityId;
-  readonly specifications: Readonly<Record<string, string | number | boolean>>;
-  readonly updatedAt: IsoDateTime;
-}
 
 export type CustomerRequestType = "quote" | "pickup" | "delivery" | "exception";
 export type CustomerRequestStatus = "draft" | "submitted" | "reviewing" | "scheduled" | "closed";
@@ -411,7 +385,6 @@ export interface OperationsState {
   readonly proofsOfDelivery: readonly ProofOfDelivery[];
   readonly messages: readonly OperationsMessage[];
   readonly ediTransactions: readonly EdiTransaction[];
-  readonly equipment: readonly Equipment[];
   readonly requests: readonly CustomerRequest[];
   readonly quotes: readonly FreightQuote[];
   readonly integrations: readonly IntegrationHealth[];

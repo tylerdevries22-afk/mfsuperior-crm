@@ -171,9 +171,6 @@ describe("ProductionOperationsRepository", () => {
       repository.advanceIntermediateStop("shipment-28471", "stop-28471-intermediate"),
     ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
     await expect(
-      repository.assignShipment("shipment-28492", "driver-brenna", "tractor-1"),
-    ).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
-    await expect(
       repository.createCustomerRequest({ details: "Pickup", subject: "Pickup", type: "pickup" }),
     ).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
     await expect(repository.switchDemoRole("driver")).rejects.toMatchObject({ code: "UNAUTHORIZED" });

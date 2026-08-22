@@ -150,24 +150,11 @@ describe("unified demo operations domain", () => {
     await repository.hydrate();
     await repository.signIn("admin@demo.mfsuperior.com", "3333");
     await repository.respondToTender("shipment-28492", "accepted");
-    await expect(repository.assignShipment(
-      "shipment-28492",
-      "driver-brenna",
-      "equipment-tractor-305",
-      "equipment-trailer-804",
-    )).rejects.toThrow("already assigned");
-    await expect(repository.assignShipment(
-      "shipment-28492",
-      "driver-samuel",
-      "equipment-tractor-305",
-      "equipment-trailer-612",
-    )).rejects.toThrow("reefer trailer");
-    await repository.assignShipment(
-      "shipment-28492",
-      "driver-samuel",
-      "equipment-tractor-305",
-      "equipment-trailer-804",
-    );
+    // A driver already committed to another reserved load cannot be assigned.
+    await expect(
+      repository.assignShipment("shipment-28492", "driver-brenna"),
+    ).rejects.toThrow("already assigned");
+    await repository.assignShipment("shipment-28492", "driver-samuel");
     await repository.transitionShipment("shipment-28492", "dispatched");
     await repository.switchDemoRole("driver");
     await repository.transitionDutyStatus("driving");

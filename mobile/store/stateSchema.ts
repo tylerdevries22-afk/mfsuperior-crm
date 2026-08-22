@@ -52,7 +52,6 @@ export function isDemoOperationsState(value: unknown): value is DemoOperationsSt
     !isRecordArray(value.proofsOfDelivery) ||
     !isRecordArray(value.messages) ||
     !isRecordArray(value.ediTransactions) ||
-    !isRecordArray(value.equipment) ||
     !isRecordArray(value.requests) ||
     !isRecordArray(value.quotes) ||
     !isRecordArray(value.integrations)
@@ -74,7 +73,6 @@ export function isDemoOperationsState(value: unknown): value is DemoOperationsSt
     !value.proofsOfDelivery.every(hasStringId) ||
     !value.messages.every(hasStringId) ||
     !value.ediTransactions.every(hasStringId) ||
-    !value.equipment.every(hasStringId) ||
     !value.requests.every(hasStringId) ||
     !value.quotes.every(hasStringId) ||
     !value.integrations.every(hasStringId)

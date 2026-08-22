@@ -154,7 +154,6 @@ export function buildProductionOperationsState(
     customers: [],
     drivers: bootstrap.referenceData.drivers.map(toDriver),
     ediTransactions: [],
-    equipment: [],
     exceptions: input.exceptions.map(toExceptionReport),
     hosClocks: bootstrap.user.driverId ? [{
       breaksTakenToday: 0,
@@ -269,7 +268,6 @@ export function buildPendingCustomerOperationsState(
     customers: [],
     drivers: [],
     ediTransactions: [],
-    equipment: [],
     exceptions: [],
     hosClocks: [],
     integrations: [],

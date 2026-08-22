@@ -185,7 +185,7 @@ const drafts = [
     "Sheet",
     "StateViews",
   ]),
-  route("/(tabs)/inventory", "/(tabs)/inventory", STAFF, [
+  route("/(tabs)/inventory", "/(tabs)/hq", STAFF, [
     ...RECORD_COMPONENTS,
     "SegmentedControl",
     "Drawer",
@@ -235,24 +235,6 @@ const drafts = [
     "StateViews",
   ]),
 
-  route("/encompass-parts", "/capacity-marketplace", STAFF, MARKET_COMPONENTS),
-  route("/encompass-parts/cart", "/capacity-marketplace/cart", STAFF, [
-    "Screen",
-    "Header",
-    "List",
-    "AnimatedButton",
-    "StateViews",
-  ]),
-  route("/encompass-parts/orders", "/capacity-marketplace/orders", STAFF, RECORD_COMPONENTS),
-  route("/encompass-parts/part-detail", "/capacity-marketplace/capacity-detail", STAFF, DETAIL_COMPONENTS),
-  route("/encompass-parts/return-request", "/capacity-marketplace/release-request", STAFF, [
-    "Screen",
-    "Header",
-    "TextField",
-    "AnimatedButton",
-    "StateViews",
-  ]),
-  route("/encompass-parts/search", "/capacity-marketplace/search", STAFF, SEARCH_COMPONENTS),
 
   route("/error-codes", "/exception-codes", STAFF, [
     "Screen",
@@ -271,7 +253,6 @@ const drafts = [
   route("/hcp/estimates", "/quotes", ADMIN, ADMIN_COMPONENTS),
   route("/hcp/invoices", "/invoices", ADMIN, ADMIN_COMPONENTS),
   route("/hcp/job/[id]", "/load/[id]", STAFF, DETAIL_COMPONENTS),
-  route("/hcp/job/find-parts", "/capacity-marketplace/search", STAFF, SEARCH_COMPONENTS),
   route("/hcp/jobs", "/loads", STAFF, ADMIN_COMPONENTS),
   route("/hcp/leads", "/leads", ADMIN, ADMIN_COMPONENTS),
   route("/hcp/payments", "/payments", ADMIN, ADMIN_COMPONENTS),
@@ -297,24 +278,6 @@ const drafts = [
   ]),
   route("/knowledge", "/knowledge", AUTHENTICATED, SEARCH_COMPONENTS),
 
-  route("/marcone-parts", "/equipment-marketplace", STAFF, MARKET_COMPONENTS),
-  route("/marcone-parts/cart", "/equipment-marketplace/cart", STAFF, [
-    "Screen",
-    "Header",
-    "List",
-    "AnimatedButton",
-    "StateViews",
-  ]),
-  route("/marcone-parts/orders", "/equipment-marketplace/orders", STAFF, RECORD_COMPONENTS),
-  route("/marcone-parts/part-detail", "/equipment-marketplace/equipment-detail", STAFF, DETAIL_COMPONENTS),
-  route("/marcone-parts/return-request", "/equipment-marketplace/return-request", STAFF, [
-    "Screen",
-    "Header",
-    "TextField",
-    "AnimatedButton",
-    "StateViews",
-  ]),
-  route("/marcone-parts/search", "/equipment-marketplace/search", STAFF, SEARCH_COMPONENTS),
 
   route("/messages", "/messages", AUTHENTICATED, [
     "Screen",
@@ -324,8 +287,6 @@ const drafts = [
     "StatusBadge",
     "StateViews",
   ]),
-  route("/models", "/equipment", STAFF, RECORD_COMPONENTS),
-  route("/models/[id]", "/equipment/[id]", STAFF, DETAIL_COMPONENTS),
   route("/new-diagnosis", "/exception/new", STAFF, [
     "Screen",
     "Header",
@@ -335,52 +296,6 @@ const drafts = [
     "StateViews",
   ]),
 
-  route("/parts", "/capacity", STAFF, [
-    ...RECORD_COMPONENTS,
-    "SegmentedControl",
-    "Drawer",
-  ]),
-  route("/parts/[id]", "/capacity/[id]", STAFF, DETAIL_COMPONENTS),
-  route("/parts/analytics", "/capacity/analytics", ADMIN, [
-    "Screen",
-    "Header",
-    "SegmentedControl",
-    "WorkspaceCard",
-    "StateViews",
-  ]),
-  route("/parts/canvas", "/capacity/planner", STAFF, [
-    "Screen",
-    "Header",
-    "AnimatedCard",
-    "Drawer",
-    "Sheet",
-    "StateViews",
-  ]),
-  route("/parts/catalog-scan", "/capacity/document-scan", STAFF, [
-    "Screen",
-    "Header",
-    "GlassCard",
-    "AnimatedButton",
-    "StateViews",
-  ]),
-  route("/parts/global-search", "/capacity/search", STAFF, SEARCH_COMPONENTS),
-  route("/parts/orders", "/capacity/orders", STAFF, RECORD_COMPONENTS),
-  route("/parts/scan", "/capacity/scan", STAFF, [
-    "Screen",
-    "Header",
-    "GlassCard",
-    "AnimatedButton",
-    "StateViews",
-  ]),
-  route("/parts/transfer", "/capacity/transfer", STAFF, [
-    "Screen",
-    "Header",
-    "TextField",
-    "AnimatedButton",
-    "StatusBadge",
-    "StateViews",
-  ]),
-  route("/parts/van", "/capacity/equipment", STAFF, RECORD_COMPONENTS),
 
   route("/profile-details", "/profile-details", AUTHENTICATED, [
     "Screen",
@@ -473,3 +388,45 @@ export function getParityMapping(referenceRoute: ReferenceRoute): ParityMapping 
   if (!mapping) throw new RangeError(`Missing parity mapping for ${referenceRoute}`);
   return mapping;
 }
+
+/**
+ * Reference routes deliberately not ported.
+ *
+ * The appliance app's parts inventory, appliance-model registry, and two
+ * supplier storefronts were mirrored into freight as an equipment register,
+ * equipment models, and two marketplaces. Freight operations here do not run
+ * off an equipment inventory, so those screens described an industry this
+ * product is not in. They are recorded rather than silently dropped: the
+ * manifest is the parity contract, and a contract that quietly loses rows
+ * stops being evidence.
+ */
+export const NOT_PORTED_ROUTES = [
+  { referenceRoute: "/encompass-parts", formerMfRoute: "/capacity-marketplace" },
+  { referenceRoute: "/encompass-parts/cart", formerMfRoute: "/capacity-marketplace/cart" },
+  { referenceRoute: "/encompass-parts/orders", formerMfRoute: "/capacity-marketplace/orders" },
+  { referenceRoute: "/encompass-parts/part-detail", formerMfRoute: "/capacity-marketplace/capacity-detail" },
+  { referenceRoute: "/encompass-parts/return-request", formerMfRoute: "/capacity-marketplace/release-request" },
+  { referenceRoute: "/encompass-parts/search", formerMfRoute: "/capacity-marketplace/search" },
+  { referenceRoute: "/hcp/job/find-parts", formerMfRoute: "/capacity-marketplace/search" },
+  { referenceRoute: "/marcone-parts", formerMfRoute: "/equipment-marketplace" },
+  { referenceRoute: "/marcone-parts/cart", formerMfRoute: "/equipment-marketplace/cart" },
+  { referenceRoute: "/marcone-parts/orders", formerMfRoute: "/equipment-marketplace/orders" },
+  { referenceRoute: "/marcone-parts/part-detail", formerMfRoute: "/equipment-marketplace/equipment-detail" },
+  { referenceRoute: "/marcone-parts/return-request", formerMfRoute: "/equipment-marketplace/return-request" },
+  { referenceRoute: "/marcone-parts/search", formerMfRoute: "/equipment-marketplace/search" },
+  { referenceRoute: "/models", formerMfRoute: "/equipment" },
+  { referenceRoute: "/models/[id]", formerMfRoute: "/equipment/[id]" },
+  { referenceRoute: "/parts", formerMfRoute: "/capacity" },
+  { referenceRoute: "/parts/[id]", formerMfRoute: "/capacity/[id]" },
+  { referenceRoute: "/parts/analytics", formerMfRoute: "/capacity/analytics" },
+  { referenceRoute: "/parts/canvas", formerMfRoute: "/capacity/planner" },
+  { referenceRoute: "/parts/catalog-scan", formerMfRoute: "/capacity/document-scan" },
+  { referenceRoute: "/parts/global-search", formerMfRoute: "/capacity/search" },
+  { referenceRoute: "/parts/orders", formerMfRoute: "/capacity/orders" },
+  { referenceRoute: "/parts/scan", formerMfRoute: "/capacity/scan" },
+  { referenceRoute: "/parts/transfer", formerMfRoute: "/capacity/transfer" },
+  { referenceRoute: "/parts/van", formerMfRoute: "/capacity/equipment" },
+] as const;
+
+export const NOT_PORTED_REASON =
+  "Equipment registry, equipment models, and parts marketplaces are appliance-service concepts with no freight analogue in this product.";

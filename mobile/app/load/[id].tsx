@@ -47,10 +47,8 @@ export default function LoadDetailScreen() {
   const [declineVisible, setDeclineVisible] = useState(false);
   const [resolutionVisible, setResolutionVisible] = useState(false);
   const [resolutionNote, setResolutionNote] = useState("");
-  const [assignmentKind, setAssignmentKind] = useState<"driver" | "tractor" | "trailer" | null>(null);
+  const [assignmentKind, setAssignmentKind] = useState<"driver" | null>(null);
   const [selectedDriverId, setSelectedDriverId] = useState("");
-  const [selectedTractorId, setSelectedTractorId] = useState("");
-  const [selectedTrailerId, setSelectedTrailerId] = useState("");
 
   const shipmentEdi = useMemo(
     () => state.ediTransactions.filter((transaction) => transaction.shipmentId === shipment?.id),
@@ -80,26 +78,16 @@ export default function LoadDetailScreen() {
     .find((status): status is ShipmentStatus => Boolean(status && RESUMABLE_STATUSES.has(status))) ?? "dispatched";
   const chargeTotal = shipment.charges.linehaulCents + shipment.charges.fuelSurchargeCents + shipment.charges.accessorialsCents;
   const selectedDriver = state.drivers.find((driver) => driver.id === selectedDriverId);
-  const selectedTractor = state.equipment.find((equipment) => equipment.id === selectedTractorId);
-  const selectedTrailer = state.equipment.find((equipment) => equipment.id === selectedTrailerId);
   const reservedStatuses = new Set(["accepted", "dispatched", "at_pickup", "loaded", "in_transit", "at_delivery"]);
   const driverCandidates = state.drivers.filter((driver) => driver.status !== "suspended" && !state.shipments.some((candidate) =>
     candidate.id !== shipment.id
     && candidate.assignedDriverId === driver.id
     && reservedStatuses.has(candidate.status)));
-  const equipmentCandidates = state.equipment.filter((equipment) => {
-    const reservedElsewhere = state.shipments.some((candidate) =>
-      candidate.id !== shipment.id
-      && reservedStatuses.has(candidate.status)
-      && (candidate.assignedTractorId === equipment.id || candidate.assignedTrailerId === equipment.id));
-    const compatible = equipment.kind !== "trailer" || equipment.compatibleEquipmentType === shipment.equipmentType;
-    return !reservedElsewhere && compatible && !["maintenance", "out_of_service"].includes(equipment.status);
-  });
-  const assignmentCandidates = assignmentKind === "driver"
-    ? driverCandidates.map((driver) => ({ id: driver.id, title: `${driver.firstName} ${driver.lastName}`, subtitle: `${driver.status} · CDL-${driver.licenseClass}` }))
-    : equipmentCandidates
-        .filter((equipment) => equipment.kind === assignmentKind)
-        .map((equipment) => ({ id: equipment.id, title: equipment.name, subtitle: `${equipment.assetNumber} · ${equipment.status}` }));
+  const assignmentCandidates = driverCandidates.map((driver) => ({
+    id: driver.id,
+    title: `${driver.firstName} ${driver.lastName}`,
+    subtitle: `${driver.status} · CDL-${driver.licenseClass}`,
+  }));
 
   const run = async (key: string, operation: () => Promise<boolean>) => {
     setBusyAction(key);
@@ -136,8 +124,6 @@ export default function LoadDetailScreen() {
 
   const selectAssignment = (candidateId: string) => {
     if (assignmentKind === "driver") setSelectedDriverId(candidateId);
-    if (assignmentKind === "tractor") setSelectedTractorId(candidateId);
-    if (assignmentKind === "trailer") setSelectedTrailerId(candidateId);
     setAssignmentKind(null);
   };
 
@@ -193,31 +179,21 @@ export default function LoadDetailScreen() {
         ) : null}
 
         {role === "admin" && (shipment.status === "accepted" || shipment.status === "dispatched") ? (
-          <Card title="Driver & equipment">
-            <Text style={[styles.body, { color: theme.textSecondary }]}>Assign the people and assets before dispatching the load.</Text>
+          <Card title="Driver">
+            <Text style={[styles.body, { color: theme.textSecondary }]}>Assign a driver before dispatching the load.</Text>
             <View style={[styles.assignmentList, { borderColor: theme.border }]}>
               <ListRow
+                isLast
                 onPress={() => setAssignmentKind("driver")}
                 subtitle={selectedDriver ? `${selectedDriver.status} · CDL-${selectedDriver.licenseClass}` : "Required before dispatch"}
                 title={selectedDriver ? `${selectedDriver.firstName} ${selectedDriver.lastName}` : "Select driver"}
               />
-              <ListRow
-                onPress={() => setAssignmentKind("tractor")}
-                subtitle={selectedTractor?.assetNumber ?? "Optional"}
-                title={selectedTractor?.name ?? "Select tractor"}
-              />
-              <ListRow
-                isLast
-                onPress={() => setAssignmentKind("trailer")}
-                subtitle={selectedTrailer?.assetNumber ?? "Optional"}
-                title={selectedTrailer?.name ?? "Select trailer"}
-              />
             </View>
             <Button
-              disabled={!selectedDriverId || !selectedTrailerId}
+              disabled={!selectedDriverId}
               fullWidth
               loading={busyAction === "assign"}
-              onPress={() => void run("assign", () => actions.assignShipment(shipment.id, selectedDriverId, selectedTractorId || undefined, selectedTrailerId || undefined))}
+              onPress={() => void run("assign", () => actions.assignShipment(shipment.id, selectedDriverId))}
               title={shipment.assignedDriverId ? "Save assignment" : "Assign load"}
               variant="secondary"
             />
@@ -397,7 +373,7 @@ export default function LoadDetailScreen() {
 
       <BottomSheet
         onClose={() => setAssignmentKind(null)}
-        title={assignmentKind ? `Select ${assignmentKind}` : "Select assignment"}
+        title="Select driver"
         visible={assignmentKind !== null}
       >
         <View style={styles.sheetContent}>
@@ -408,7 +384,7 @@ export default function LoadDetailScreen() {
               onPress={() => selectAssignment(candidate.id)}
               subtitle={candidate.subtitle}
               title={candidate.title}
-              trailing={candidate.id === (assignmentKind === "driver" ? selectedDriverId : assignmentKind === "tractor" ? selectedTractorId : selectedTrailerId)
+              trailing={candidate.id === selectedDriverId
                 ? <Ionicons color={theme.success} name="checkmark-circle" size={ICON.lg} />
                 : undefined}
             />
