@@ -1,10 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Calendar, MapPin, Package, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { PartnerBadge, PartnerSelect, usePartners } from "@/components/partners";
 import { fetchCarrierData } from "../_lib/api-client";
 
 interface ShipmentLocation {
@@ -14,6 +16,7 @@ interface ShipmentLocation {
 
 interface Shipment {
   id: string;
+  partnerSlug: string | null;
   targetLoadId: string | null;
   bolNumber: string | null;
   proNumber: string | null;
@@ -47,8 +50,10 @@ function locationLabel(location: ShipmentLocation) {
 }
 
 export default function CarrierShipmentsPage() {
+  const partners = usePartners();
   const [shipments, setShipments] = useState<Shipment[]>([]);
   const [query, setQuery] = useState("");
+  const [partnerFilter, setPartnerFilter] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -74,33 +79,45 @@ export default function CarrierShipmentsPage() {
   }, []);
 
   const normalizedQuery = query.toLowerCase();
-  const filtered = shipments.filter(
-    (shipment) =>
+  const filtered = shipments.filter((shipment) => {
+    if (partnerFilter && shipment.partnerSlug !== partnerFilter) return false;
+    return (
       (shipment.targetLoadId ?? "").toLowerCase().includes(normalizedQuery) ||
       (shipment.bolNumber ?? "").toLowerCase().includes(normalizedQuery) ||
       (shipment.proNumber ?? "").toLowerCase().includes(normalizedQuery) ||
       locationLabel(shipment.origin).toLowerCase().includes(normalizedQuery) ||
-      locationLabel(shipment.destination).toLowerCase().includes(normalizedQuery),
-  );
+      locationLabel(shipment.destination).toLowerCase().includes(normalizedQuery)
+    );
+  });
 
   return (
     <div className="space-y-6 p-6">
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div>
-          <h1 className="text-2xl font-bold text-white">Shipments</h1>
+          <h1 className="text-2xl font-bold text-white">Loads</h1>
           <p className="text-sm text-white/50">
             Carrier loads; Target IDs are reference data, not proof of connectivity.
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Search className="h-4 w-4 text-white/40" />
-          <Input
-            aria-label="Search shipments"
-            placeholder="Search loads, BOL, PRO…"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            className="w-full border-slate-700 bg-slate-900 text-white sm:w-64"
+        <div className="flex flex-wrap items-center gap-2">
+          <PartnerSelect
+            value={partnerFilter}
+            onChange={setPartnerFilter}
+            partners={partners}
+            emptyLabel="All partners"
+            aria-label="Filter loads by partner"
+            className="w-full sm:w-56"
           />
+          <div className="flex items-center gap-2">
+            <Search className="h-4 w-4 text-white/40" />
+            <Input
+              aria-label="Search shipments"
+              placeholder="Search loads, BOL, PRO…"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              className="w-full border-slate-700 bg-slate-900 text-white sm:w-64"
+            />
+          </div>
         </div>
       </div>
 
@@ -118,19 +135,34 @@ export default function CarrierShipmentsPage() {
           >
             <CardContent className="p-4">
               <div className="flex items-start justify-between gap-4">
-                <div className="space-y-1">
+                <div className="min-w-0 space-y-1.5">
                   <div className="flex flex-wrap items-center gap-2">
                     <Package className="h-4 w-4 text-blue-400" />
-                    <span className="text-sm font-semibold text-white">
+                    <Link
+                      href={`/carrier/shipments/${shipment.id}`}
+                      className="text-sm font-semibold text-white underline-offset-4 hover:underline"
+                    >
                       {shipment.targetLoadId ??
                         `Shipment #${shipment.id.slice(0, 8)}`}
-                    </span>
+                    </Link>
                     <Badge
                       variant={statusVariant[shipment.status] ?? "neutral"}
                     >
                       {shipment.status.replace("_", " ")}
                     </Badge>
                   </div>
+                  {/* Whose freight this is — the first thing dispatch looks
+                      for when scanning the board. */}
+                  {shipment.partnerSlug ? (
+                    <PartnerBadge
+                      slug={shipment.partnerSlug}
+                      partners={partners}
+                      showStatus={false}
+                      className="[&>span:nth-child(2)]:text-white/80"
+                    />
+                  ) : (
+                    <p className="text-xs text-white/30">No partner assigned</p>
+                  )}
                   <div className="flex flex-wrap items-center gap-4 text-sm text-white/50">
                     <span className="flex items-center gap-1">
                       <MapPin className="h-3 w-3" />
