@@ -17,6 +17,7 @@
     "db:studio": "drizzle-kit studio",
     "env:check": "tsx scripts/check-env.ts",
     "env:pull": "vercel env pull .env.local",
+    "tenant:seed": "tsx scripts/seed-mf-superior.ts",
     "leads:research": "tsx scripts/research-leads.ts"
   },
   "dependencies": {

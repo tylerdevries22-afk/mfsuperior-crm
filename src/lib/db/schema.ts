@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   boolean,
   check,
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -800,9 +801,8 @@ export const customerShipmentAccess = pgTable(
     customerAccountId: uuid("customer_account_id")
       .notNull()
       .references(() => customerAccounts.id, { onDelete: "cascade" }),
-    shipmentId: uuid("shipment_id")
-      .notNull()
-      .references(() => shipments.id, { onDelete: "cascade" }),
+    // Foreign key declared compositely with organizationId below.
+    shipmentId: uuid("shipment_id").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -810,6 +810,13 @@ export const customerShipmentAccess = pgTable(
   (table) => [
     primaryKey({ columns: [table.customerAccountId, table.shipmentId] }),
     index("customer_shipment_access_org_idx").on(table.organizationId),
+    // A customer grant can only ever name a shipment inside its own
+    // organization.
+    foreignKey({
+      columns: [table.shipmentId, table.organizationId],
+      foreignColumns: [shipments.id, shipments.organizationId],
+      name: "customer_shipment_access_shipment_organization_fk",
+    }).onDelete("cascade"),
   ],
 );
 
@@ -854,6 +861,18 @@ export const freightDocuments = pgTable(
       "freight_documents_byte_size_check",
       sql`${table.byteSize} between 1 and 20971520`,
     ),
+    /**
+     * A document can only ever name a shipment inside its own organization.
+     * `MATCH SIMPLE` keeps request-only documents valid, and is also what
+     * absorbs the null the single-column `ON DELETE SET NULL` key above
+     * leaves behind; a composite `SET NULL` would try to null the
+     * non-nullable organization pin instead.
+     */
+    foreignKey({
+      columns: [table.shipmentId, table.organizationId],
+      foreignColumns: [shipments.id, shipments.organizationId],
+      name: "freight_documents_shipment_organization_fk",
+    }).onDelete("no action"),
   ],
 );
 

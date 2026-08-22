@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   check,
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -8,6 +9,7 @@ import {
   pgTable,
   text,
   timestamp,
+  unique,
   uniqueIndex,
   uuid,
   varchar,
@@ -109,10 +111,9 @@ export const carriers = pgTable(
   "carriers",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: uuid("organization_id").references(
-      () => organizations.id,
-      { onDelete: "restrict" },
-    ),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "restrict" }),
     scac: varchar("scac", { length: 10 }).notNull().unique(),
     name: varchar("name", { length: 200 }).notNull(),
     dotNumber: varchar("dot_number", { length: 20 }),
@@ -132,9 +133,10 @@ export const carriers = pgTable(
   },
   (table) => [
     index("carriers_status_idx").on(table.status),
-    uniqueIndex("carriers_organization_unique")
-      .on(table.organizationId)
-      .where(sql`${table.organizationId} is not null`),
+    uniqueIndex("carriers_organization_unique").on(table.organizationId),
+    // Composite target so a shipment can never name a carrier from another
+    // organization; the pair is what child tables reference.
+    unique("carriers_id_organization_unique").on(table.id, table.organizationId),
   ],
 );
 
@@ -168,6 +170,9 @@ export const drivers = pgTable(
     uniqueIndex("drivers_carrier_license_unique")
       .on(table.carrierId, table.licenseNumber)
       .where(sql`${table.licenseNumber} is not null`),
+    // Composite target so a shipment can never name a driver from another
+    // carrier, and therefore never from another organization.
+    unique("drivers_id_carrier_unique").on(table.id, table.carrierId),
   ],
 );
 
@@ -175,9 +180,16 @@ export const shipments = pgTable(
   "shipments",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    carrierId: uuid("carrier_id").references(() => carriers.id, {
-      onDelete: "set null",
-    }),
+    /**
+     * Denormalized tenant pin. `shipmentAccessPredicate` scopes reads by
+     * carrier, so the carrier/organization pair must be impossible to
+     * disagree on; the composite foreign key below is what guarantees it.
+     */
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "restrict" }),
+    // Foreign key declared compositely with organizationId below.
+    carrierId: uuid("carrier_id").notNull(),
     driverId: uuid("driver_id").references(() => drivers.id, {
       onDelete: "set null",
     }),
@@ -217,6 +229,28 @@ export const shipments = pgTable(
   (table) => [
     index("shipments_status_created_at_idx").on(table.status, table.createdAt),
     index("shipments_driver_status_idx").on(table.driverId, table.status),
+    index("shipments_org_status_idx").on(table.organizationId, table.status),
+    // Composite target for every tenant-scoped child row.
+    unique("shipments_id_organization_unique").on(
+      table.id,
+      table.organizationId,
+    ),
+    foreignKey({
+      columns: [table.carrierId, table.organizationId],
+      foreignColumns: [carriers.id, carriers.organizationId],
+      name: "shipments_carrier_organization_fk",
+    }).onDelete("restrict"),
+    /**
+     * Defense in depth behind the application check: a driver from another
+     * carrier cannot be assigned. `MATCH SIMPLE` means a null `driver_id`
+     * satisfies this, which is exactly what the single-column
+     * `ON DELETE SET NULL` foreign key above leaves behind.
+     */
+    foreignKey({
+      columns: [table.driverId, table.carrierId],
+      foreignColumns: [drivers.id, drivers.carrierId],
+      name: "shipments_driver_carrier_fk",
+    }).onDelete("no action"),
   ],
 );
 
@@ -232,9 +266,8 @@ export const shipmentExternalReferences = pgTable(
     organizationId: uuid("organization_id")
       .notNull()
       .references(() => organizations.id, { onDelete: "cascade" }),
-    shipmentId: uuid("shipment_id")
-      .notNull()
-      .references(() => shipments.id, { onDelete: "cascade" }),
+    // Foreign key declared compositely with organizationId below.
+    shipmentId: uuid("shipment_id").notNull(),
     provider: varchar("provider", { length: 80 }).notNull(),
     referenceType: varchar("reference_type", { length: 80 }).notNull(),
     externalId: varchar("external_id", { length: 160 }).notNull(),
@@ -253,6 +286,13 @@ export const shipmentExternalReferences = pgTable(
       table.organizationId,
       table.shipmentId,
     ),
+    // An external identifier can only ever name a shipment inside its own
+    // organization.
+    foreignKey({
+      columns: [table.shipmentId, table.organizationId],
+      foreignColumns: [shipments.id, shipments.organizationId],
+      name: "shipment_external_references_shipment_organization_fk",
+    }).onDelete("cascade"),
   ],
 );
 

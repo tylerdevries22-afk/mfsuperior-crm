@@ -71,6 +71,13 @@
       "when": 1787359110238,
       "tag": "0009_freight_request_intake",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1787361802076,
+      "tag": "0010_tenant_backfill_constraints",
+      "breakpoints": true
     }
   ]
 }

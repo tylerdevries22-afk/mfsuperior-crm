@@ -145,6 +145,8 @@ export async function POST(request: Request) {
         .insert(shipments)
         .values({
           ...body.data,
+          // Tenant pins are always taken from the principal, never the body.
+          organizationId: authorization.principal.organizationId,
           carrierId: authorization.principal.carrierId,
         })
         .returning();
