@@ -22,6 +22,7 @@ import {
 import type { AppRole, ShipmentStatus, ShipmentStop } from "@/domain/types";
 import { formatAppointment, formatCurrency, shipmentProgress, shipmentRoute } from "@/lib/operations-format";
 import { loadLifecycleAction } from "@/lib/load-actions";
+import { LoadFlowBar } from "@/route-support/load/_components/LoadFlowBar";
 import { useOperations } from "@/store";
 import { ICON, RADIUS, SPACE, TYPO, useTheme } from "@/theme";
 
@@ -143,6 +144,11 @@ export default function LoadDetailScreen() {
   return (
     <View style={[styles.fill, { backgroundColor: theme.background }]}>
       <Header centered onBack={() => router.back()} showBack subtitle={shipment.loadNumber} title="Load details" />
+      {/*
+        The reference renders its step rail above the scroll view so it stays
+        pinned while the detail scrolls beneath it.
+      */}
+      <LoadFlowBar status={shipment.status} />
       <Screen safeEdges={["left", "right", "bottom"]} scroll contentContainerStyle={styles.content}>
 
         {error ? (
