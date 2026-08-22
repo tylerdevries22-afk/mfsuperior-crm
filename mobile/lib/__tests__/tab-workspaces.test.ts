@@ -1,6 +1,7 @@
 import type { Shipment } from "@/domain/types";
 import {
   filterScheduleShipments,
+  isCustomerRequestDraftValid,
   localAssistantReply,
   validateCustomerRequestDraft,
 } from "../tab-workspaces";
@@ -77,10 +78,30 @@ describe("tab workspace helpers", () => {
     expect(validateCustomerRequestDraft({ type: "quote", subject: "Hi", details: "Short" })).toEqual({
       subject: "Enter a subject with at least 4 characters.",
       details: "Add at least 12 characters of operational detail.",
+      origin: "Add the pickup address.",
+      destination: "Add the delivery address.",
     });
-    expect(validateCustomerRequestDraft({ type: "pickup", subject: "Weekly pickup", details: "Schedule five pallets for Friday." })).toEqual({
+    const complete = validateCustomerRequestDraft({
+      type: "pickup",
+      subject: "Weekly pickup",
+      details: "Schedule five pallets for Friday.",
+      origin: { addressLine1: "100 Crossdock Rd", city: "Aurora", postalCode: "80011", state: "CO" },
+      destination: { addressLine1: "200 Market St", city: "Loveland", postalCode: "80537", state: "CO" },
+    });
+    expect(complete).toEqual({
       subject: undefined,
       details: undefined,
+      origin: undefined,
+      destination: undefined,
     });
+    expect(isCustomerRequestDraftValid(complete)).toBe(true);
+    // The freight request API rejects intake without a complete address pair.
+    expect(isCustomerRequestDraftValid(validateCustomerRequestDraft({
+      type: "pickup",
+      subject: "Weekly pickup",
+      details: "Schedule five pallets for Friday.",
+      origin: { addressLine1: "100 Crossdock Rd", city: "Aurora", postalCode: "", state: "CO" },
+      destination: { addressLine1: "200 Market St", city: "Loveland", postalCode: "80537", state: "CO" },
+    }))).toBe(false);
   });
 });

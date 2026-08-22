@@ -81,6 +81,13 @@ export const customerAccessRequestStatusEnum = pgEnum(
   ["pending", "approved", "rejected", "cancelled"],
 );
 
+export const freightRequestTypeEnum = pgEnum("freight_request_type", [
+  "quote",
+  "pickup",
+  "delivery",
+  "exception",
+]);
+
 export const freightRequestStatusEnum = pgEnum("freight_request_status", [
   "draft",
   "submitted",
@@ -734,6 +741,8 @@ export const freightRequests = pgTable(
       onDelete: "set null",
     }),
     referenceNumber: varchar("reference_number", { length: 120 }),
+    subject: varchar("subject", { length: 200 }),
+    requestType: freightRequestTypeEnum("request_type").notNull().default("quote"),
     status: freightRequestStatusEnum("status").notNull().default("submitted"),
     origin: jsonb("origin").notNull(),
     destination: jsonb("destination").notNull(),
@@ -1040,6 +1049,75 @@ export const apiRateLimitBuckets = pgTable(
       "api_rate_limit_buckets_count_check",
       sql`${table.requestCount} > 0`,
     ),
+  ],
+);
+
+export const operationsMessageThreadKindEnum = pgEnum(
+  "operations_message_thread_kind",
+  ["shipment", "dispatch", "support"],
+);
+
+/**
+ * Tenant-scoped operational messaging. Recipients are stored as membership
+ * user ids so read access can be enforced without a separate join table.
+ */
+export const operationsMessages = pgTable(
+  "operations_messages",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    threadKey: varchar("thread_key", { length: 120 }).notNull(),
+    threadKind: operationsMessageThreadKindEnum("thread_kind").notNull(),
+    shipmentId: uuid("shipment_id").references(() => shipments.id, {
+      onDelete: "set null",
+    }),
+    senderUserId: uuid("sender_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    recipientUserIds: jsonb("recipient_user_ids").notNull().default([]),
+    body: text("body").notNull(),
+    sentAt: timestamp("sent_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("operations_messages_org_thread_sent_idx").on(
+      table.organizationId,
+      table.threadKey,
+      table.sentAt,
+    ),
+    index("operations_messages_org_sent_idx").on(
+      table.organizationId,
+      table.sentAt,
+    ),
+    index("operations_messages_shipment_sent_idx").on(
+      table.shipmentId,
+      table.sentAt,
+    ),
+  ],
+);
+
+export const operationsMessageReads = pgTable(
+  "operations_message_reads",
+  {
+    messageId: uuid("message_id")
+      .notNull()
+      .references(() => operationsMessages.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    readAt: timestamp("read_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.messageId, table.userId] }),
+    index("operations_message_reads_user_idx").on(table.userId),
   ],
 );
 

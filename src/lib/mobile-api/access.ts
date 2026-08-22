@@ -1,8 +1,9 @@
-import { and, eq, exists, sql, type SQL } from "drizzle-orm";
+import { and, eq, exists, or, sql, type SQL } from "drizzle-orm";
 import {
   customerShipmentAccess,
   freightDocuments,
   freightRequests,
+  operationsMessages,
   shipments,
 } from "@/lib/db/schema";
 import type { MobilePrincipal } from "./authorize";
@@ -87,4 +88,21 @@ export function documentAccessPredicate(principal: MobilePrincipal): SQL {
     ) ?? sql`false`;
   }
   return sql`false`;
+}
+
+/**
+ * A message is readable by its sender and by any listed recipient inside the
+ * same organization. Admins never gain a blanket read over private threads.
+ */
+export function operationsMessageAccessPredicate(
+  principal: MobilePrincipal,
+): SQL {
+  if (principal.membershipStatus !== "active") return sql`false`;
+  return and(
+    eq(operationsMessages.organizationId, principal.organizationId),
+    or(
+      eq(operationsMessages.senderUserId, principal.userId),
+      sql`${operationsMessages.recipientUserIds} @> ${JSON.stringify([principal.userId])}::jsonb`,
+    ),
+  ) ?? sql`false`;
 }

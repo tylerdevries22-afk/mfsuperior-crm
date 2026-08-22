@@ -21,11 +21,22 @@ export interface CustomerRequestDraft {
   readonly subject: string;
   readonly details: string;
   readonly shipmentId?: EntityId;
+  readonly origin?: FreightRequestLocationDraft;
+  readonly destination?: FreightRequestLocationDraft;
+}
+
+export interface FreightRequestLocationDraft {
+  readonly addressLine1: string;
+  readonly city: string;
+  readonly state: string;
+  readonly postalCode: string;
 }
 
 export interface CustomerRequestValidation {
   readonly subject?: string;
   readonly details?: string;
+  readonly origin?: string;
+  readonly destination?: string;
 }
 
 const COMPLETED_STATUSES = new Set<Shipment["status"]>([
@@ -113,5 +124,26 @@ export function validateCustomerRequestDraft(
     details: detailsLength < 12
       ? "Add at least 12 characters of operational detail."
       : detailsLength > 500 ? "Keep the details to 500 characters or fewer." : undefined,
+    origin: locationError(draft.origin, "pickup"),
+    destination: locationError(draft.destination, "delivery"),
   };
+}
+
+/** The freight request API refuses intake without a complete address pair. */
+function locationError(
+  location: FreightRequestLocationDraft | undefined,
+  label: "pickup" | "delivery",
+): string | undefined {
+  if (!location) return `Add the ${label} address.`;
+  if (!location.addressLine1.trim()) return `Add the ${label} street address.`;
+  if (!location.city.trim()) return `Add the ${label} city.`;
+  if (location.state.trim().length < 2) return `Add the ${label} state.`;
+  if (location.postalCode.trim().length < 3) return `Add the ${label} postal code.`;
+  return undefined;
+}
+
+export function isCustomerRequestDraftValid(
+  validation: CustomerRequestValidation,
+): boolean {
+  return !validation.subject && !validation.details && !validation.origin && !validation.destination;
 }

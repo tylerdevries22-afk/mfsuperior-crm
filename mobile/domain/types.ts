@@ -235,16 +235,21 @@ export interface HosLimits {
   readonly cycleResetMinutes: number;
 }
 
-export type ExceptionCategory =
-  | "delay"
-  | "equipment"
-  | "temperature"
-  | "cargo_damage"
-  | "refused_delivery"
-  | "route"
-  | "other";
+export const EXCEPTION_CATEGORIES = [
+  "delay",
+  "equipment",
+  "temperature",
+  "cargo_damage",
+  "refused_delivery",
+  "route",
+  "other",
+] as const;
 
-export type ExceptionSeverity = "low" | "medium" | "high" | "critical";
+export type ExceptionCategory = (typeof EXCEPTION_CATEGORIES)[number];
+
+export const EXCEPTION_SEVERITIES = ["low", "medium", "high", "critical"] as const;
+
+export type ExceptionSeverity = (typeof EXCEPTION_SEVERITIES)[number];
 export type ExceptionStatus = "open" | "acknowledged" | "resolved";
 
 export interface ExceptionReport {
@@ -437,9 +442,20 @@ export interface SendMessageInput {
   readonly body: string;
 }
 
+/** Origin and destination the freight request API requires for intake. */
+export interface FreightRequestLocationInput {
+  readonly name?: string;
+  readonly addressLine1: string;
+  readonly city: string;
+  readonly state: string;
+  readonly postalCode: string;
+}
+
 export interface CreateCustomerRequestInput {
   readonly type: CustomerRequestType;
   readonly subject: string;
   readonly details: string;
   readonly shipmentId?: EntityId;
+  readonly origin?: FreightRequestLocationInput;
+  readonly destination?: FreightRequestLocationInput;
 }

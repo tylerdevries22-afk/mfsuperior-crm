@@ -4,14 +4,24 @@ import type {
   DemoOperationsState,
   Driver,
   EquipmentType,
+  ExceptionCategory,
+  ExceptionReport,
+  ExceptionSeverity,
   IntegrationHealth,
+  MessageThreadKind,
   OperationsAccount,
+  OperationsMessage,
   PostalAddress,
   Shipment,
   ShipmentStatus,
   ShipmentStop,
 } from "../domain/types";
-import { DEMO_STATE_VERSION, SHIPMENT_STATUSES } from "../domain/types";
+import {
+  DEMO_STATE_VERSION,
+  EXCEPTION_CATEGORIES,
+  EXCEPTION_SEVERITIES,
+  SHIPMENT_STATUSES,
+} from "../domain/types";
 import type { AuthIdentity } from "../lib/auth";
 
 export interface MobileBootstrapPayload {
@@ -22,6 +32,7 @@ export interface MobileBootstrapPayload {
   }[];
   readonly organization: { readonly id: string; readonly name: string };
   readonly referenceData: {
+    readonly contacts?: readonly MobileContactRow[];
     readonly drivers: readonly MobileDriverRow[];
   };
   readonly user: {
@@ -32,6 +43,47 @@ export interface MobileBootstrapPayload {
     readonly id: string;
     readonly role: AppRole;
   };
+}
+
+export interface MobileContactRow {
+  readonly displayName: string;
+  readonly email: string;
+  readonly id: string;
+  readonly role: AppRole;
+}
+
+export interface MobileExceptionRow {
+  readonly category: string | null;
+  readonly description: string | null;
+  readonly id: string;
+  readonly photoUrls: unknown;
+  readonly reportedAt: string;
+  readonly reportedByDriverId: string | null;
+  readonly resolutionNote: string | null;
+  readonly resolvedAt: string | null;
+  readonly severity: string | null;
+  readonly shipmentId: string;
+  readonly status: "open" | "resolved";
+}
+
+export interface MobileMessageRow {
+  readonly body: string;
+  readonly id: string;
+  readonly readByUserIds: readonly string[];
+  readonly recipientUserIds: readonly string[];
+  readonly senderUserId: string;
+  readonly sentAt: string;
+  readonly shipmentId: string | null;
+  readonly threadKey: string;
+  readonly threadKind: MessageThreadKind;
+}
+
+export interface ProductionHydrationInput {
+  readonly bootstrap: MobileBootstrapPayload;
+  readonly exceptions: readonly MobileExceptionRow[];
+  readonly messages: readonly MobileMessageRow[];
+  readonly requests: readonly MobileFreightRequestRow[];
+  readonly shipments: readonly MobileShipmentRow[];
 }
 
 export interface MobileDriverRow {
@@ -82,13 +134,12 @@ export interface MobileFreightRequestRow {
 
 /** Convert the versioned mobile API payload into the UI's normalized operations state. */
 export function buildProductionOperationsState(
-  bootstrap: MobileBootstrapPayload,
-  shipmentRows: readonly MobileShipmentRow[],
-  requestRows: readonly MobileFreightRequestRow[],
+  input: ProductionHydrationInput,
   now: string,
 ): DemoOperationsState {
+  const { bootstrap } = input;
   const customerId = bootstrap.user.customerAccountId ?? `pending:${bootstrap.user.id}`;
-  const account = {
+  const account: OperationsAccount = {
     companyName: bootstrap.organization.name,
     customerId: bootstrap.user.role === "customer" ? customerId : undefined,
     displayName: bootstrap.user.displayName,
@@ -99,12 +150,12 @@ export function buildProductionOperationsState(
     title: titleForRole(bootstrap.user.role),
   };
   return {
-    accounts: [account],
+    accounts: mergeContacts(account, bootstrap),
     customers: [],
     drivers: bootstrap.referenceData.drivers.map(toDriver),
     ediTransactions: [],
     equipment: [],
-    exceptions: [],
+    exceptions: input.exceptions.map(toExceptionReport),
     hosClocks: bootstrap.user.driverId ? [{
       breaksTakenToday: 0,
       cycleMinutesUsed: 0,
@@ -118,15 +169,79 @@ export function buildProductionOperationsState(
       statusStartedAt: now,
     }] : [],
     integrations: bootstrap.integrations.map((integration) => toIntegration(integration, now)),
-    messages: [],
+    messages: input.messages.map(toOperationsMessage),
     proofsOfDelivery: [],
     quotes: [],
-    requests: requestRows.map((request) => toCustomerRequest(request, customerId)),
+    requests: input.requests.map((request) => toCustomerRequest(request, customerId)),
     session: { accessState: "active", accountId: account.id, effectiveRole: account.role },
-    shipments: shipmentRows.map((shipment) => toShipment(shipment, customerId)),
+    shipments: input.shipments.map((shipment) => toShipment(shipment, customerId)),
     updatedAt: now,
     version: DEMO_STATE_VERSION,
   };
+}
+
+/**
+ * The signed-in account stays first so session resolution never depends on
+ * directory ordering. Contacts carry no demo credentials.
+ */
+function mergeContacts(
+  account: OperationsAccount,
+  bootstrap: MobileBootstrapPayload,
+): readonly OperationsAccount[] {
+  const contacts = bootstrap.referenceData.contacts ?? [];
+  const merged: OperationsAccount[] = [account];
+  for (const contact of contacts) {
+    if (contact.id === account.id) continue;
+    merged.push({
+      companyName: bootstrap.organization.name,
+      displayName: contact.displayName,
+      email: contact.email,
+      id: contact.id,
+      role: contact.role,
+      title: titleForRole(contact.role),
+    });
+  }
+  return merged;
+}
+
+function toExceptionReport(row: MobileExceptionRow): ExceptionReport {
+  return {
+    attachmentUris: Array.isArray(row.photoUrls)
+      ? row.photoUrls.filter((value): value is string => typeof value === "string")
+      : [],
+    category: exceptionCategory(row.category),
+    description: row.description ?? "Exception reported.",
+    id: row.id,
+    reportedAt: validDate(row.reportedAt),
+    reportedByAccountId: row.reportedByDriverId ?? "",
+    resolutionNote: row.resolutionNote ?? undefined,
+    resolvedAt: row.resolvedAt ? validDate(row.resolvedAt) : undefined,
+    severity: exceptionSeverity(row.severity),
+    shipmentId: row.shipmentId,
+    status: row.status === "resolved" ? "resolved" : "open",
+  };
+}
+
+function toOperationsMessage(row: MobileMessageRow): OperationsMessage {
+  return {
+    body: row.body,
+    id: row.id,
+    readByAccountIds: [...row.readByUserIds],
+    recipientAccountIds: [...row.recipientUserIds],
+    senderAccountId: row.senderUserId,
+    sentAt: validDate(row.sentAt),
+    shipmentId: row.shipmentId ?? undefined,
+    threadId: row.threadKey,
+    threadKind: row.threadKind,
+  };
+}
+
+function exceptionCategory(value: string | null): ExceptionCategory {
+  return EXCEPTION_CATEGORIES.find((candidate) => candidate === value) ?? "other";
+}
+
+function exceptionSeverity(value: string | null): ExceptionSeverity {
+  return EXCEPTION_SEVERITIES.find((candidate) => candidate === value) ?? "medium";
 }
 
 /**

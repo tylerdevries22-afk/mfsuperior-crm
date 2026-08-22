@@ -35,9 +35,7 @@ describe("ProductionOperationsRepository", () => {
   it("hydrates production data and queues driver, location, exception, photo, signature, and POD writes", async () => {
     const state = productionState("driver");
     const identity = identityFor("driver", "account-driver");
-    const captured: { mutations: { operation: string; payload: Record<string, unknown> }[] } = {
-      mutations: [],
-    };
+    const captured: CapturedCalls = { mutations: [], onlineWrites: [] };
     const fetchImplementation = createApiFetch(state, captured);
     const queue = new OfflineMutationQueue({
       idempotencyKeyFactory: createIdFactory(),
@@ -107,9 +105,7 @@ describe("ProductionOperationsRepository", () => {
   it("keeps admin-only online mutations separate from demo role controls", async () => {
     const state = productionState("admin");
     const identity = identityFor("admin", "account-admin");
-    const captured: { mutations: { operation: string; payload: Record<string, unknown> }[] } = {
-      mutations: [],
-    };
+    const captured: CapturedCalls = { mutations: [], onlineWrites: [] };
     const repository = new ProductionOperationsRepository({
       apiClient: new ApiClient({
         baseUrl: "https://api.example.com",
@@ -140,16 +136,46 @@ describe("ProductionOperationsRepository", () => {
         payload: { shipmentId: "shipment-28492", status: "dispatched" },
       },
     ]);
-    await repository.advanceIntermediateStop("shipment-28471", "stop-28471-intermediate");
-    await repository.resolveException("exception-delay", "Resolved", "dispatched");
+    const resolved = await repository.resolveException(
+      state.exceptions[0]?.id ?? "exception-delay",
+      "Gate cleared and driver released.",
+      "dispatched",
+    );
+    expect(resolved.status).toBe("resolved");
     await repository.sendMessage({
       body: "Update",
       recipientAccountIds: ["account-driver"],
-      threadId: "thread-dispatch",
+      threadId: state.messages[0]?.threadId ?? "thread-dispatch",
       threadKind: "dispatch",
     });
-    await repository.createCustomerRequest({ details: "Pickup", subject: "Pickup", type: "pickup" });
-    await repository.markMessageRead("message-1");
+    await repository.markMessageRead(state.messages[0]?.id ?? "message-1");
+    await repository.createCustomerRequest({
+      destination: { addressLine1: "200 Market St", city: "Loveland", postalCode: "80537", state: "CO" },
+      details: "Pickup two pallets on Friday morning.",
+      origin: { addressLine1: "100 Crossdock Rd", city: "Aurora", postalCode: "80011", state: "CO" },
+      subject: "Friday pickup",
+      type: "pickup",
+    });
+    expect(captured.onlineWrites).toEqual([
+      "/v1/shipments/shipment-28492/tender-response",
+      "/v1/shipments/shipment-28492/assignment",
+      `/v1/exceptions/${state.exceptions[0]?.id ?? "exception-delay"}/resolution`,
+      "/v1/messages",
+      `/v1/messages/${state.messages[0]?.id ?? "message-1"}/read`,
+      "/v1/requests",
+    ]);
+
+    // Surfaces with no production backing must fail closed, never post to a
+    // prototype URL that does not exist on the server.
+    await expect(
+      repository.advanceIntermediateStop("shipment-28471", "stop-28471-intermediate"),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    await expect(
+      repository.assignShipment("shipment-28492", "driver-brenna", "tractor-1"),
+    ).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
+    await expect(
+      repository.createCustomerRequest({ details: "Pickup", subject: "Pickup", type: "pickup" }),
+    ).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
     await expect(repository.switchDemoRole("driver")).rejects.toMatchObject({ code: "UNAUTHORIZED" });
     await expect(repository.resetDemo()).rejects.toMatchObject({ code: "UNAUTHORIZED" });
   });
@@ -244,9 +270,14 @@ function identityFor(role: "admin" | "driver", userId: string): AuthIdentity {
   };
 }
 
+interface CapturedCalls {
+  readonly mutations: { operation: string; payload: Record<string, unknown> }[];
+  readonly onlineWrites: string[];
+}
+
 function createApiFetch(
   state: DemoOperationsState,
-  captured?: { mutations: { operation: string; payload: Record<string, unknown> }[] },
+  captured?: CapturedCalls,
 ): typeof fetch {
   return async (input, init) => {
     const url = input.toString();
@@ -266,6 +297,8 @@ function createApiFetch(
       if (url.includes("/v1/bootstrap")) return jsonResponse(envelope(bootstrapPayload(state)));
       if (url.includes("/v1/shipments")) return jsonResponse(envelope(shipmentPayload(state)));
       if (url.includes("/v1/requests")) return jsonResponse(envelope(requestPayload(state)));
+      if (url.includes("/v1/exceptions")) return jsonResponse(envelope(exceptionPayload(state)));
+      if (url.includes("/v1/messages")) return jsonResponse(envelope(messagePayload(state)));
     }
     if (url.endsWith("/v1/documents/upload-intent")) {
       const body = JSON.parse(String(init?.body)) as { contentType: string; fileName: string };
@@ -293,7 +326,8 @@ function createApiFetch(
         })),
       }));
     }
-    return jsonResponse({ result: resultForPath(state, url), state });
+    captured?.onlineWrites.push(new URL(url).pathname);
+    return jsonResponse(envelope(resultForPath(state, url)));
   };
 }
 
@@ -374,10 +408,40 @@ function envelope(data: unknown) {
 }
 
 function resultForPath(state: DemoOperationsState, url: string): unknown {
-  if (url.includes("/exceptions/")) return state.exceptions[0];
-  if (url.includes("/messages")) return state.messages[0];
-  if (url.includes("/customer-requests")) return state.requests[0];
-  return state.shipments[0];
+  if (url.includes("/exceptions/")) return { id: state.exceptions[0]?.id ?? "exception-1" };
+  if (url.includes("/v1/messages")) return { id: state.messages[0]?.id ?? "message-1" };
+  if (url.includes("/v1/requests")) return { id: state.requests[0]?.id ?? "request-1" };
+  return { driverId: "driver-brenna", id: state.shipments[0]?.id ?? "shipment-1" };
+}
+
+function exceptionPayload(state: DemoOperationsState) {
+  return state.exceptions.map((report) => ({
+    category: report.category,
+    description: report.description,
+    id: report.id,
+    photoUrls: report.attachmentUris,
+    reportedAt: report.reportedAt,
+    reportedByDriverId: null,
+    resolutionNote: report.resolutionNote ?? null,
+    resolvedAt: report.resolvedAt ?? null,
+    severity: report.severity,
+    shipmentId: report.shipmentId,
+    status: report.status === "resolved" ? "resolved" : "open",
+  }));
+}
+
+function messagePayload(state: DemoOperationsState) {
+  return state.messages.map((message) => ({
+    body: message.body,
+    id: message.id,
+    readByUserIds: message.readByAccountIds,
+    recipientUserIds: message.recipientAccountIds,
+    senderUserId: message.senderAccountId,
+    sentAt: message.sentAt,
+    shipmentId: message.shipmentId ?? null,
+    threadKey: message.threadId,
+    threadKind: message.threadKind,
+  }));
 }
 
 function jsonResponse(body: unknown): Response {

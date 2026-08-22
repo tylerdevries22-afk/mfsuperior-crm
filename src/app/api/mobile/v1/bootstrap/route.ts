@@ -1,18 +1,53 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import {
   freightLocations,
   integrationConnections,
+  organizationMemberships,
   organizations,
   drivers,
   users,
 } from "@/lib/db/schema";
-import { authorizeMobileRequest } from "@/lib/mobile-api/authorize";
+import {
+  authorizeMobileRequest,
+  type MobilePrincipal,
+} from "@/lib/mobile-api/authorize";
 import {
   apiFailureResponse,
   apiSuccess,
   mergeResponseHeaders,
 } from "@/lib/mobile-api/http";
+
+/**
+ * The messaging directory. Admins see the whole active roster; drivers and
+ * customers only see the operations admins they are allowed to message.
+ */
+function contactRolesFor(principal: MobilePrincipal) {
+  return principal.role === "admin"
+    ? (["admin", "driver", "customer"] as const)
+    : (["admin"] as const);
+}
+
+function loadContacts(principal: MobilePrincipal) {
+  return db
+    .select({
+      id: users.id,
+      displayName: users.name,
+      email: users.email,
+      role: organizationMemberships.role,
+    })
+    .from(organizationMemberships)
+    .innerJoin(users, eq(organizationMemberships.userId, users.id))
+    .where(
+      and(
+        eq(organizationMemberships.organizationId, principal.organizationId),
+        eq(organizationMemberships.status, "active"),
+        inArray(organizationMemberships.role, [...contactRolesFor(principal)]),
+      ),
+    )
+    .orderBy(asc(organizationMemberships.role), asc(users.email))
+    .limit(200);
+}
 
 export async function GET(request: Request) {
   const authorization = await authorizeMobileRequest(request, {
@@ -24,7 +59,14 @@ export async function GET(request: Request) {
   const { principal, requestId } = authorization;
 
   try {
-    const [[organization], [user], integrations, locations, driverRows] = await Promise.all([
+    const [
+      [organization],
+      [user],
+      integrations,
+      locations,
+      driverRows,
+      contacts,
+    ] = await Promise.all([
       db
         .select({
           id: organizations.id,
@@ -89,6 +131,7 @@ export async function GET(request: Request) {
             )
             .orderBy(asc(drivers.lastName), asc(drivers.firstName))
             .limit(500),
+      loadContacts(principal),
     ]);
     if (!organization) {
       return apiFailureResponse(
@@ -117,7 +160,16 @@ export async function GET(request: Request) {
             submitFreightRequests:
               principal.role === "admin" || principal.role === "customer",
           },
-          referenceData: { drivers: driverRows, locations },
+          referenceData: {
+            contacts: contacts.map((contact) => ({
+              id: contact.id,
+              displayName: contact.displayName ?? contact.email.split("@")[0],
+              email: contact.email,
+              role: contact.role,
+            })),
+            drivers: driverRows,
+            locations,
+          },
           integrations,
         },
         requestId,

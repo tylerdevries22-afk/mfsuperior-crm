@@ -19,7 +19,12 @@ import {
   TextField,
 } from "@/components/ui";
 import type { CustomerRequest, CustomerRequestType, Shipment } from "@/domain/types";
-import { validateCustomerRequestDraft, type CustomerRequestValidation } from "@/lib/tab-workspaces";
+import {
+  isCustomerRequestDraftValid,
+  validateCustomerRequestDraft,
+  type CustomerRequestValidation,
+  type FreightRequestLocationDraft,
+} from "@/lib/tab-workspaces";
 import { useOperations } from "@/store";
 import { ICON, SPACE, TYPO, useTheme } from "@/theme";
 
@@ -49,6 +54,64 @@ function RelatedShipmentField({ shipments, value, onChange }: {
   );
 }
 
+const EMPTY_LOCATION: FreightRequestLocationDraft = {
+  addressLine1: "",
+  city: "",
+  state: "",
+  postalCode: "",
+};
+
+function LocationFields({ error, label, onChange, value }: {
+  readonly error?: string;
+  readonly label: "Pickup" | "Delivery";
+  readonly onChange: (value: FreightRequestLocationDraft) => void;
+  readonly value: FreightRequestLocationDraft;
+}) {
+  const theme = useTheme();
+  return (
+    <View style={styles.fieldGroup}>
+      <Text style={[styles.fieldLabel, { color: theme.text }]}>{label} address</Text>
+      <TextField
+        label={`${label} street`}
+        maxLength={200}
+        onChangeText={(addressLine1) => onChange({ ...value, addressLine1 })}
+        placeholder="1200 Freight Way"
+        value={value.addressLine1}
+      />
+      <TextField
+        label={`${label} city`}
+        maxLength={100}
+        onChangeText={(city) => onChange({ ...value, city })}
+        placeholder="Denver"
+        value={value.city}
+      />
+      <View style={styles.locationRow}>
+        <View style={styles.grow}>
+          <TextField
+            autoCapitalize="characters"
+            label="State"
+            maxLength={2}
+            onChangeText={(state) => onChange({ ...value, state })}
+            placeholder="CO"
+            value={value.state}
+          />
+        </View>
+        <View style={styles.grow}>
+          <TextField
+            keyboardType="number-pad"
+            label="ZIP"
+            maxLength={10}
+            onChangeText={(postalCode) => onChange({ ...value, postalCode })}
+            placeholder="80202"
+            value={value.postalCode}
+          />
+        </View>
+      </View>
+      {error ? <Text accessibilityRole="alert" style={[styles.helper, { color: theme.danger }]}>{error}</Text> : null}
+    </View>
+  );
+}
+
 function RequestForm({ onDone }: { readonly onDone: () => void }) {
   const theme = useTheme();
   const { actions, currentAccount, shipments, state } = useOperations();
@@ -56,6 +119,8 @@ function RequestForm({ onDone }: { readonly onDone: () => void }) {
   const [subject, setSubject] = useState("");
   const [details, setDetails] = useState("");
   const [shipmentId, setShipmentId] = useState("none");
+  const [origin, setOrigin] = useState<FreightRequestLocationDraft>(EMPTY_LOCATION);
+  const [destination, setDestination] = useState<FreightRequestLocationDraft>(EMPTY_LOCATION);
   const [validation, setValidation] = useState<CustomerRequestValidation>({});
   const [submitFailure, setSubmitFailure] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -63,9 +128,16 @@ function RequestForm({ onDone }: { readonly onDone: () => void }) {
   const customerShipments = shipments.filter((shipment) => shipment.customerId === customerId);
 
   async function submit(): Promise<void> {
-    const result = validateCustomerRequestDraft({ type, subject, details, shipmentId: shipmentId === "none" ? undefined : shipmentId });
+    const result = validateCustomerRequestDraft({
+      type,
+      subject,
+      details,
+      shipmentId: shipmentId === "none" ? undefined : shipmentId,
+      origin,
+      destination,
+    });
     setValidation(result);
-    if (result.subject || result.details) return;
+    if (!isCustomerRequestDraftValid(result)) return;
     setSubmitting(true);
     setSubmitFailure(null);
     try {
@@ -74,6 +146,8 @@ function RequestForm({ onDone }: { readonly onDone: () => void }) {
         subject: subject.trim(),
         details: details.trim(),
         shipmentId: shipmentId === "none" ? undefined : shipmentId,
+        origin: trimLocation(origin),
+        destination: trimLocation(destination),
       });
       if (saved) onDone();
       else setSubmitFailure("The request could not be saved. Review the details and try again.");
@@ -89,11 +163,22 @@ function RequestForm({ onDone }: { readonly onDone: () => void }) {
       <SegmentedControl accessibilityLabel="Request type" onChange={setType} options={REQUEST_TYPES} value={type} />
       <TextField error={validation.subject} label="Subject" maxLength={80} onChangeText={setSubject} placeholder="What do you need?" value={subject} />
       <TextArea error={validation.details} label="Operational details" maxLength={500} onChangeText={setDetails} placeholder="Include dates, locations, freight, and constraints." value={details} />
+      <LocationFields error={validation.origin} label="Pickup" onChange={setOrigin} value={origin} />
+      <LocationFields error={validation.destination} label="Delivery" onChange={setDestination} value={destination} />
       <RelatedShipmentField onChange={setShipmentId} shipments={customerShipments} value={shipmentId} />
       {submitFailure ? <Text accessibilityRole="alert" style={[styles.formError, { color: theme.danger }]}>{submitFailure}</Text> : null}
       <Button fullWidth loading={submitting} onPress={() => { void submit(); }} title="Submit request" />
     </View>
   );
+}
+
+function trimLocation(location: FreightRequestLocationDraft): FreightRequestLocationDraft {
+  return {
+    addressLine1: location.addressLine1.trim(),
+    city: location.city.trim(),
+    postalCode: location.postalCode.trim(),
+    state: location.state.trim().toUpperCase(),
+  };
 }
 
 function RequestsHero() {
@@ -201,6 +286,7 @@ const styles = StyleSheet.create({
   grow: { flex: 1, minWidth: 0 },
   helper: { ...TYPO.subtitle },
   hero: { gap: SPACE.sm, paddingBottom: SPACE.sm },
+  locationRow: { flexDirection: "row", gap: SPACE.sm },
   statGrid: { flexDirection: "row", flexWrap: "wrap", gap: SPACE.sm },
   subtitle: { ...TYPO.body, maxWidth: 560 },
   successCopy: { ...TYPO.caption, marginTop: SPACE.xxs },

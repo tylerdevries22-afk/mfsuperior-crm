@@ -17,10 +17,15 @@ import {
 import {
   freightRequestCreateSchema,
   offlineMutationBatchSchema,
+  operationsMessageCreateSchema,
+  shipmentAssignmentSchema,
+  shipmentExceptionResolutionSchema,
+  shipmentTenderResponseSchema,
 } from "@/lib/mobile-api/contracts";
 import { fetchWithRetry } from "@/lib/mobile-api/external-fetch";
 import {
   freightRequestAccessPredicate,
+  operationsMessageAccessPredicate,
   shipmentAccessPredicate,
 } from "@/lib/mobile-api/access";
 import {
@@ -359,6 +364,7 @@ describe("strict API contracts", () => {
     ).toBe(false);
     expect(
       freightRequestCreateSchema.safeParse({
+        subject: "Friday pickup",
         origin: {
           addressLine1: "1 Main St",
           city: "Denver",
@@ -378,6 +384,92 @@ describe("strict API contracts", () => {
     expect(
       offlineMutationBatchSchema.safeParse({ mutations: [] }).success,
     ).toBe(false);
+    // Intake without a subject can never round-trip back into the mobile UI.
+    expect(
+      freightRequestCreateSchema.safeParse({
+        origin: {
+          addressLine1: "1 Main St",
+          city: "Denver",
+          state: "CO",
+          postalCode: "80202",
+        },
+        destination: {
+          addressLine1: "2 Main St",
+          city: "Boulder",
+          state: "CO",
+          postalCode: "80301",
+        },
+      }).success,
+    ).toBe(false);
+  });
+
+  it("bounds the online shipment, exception, and message write contracts", () => {
+    expect(
+      shipmentTenderResponseSchema.safeParse({ response: "accepted" }).success,
+    ).toBe(true);
+    expect(
+      shipmentTenderResponseSchema.safeParse({ response: "maybe" }).success,
+    ).toBe(false);
+
+    expect(shipmentAssignmentSchema.safeParse({ driverId: userId }).success).toBe(true);
+    // There is no server-side equipment registry, so tractor/trailer ids are refused.
+    expect(
+      shipmentAssignmentSchema.safeParse({ driverId: userId, tractorId: carrierId }).success,
+    ).toBe(false);
+
+    expect(
+      shipmentExceptionResolutionSchema.safeParse({
+        resolutionNote: "Gate cleared and driver released.",
+        resumeStatus: "dispatched",
+      }).success,
+    ).toBe(true);
+    // `at_pickup` is not a legal transition out of `exception`.
+    expect(
+      shipmentExceptionResolutionSchema.safeParse({
+        resolutionNote: "Gate cleared and driver released.",
+        resumeStatus: "at_pickup",
+      }).success,
+    ).toBe(false);
+
+    const message = {
+      threadKey: "thread-dispatch",
+      threadKind: "dispatch" as const,
+      recipientUserIds: [userId],
+      body: "Running thirty minutes behind.",
+    };
+    expect(operationsMessageCreateSchema.safeParse(message).success).toBe(true);
+    expect(
+      operationsMessageCreateSchema.safeParse({ ...message, recipientUserIds: [] }).success,
+    ).toBe(false);
+    // A shipment thread must name the shipment it belongs to.
+    expect(
+      operationsMessageCreateSchema.safeParse({ ...message, threadKind: "shipment" }).success,
+    ).toBe(false);
+  });
+
+  it("scopes message reads to the sender or a listed recipient", () => {
+    const activePrincipal = {
+      ...membership,
+      membershipStatus: "active" as const,
+      credentialKind: "bearer" as const,
+    } satisfies MobilePrincipal;
+    const dialect = new PgDialect();
+    const sql = dialect.sqlToQuery(
+      operationsMessageAccessPredicate({ ...activePrincipal, role: "driver" }),
+    );
+    expect(sql.sql).toContain("sender_user_id");
+    expect(sql.sql).toContain("recipient_user_ids");
+    expect(sql.params).toContain(organizationId);
+    // A pending customer membership can never read operational messages.
+    expect(
+      dialect.sqlToQuery(
+        operationsMessageAccessPredicate({
+          ...activePrincipal,
+          role: "customer",
+          membershipStatus: "pending",
+        }),
+      ).sql,
+    ).toBe("false");
   });
 
   it("accepts every offline mutation operation and rejects invalid payloads", () => {

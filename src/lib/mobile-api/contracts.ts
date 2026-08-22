@@ -46,6 +46,13 @@ export const mobileRequestQuerySchema = z
   })
   .strict();
 
+export const mobileExceptionQuerySchema = z
+  .object({
+    limit: z.coerce.number().int().min(1).max(200).default(100),
+    status: z.enum(["open", "resolved", "all"]).default("all"),
+  })
+  .strict();
+
 export const mobileSyncQuerySchema = z
   .object({
     deviceId: z.string().trim().min(8).max(120),
@@ -70,6 +77,9 @@ const nullableDate = z.iso.datetime({ offset: true }).nullable().optional();
 export const freightRequestCreateSchema = z
   .object({
     referenceNumber: z.string().trim().min(1).max(120).nullable().optional(),
+    subject: z.string().trim().min(4).max(200),
+    requestType: z.enum(["quote", "pickup", "delivery", "exception"]).default("quote"),
+    shipmentId: z.uuid().nullable().optional(),
     origin: freightLocationInputSchema,
     destination: freightLocationInputSchema,
     pickupWindowStart: nullableDate,
@@ -284,7 +294,65 @@ export const offlineMutationBatchSchema = z
   })
   .strict();
 
+export const shipmentTenderResponseSchema = z
+  .object({
+    response: z.enum(["accepted", "declined"]),
+    notes: z.string().trim().min(1).max(2_000).nullable().optional(),
+  })
+  .strict();
+
+/**
+ * Tractor and trailer assignment is intentionally absent: there is no
+ * server-side equipment registry, so accepting those ids would drop them.
+ */
+export const shipmentAssignmentSchema = z
+  .object({
+    driverId: z.uuid(),
+    notes: z.string().trim().min(1).max(2_000).nullable().optional(),
+  })
+  .strict();
+
+/** Only the statuses a shipment may legally resume into after an exception. */
+export const shipmentExceptionResolutionSchema = z
+  .object({
+    resolutionNote: z.string().trim().min(5).max(2_000),
+    resumeStatus: z.enum(["dispatched", "in_transit", "at_delivery", "cancelled"]),
+  })
+  .strict();
+
+export const mobileMessageQuerySchema = z
+  .object({
+    limit: z.coerce.number().int().min(1).max(200).default(100),
+    threadKey: z.string().trim().min(1).max(120).optional(),
+  })
+  .strict();
+
+export const operationsMessageCreateSchema = z
+  .object({
+    threadKey: z.string().trim().min(1).max(120),
+    threadKind: z.enum(["shipment", "dispatch", "support"]),
+    shipmentId: z.uuid().nullable().optional(),
+    recipientUserIds: z.array(z.uuid()).min(1).max(25),
+    body: z.string().trim().min(1).max(4_000),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (value.threadKind === "shipment" && !value.shipmentId) {
+      context.addIssue({
+        code: "custom",
+        path: ["shipmentId"],
+        message: "A shipment thread requires a shipment.",
+      });
+    }
+  });
+
 export const idempotencyKeySchema = z.string().trim().min(16).max(120);
+
+export type ShipmentTenderResponse = z.output<typeof shipmentTenderResponseSchema>;
+export type ShipmentAssignment = z.output<typeof shipmentAssignmentSchema>;
+export type ShipmentExceptionResolution = z.output<
+  typeof shipmentExceptionResolutionSchema
+>;
 
 export type FreightRequestCreate = z.output<typeof freightRequestCreateSchema>;
 export type OfflineMutation = z.output<

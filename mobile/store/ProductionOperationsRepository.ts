@@ -15,6 +15,7 @@ import type {
   EntityId,
   ExceptionReport,
   ExceptionReportInput,
+  FreightRequestLocationInput,
   GeoPoint,
   HosDutyStatus,
   OperationsMessage,
@@ -46,7 +47,9 @@ import {
   buildPendingCustomerOperationsState,
   buildProductionOperationsState,
   type MobileBootstrapPayload,
+  type MobileExceptionRow,
   type MobileFreightRequestRow,
+  type MobileMessageRow,
   type MobileShipmentRow,
 } from "./productionStateAdapter";
 
@@ -65,11 +68,6 @@ export interface ProductionOperationsRepositoryOptions {
   readonly offlineQueue: OfflineMutationQueue;
   readonly queueHooks?: OfflineQueueHooks;
   readonly uploadBaseUrl?: string;
-}
-
-interface ProductionMutationResponse<Result> {
-  readonly result: Result;
-  readonly state: DemoOperationsState;
 }
 
 export class ProductionOperationsRepository implements OperationsRepository {
@@ -149,7 +147,11 @@ export class ProductionOperationsRepository implements OperationsRepository {
     shipmentId: EntityId,
     response: "accepted" | "declined",
   ): Promise<Shipment> {
-    return this.performMutation(`/v1/shipments/${encodeId(shipmentId)}/tender-response`, { response });
+    await this.performMutation<{ readonly id: string }>(
+      `v1/shipments/${encodeId(shipmentId)}/tender-response`,
+      { response },
+    );
+    return this.requireShipment(shipmentId);
   }
 
   async assignShipment(
@@ -158,11 +160,19 @@ export class ProductionOperationsRepository implements OperationsRepository {
     tractorId?: EntityId,
     trailerId?: EntityId,
   ): Promise<Shipment> {
-    return this.performMutation(`/v1/shipments/${encodeId(shipmentId)}/assignment`, {
-      driverId,
-      tractorId,
-      trailerId,
-    });
+    // Production has no server-side equipment registry, so silently dropping a
+    // tractor or trailer selection would misreport what was assigned.
+    if (tractorId || trailerId) {
+      throw new OperationsDomainError(
+        "VALIDATION_FAILED",
+        "Tractor and trailer assignment is not available in production yet.",
+      );
+    }
+    await this.performMutation<{ readonly driverId: string }>(
+      `v1/shipments/${encodeId(shipmentId)}/assignment`,
+      { driverId },
+    );
+    return this.requireShipment(shipmentId);
   }
 
   async transitionShipment(
@@ -191,10 +201,11 @@ export class ProductionOperationsRepository implements OperationsRepository {
     return transitioned;
   }
 
-  async advanceIntermediateStop(shipmentId: EntityId, stopId: EntityId): Promise<Shipment> {
-    return this.performMutation(
-      `/v1/shipments/${encodeId(shipmentId)}/stops/${encodeId(stopId)}/advance`,
-      {},
+  async advanceIntermediateStop(_shipmentId: EntityId, _stopId: EntityId): Promise<Shipment> {
+    // Production shipments only carry a pickup and a delivery stop, so there is
+    // no intermediate stop to advance and no server route that would accept one.
+    throw productionOnlyError(
+      "Intermediate stops are not part of the production shipment record yet.",
     );
   }
 
@@ -260,10 +271,17 @@ export class ProductionOperationsRepository implements OperationsRepository {
     resolutionNote: string,
     resumeStatus: ShipmentStatus,
   ): Promise<ExceptionReport> {
-    return this.performMutation(`/v1/exceptions/${encodeId(exceptionId)}/resolution`, {
+    const report = this.requireException(exceptionId);
+    await this.performMutation<{ readonly id: string }>(
+      `v1/exceptions/${encodeId(exceptionId)}/resolution`,
+      { resolutionNote, resumeStatus: resumableStatus(resumeStatus) },
+    );
+    return {
+      ...report,
       resolutionNote,
-      resumeStatus,
-    });
+      resolvedAt: this.clock(),
+      status: "resolved",
+    };
   }
 
   async submitProofOfDelivery(
@@ -294,15 +312,41 @@ export class ProductionOperationsRepository implements OperationsRepository {
   }
 
   async sendMessage(input: SendMessageInput): Promise<OperationsMessage> {
-    return this.performMutation("/v1/messages", input);
+    const sent = await this.performMutation<MobileMessageRow>("v1/messages", {
+      body: input.body,
+      recipientUserIds: [...input.recipientAccountIds],
+      shipmentId: input.shipmentId ?? null,
+      threadKey: input.threadId,
+      threadKind: input.threadKind,
+    });
+    return this.requireMessage(sent.id);
   }
 
   async createCustomerRequest(input: CreateCustomerRequestInput): Promise<CustomerRequest> {
-    return this.performMutation("/v1/customer-requests", input);
+    if (!input.origin || !input.destination) {
+      throw new OperationsDomainError(
+        "VALIDATION_FAILED",
+        "A freight request needs both a pickup and a delivery address.",
+      );
+    }
+    const created = await this.performMutation<{ readonly id: string }>("v1/requests", {
+      commodity: null,
+      destination: toFreightLocation(input.destination),
+      notes: input.details,
+      origin: toFreightLocation(input.origin),
+      requestType: input.type,
+      shipmentId: input.shipmentId ?? null,
+      subject: input.subject,
+    });
+    return this.requireRequest(created.id);
   }
 
   async markMessageRead(messageId: EntityId): Promise<OperationsMessage> {
-    return this.performMutation(`/v1/messages/${encodeId(messageId)}/read`, {});
+    await this.performMutation<{ readonly id: string }>(
+      `v1/messages/${encodeId(messageId)}/read`,
+      {},
+    );
+    return this.requireMessage(messageId);
   }
 
   getShipmentEdiTransactions(shipmentId: EntityId): readonly EdiTransaction[] {
@@ -327,16 +371,16 @@ export class ProductionOperationsRepository implements OperationsRepository {
     }
     try {
       const bootstrap = await this.apiClient.requestJson<MobileBootstrapPayload>("v1/bootstrap");
-      const [shipments, requests] = await Promise.all([
+      const [shipments, requests, exceptions, messages] = await Promise.all([
         this.apiClient.requestJson<readonly MobileShipmentRow[]>("v1/shipments?limit=100"),
         bootstrap.user.role === "driver"
           ? Promise.resolve([])
           : this.apiClient.requestJson<readonly MobileFreightRequestRow[]>("v1/requests?limit=100"),
+        this.apiClient.requestJson<readonly MobileExceptionRow[]>("v1/exceptions?limit=100"),
+        this.apiClient.requestJson<readonly MobileMessageRow[]>("v1/messages?limit=100"),
       ]);
       const state = buildProductionOperationsState(
-        bootstrap,
-        shipments,
-        requests,
+        { bootstrap, exceptions, messages, requests, shipments },
         this.clock(),
       );
       this.replaceState(requireProductionState(state, this.identity));
@@ -365,19 +409,21 @@ export class ProductionOperationsRepository implements OperationsRepository {
     }
   }
 
+  /** Online writes return only their own result; state is re-read afterwards. */
   private async performMutation<Result>(path: string, body: unknown): Promise<Result> {
     this.requireIdentity();
+    let result: Result;
     try {
-      const response = await this.apiClient.requestJson<ProductionMutationResponse<Result>>(path, {
+      result = await this.apiClient.requestJson<Result>(path, {
         body,
         idempotencyKey: this.idFactory(),
         method: "POST",
       });
-      this.replaceState(requireProductionState(response.state, this.identity));
-      return response.result;
     } catch (error: unknown) {
       throw toDomainNetworkError(error);
     }
+    await this.refreshState();
+    return result;
   }
 
   private async enqueueAndSync(draft: OfflineMutationDraft): Promise<OfflineMutation> {
@@ -514,6 +560,30 @@ export class ProductionOperationsRepository implements OperationsRepository {
     return shipment;
   }
 
+  private requireException(exceptionId: string): ExceptionReport {
+    const report = this.state.exceptions.find((candidate) => candidate.id === exceptionId);
+    if (!report) {
+      throw new OperationsDomainError("NOT_FOUND", "The exception report could not be found.");
+    }
+    return report;
+  }
+
+  private requireRequest(requestId: string): CustomerRequest {
+    const request = this.state.requests.find((candidate) => candidate.id === requestId);
+    if (!request) {
+      throw new OperationsDomainError("NOT_FOUND", "The freight request could not be found.");
+    }
+    return request;
+  }
+
+  private requireMessage(messageId: string): OperationsMessage {
+    const message = this.state.messages.find((candidate) => candidate.id === messageId);
+    if (!message) {
+      throw new OperationsDomainError("NOT_FOUND", "The message could not be found.");
+    }
+    return message;
+  }
+
   private findActiveShipment(): Shipment | null {
     return this.state.shipments.find((shipment) => (
       shipment.status !== "delivered" && shipment.status !== "cancelled" && shipment.status !== "declined"
@@ -639,6 +709,24 @@ function createOptimisticProof(
     submittedAt: mutation.deviceCreatedAt,
     submittedByAccountId: userId,
   };
+}
+
+function toFreightLocation(location: FreightRequestLocationInput) {
+  return {
+    addressLine1: location.addressLine1,
+    city: location.city,
+    countryCode: "US",
+    postalCode: location.postalCode,
+    state: location.state,
+    ...(location.name ? { name: location.name } : {}),
+  };
+}
+
+/** The server only resumes an exception into a status it can transition to. */
+function resumableStatus(status: ShipmentStatus): "dispatched" | "in_transit" | "at_delivery" {
+  if (status === "in_transit" || status === "loaded") return "in_transit";
+  if (status === "at_delivery") return "at_delivery";
+  return "dispatched";
 }
 
 function shipmentVersion(shipment: Shipment | null): number {
