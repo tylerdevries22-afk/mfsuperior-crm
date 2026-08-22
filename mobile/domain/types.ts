@@ -584,12 +584,17 @@ export interface Payout {
 }
 
 /**
- * Bumped to 3 when the state grew the fleet, availability, maintenance,
- * compliance, and payout collections. Persisted v2 state fails validation and
- * is rebuilt, which is what a shape change of this size needs — otherwise a
- * saved demo keeps showing a workspace with no vehicles in it.
+ * Bumped to 4 when the seeded settlement periods moved onto the two weeks
+ * before the fixture clock.
+ *
+ * The lesson of that change: the version guards fixture *content*, not just
+ * the state's shape. Moving the payout periods without bumping it left every
+ * device that already held v3 state reusing the old periods, which covered the
+ * one delivered load and made settlements permanently unissuable — a bug no
+ * amount of fixing the fixtures could reach, because the fixtures were never
+ * read again. Bump this whenever seeded data changes in a way a screen reads.
  */
-export const DEMO_STATE_VERSION = 3 as const;
+export const DEMO_STATE_VERSION = 4 as const;
 
 export interface OperationsState {
   readonly version: typeof DEMO_STATE_VERSION;
