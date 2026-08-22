@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  boolean,
   check,
   foreignKey,
   index,
@@ -473,5 +474,399 @@ export const geofences = pgTable(
     uniqueIndex("geofences_target_store_id_unique")
       .on(table.targetStoreId)
       .where(sql`${table.targetStoreId} is not null`),
+  ],
+);
+
+/* ───── Fleet, availability, shop, compliance, settlements ───── */
+
+export const vehicleTypeEnum = pgEnum("vehicle_type", ["tractor", "trailer"]);
+
+export const vehicleStatusEnum = pgEnum("vehicle_status", [
+  "active",
+  "in_shop",
+  "out_of_service",
+  "retired",
+]);
+
+export const availabilityKindEnum = pgEnum("availability_kind", [
+  "available",
+  "unavailable",
+  "time_off",
+  "preferred",
+]);
+
+export const maintenanceKindEnum = pgEnum("maintenance_kind", [
+  "repair",
+  "preventive",
+  "inspection",
+]);
+
+export const maintenanceStatusEnum = pgEnum("maintenance_status", [
+  "open",
+  "scheduled",
+  "in_progress",
+  "completed",
+  "cancelled",
+]);
+
+export const maintenanceSeverityEnum = pgEnum("maintenance_severity", [
+  "low",
+  "medium",
+  "high",
+  "critical",
+]);
+
+export const complianceSubjectEnum = pgEnum("compliance_subject", [
+  "vehicle",
+  "driver",
+]);
+
+export const complianceKindEnum = pgEnum("compliance_kind", [
+  "registration",
+  "ifta",
+  "annual_inspection",
+  "insurance",
+  "cdl",
+  "medical_card",
+  "hazmat_endorsement",
+]);
+
+export const payoutRailEnum = pgEnum("payout_rail", [
+  "apple_cash",
+  "venmo",
+  "cash_app",
+  "zelle",
+]);
+
+export const payoutStatusEnum = pgEnum("payout_status", [
+  "pending",
+  "processing",
+  "paid",
+  "failed",
+]);
+
+export const payoutLineItemKindEnum = pgEnum("payout_line_item_kind", [
+  "linehaul",
+  "accessorial",
+  "detention",
+  "fuel",
+  "advance",
+  "deduction",
+]);
+
+export const vehicles = pgTable(
+  "vehicles",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    carrierId: uuid("carrier_id")
+      .notNull()
+      .references(() => carriers.id, { onDelete: "cascade" }),
+    unitNumber: varchar("unit_number", { length: 40 }).notNull(),
+    type: vehicleTypeEnum("type").notNull(),
+    vin: varchar("vin", { length: 17 }).notNull(),
+    make: varchar("make", { length: 60 }).notNull(),
+    model: varchar("model", { length: 80 }).notNull(),
+    year: integer("year").notNull(),
+    plateNumber: varchar("plate_number", { length: 20 }).notNull(),
+    plateState: varchar("plate_state", { length: 10 }).notNull(),
+    status: vehicleStatusEnum("status").notNull().default("active"),
+    odometerMiles: integer("odometer_miles").notNull().default(0),
+    assignedDriverId: uuid("assigned_driver_id").references(() => drivers.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("vehicles_carrier_status_idx").on(table.carrierId, table.status),
+    // The shop, the driver, and dispatch all name a truck by its unit number,
+    // so two units inside one carrier may never share one.
+    uniqueIndex("vehicles_carrier_unit_unique").on(table.carrierId, table.unitNumber),
+    uniqueIndex("vehicles_carrier_vin_unique").on(table.carrierId, table.vin),
+    check("vehicles_year_check", sql`${table.year} between 1950 and 2100`),
+    check("vehicles_odometer_check", sql`${table.odometerMiles} >= 0`),
+    // Composite target for every tenant-scoped child row.
+    unique("vehicles_id_carrier_unique").on(table.id, table.carrierId),
+    /**
+     * Defense in depth behind the application check: a driver from another
+     * carrier cannot be assigned a unit. `MATCH SIMPLE` means a null
+     * `assigned_driver_id` satisfies this, which is what the single-column
+     * `ON DELETE SET NULL` above leaves behind.
+     */
+    foreignKey({
+      columns: [table.assignedDriverId, table.carrierId],
+      foreignColumns: [drivers.id, drivers.carrierId],
+      name: "vehicles_driver_carrier_fk",
+    }).onDelete("no action"),
+  ],
+);
+
+export const driverAvailabilityBlocks = pgTable(
+  "driver_availability_blocks",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    carrierId: uuid("carrier_id").notNull(),
+    driverId: uuid("driver_id").notNull(),
+    startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+    endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+    kind: availabilityKindEnum("kind").notNull(),
+    note: text("note"),
+    ruleId: uuid("rule_id"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("driver_availability_blocks_driver_starts_at_idx").on(
+      table.driverId,
+      table.startsAt,
+    ),
+    index("driver_availability_blocks_carrier_starts_at_idx").on(
+      table.carrierId,
+      table.startsAt,
+    ),
+    check("driver_availability_blocks_span_check", sql`${table.endsAt} > ${table.startsAt}`),
+    foreignKey({
+      columns: [table.driverId, table.carrierId],
+      foreignColumns: [drivers.id, drivers.carrierId],
+      name: "driver_availability_blocks_driver_carrier_fk",
+    }).onDelete("cascade"),
+  ],
+);
+
+export const driverAvailabilityRules = pgTable(
+  "driver_availability_rules",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    carrierId: uuid("carrier_id").notNull(),
+    driverId: uuid("driver_id").notNull(),
+    /** 0 is Sunday, matching `Date.prototype.getDay`. */
+    weekday: integer("weekday").notNull(),
+    /**
+     * Minutes from local midnight rather than an instant. A stored wall-clock
+     * timestamp would drift an hour twice a year; minutes survive DST.
+     */
+    startMinute: integer("start_minute").notNull(),
+    endMinute: integer("end_minute").notNull(),
+    kind: availabilityKindEnum("kind").notNull(),
+    effectiveFrom: timestamp("effective_from", { withTimezone: true }).notNull(),
+    effectiveUntil: timestamp("effective_until", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("driver_availability_rules_driver_weekday_idx").on(
+      table.driverId,
+      table.weekday,
+    ),
+    check("driver_availability_rules_weekday_check", sql`${table.weekday} between 0 and 6`),
+    check(
+      "driver_availability_rules_span_check",
+      sql`${table.startMinute} >= 0 and ${table.endMinute} <= 1440 and ${table.endMinute} > ${table.startMinute}`,
+    ),
+    foreignKey({
+      columns: [table.driverId, table.carrierId],
+      foreignColumns: [drivers.id, drivers.carrierId],
+      name: "driver_availability_rules_driver_carrier_fk",
+    }).onDelete("cascade"),
+  ],
+);
+
+export const maintenanceOrders = pgTable(
+  "maintenance_orders",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    carrierId: uuid("carrier_id").notNull(),
+    vehicleId: uuid("vehicle_id").notNull(),
+    kind: maintenanceKindEnum("kind").notNull(),
+    status: maintenanceStatusEnum("status").notNull().default("open"),
+    severity: maintenanceSeverityEnum("severity").notNull().default("medium"),
+    summary: varchar("summary", { length: 200 }).notNull(),
+    description: text("description").notNull().default(""),
+    openedAt: timestamp("opened_at", { withTimezone: true }).defaultNow().notNull(),
+    scheduledFor: timestamp("scheduled_for", { withTimezone: true }),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    odometerMiles: integer("odometer_miles"),
+    vendorName: varchar("vendor_name", { length: 200 }),
+    costCents: integer("cost_cents"),
+    reportedByDriverId: uuid("reported_by_driver_id").references(() => drivers.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("maintenance_orders_vehicle_opened_at_idx").on(table.vehicleId, table.openedAt),
+    index("maintenance_orders_carrier_status_idx").on(table.carrierId, table.status),
+    check("maintenance_orders_cost_check", sql`${table.costCents} is null or ${table.costCents} >= 0`),
+    foreignKey({
+      columns: [table.vehicleId, table.carrierId],
+      foreignColumns: [vehicles.id, vehicles.carrierId],
+      name: "maintenance_orders_vehicle_carrier_fk",
+    }).onDelete("cascade"),
+  ],
+);
+
+export const complianceDocuments = pgTable(
+  "compliance_documents",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    carrierId: uuid("carrier_id")
+      .notNull()
+      .references(() => carriers.id, { onDelete: "cascade" }),
+    subjectType: complianceSubjectEnum("subject_type").notNull(),
+    /**
+     * Points at either a vehicle or a driver, so it carries no foreign key of
+     * its own. The carrier pin is what keeps it inside its tenant, and the
+     * application resolves the subject before writing.
+     */
+    subjectId: uuid("subject_id").notNull(),
+    kind: complianceKindEnum("kind").notNull(),
+    identifier: varchar("identifier", { length: 120 }).notNull(),
+    issuingState: varchar("issuing_state", { length: 10 }).notNull(),
+    issuedOn: timestamp("issued_on", { withTimezone: true }).notNull(),
+    expiresOn: timestamp("expires_on", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("compliance_documents_carrier_expires_on_idx").on(
+      table.carrierId,
+      table.expiresOn,
+    ),
+    // One document of a given kind per subject; a second registration for the
+    // same truck is a replacement, not an addition.
+    uniqueIndex("compliance_documents_subject_kind_unique").on(
+      table.carrierId,
+      table.subjectType,
+      table.subjectId,
+      table.kind,
+    ),
+    check("compliance_documents_window_check", sql`${table.expiresOn} > ${table.issuedOn}`),
+  ],
+);
+
+/**
+ * Where a driver wants to be paid.
+ *
+ * The handle is an account identifier a driver publishes anyway — a Venmo
+ * username, a Cash App cashtag, the contact behind Zelle or Apple Cash. It is
+ * never a card or bank account number. It is still PII: reads must be scoped to
+ * the owning driver, and admin-facing queries select the rail only.
+ */
+export const driverPayoutMethods = pgTable(
+  "driver_payout_methods",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    carrierId: uuid("carrier_id").notNull(),
+    driverId: uuid("driver_id").notNull(),
+    rail: payoutRailEnum("rail").notNull(),
+    handle: varchar("handle", { length: 200 }).notNull(),
+    label: varchar("label", { length: 80 }),
+    isDefault: boolean("is_default").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    // One handle per rail per driver, so a settlement can never pick between
+    // two Venmo accounts.
+    uniqueIndex("driver_payout_methods_driver_rail_unique").on(table.driverId, table.rail),
+    // At most one default per driver, enforced by the database rather than by
+    // whichever write happened to run last.
+    uniqueIndex("driver_payout_methods_driver_default_unique")
+      .on(table.driverId)
+      .where(sql`${table.isDefault}`),
+    foreignKey({
+      columns: [table.driverId, table.carrierId],
+      foreignColumns: [drivers.id, drivers.carrierId],
+      name: "driver_payout_methods_driver_carrier_fk",
+    }).onDelete("cascade"),
+  ],
+);
+
+export const driverPayouts = pgTable(
+  "driver_payouts",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    carrierId: uuid("carrier_id").notNull(),
+    driverId: uuid("driver_id").notNull(),
+    periodStart: timestamp("period_start", { withTimezone: true }).notNull(),
+    periodEnd: timestamp("period_end", { withTimezone: true }).notNull(),
+    status: payoutStatusEnum("status").notNull().default("pending"),
+    grossCents: integer("gross_cents").notNull(),
+    deductionCents: integer("deduction_cents").notNull().default(0),
+    netCents: integer("net_cents").notNull(),
+    /** The rail a transfer went out on. Never the handle. */
+    rail: payoutRailEnum("rail"),
+    issuedAt: timestamp("issued_at", { withTimezone: true }),
+    paidAt: timestamp("paid_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("driver_payouts_driver_period_end_idx").on(table.driverId, table.periodEnd),
+    index("driver_payouts_carrier_status_idx").on(table.carrierId, table.status),
+    check("driver_payouts_period_check", sql`${table.periodEnd} > ${table.periodStart}`),
+    check("driver_payouts_net_check", sql`${table.netCents} = ${table.grossCents} - ${table.deductionCents}`),
+    unique("driver_payouts_id_carrier_unique").on(table.id, table.carrierId),
+    foreignKey({
+      columns: [table.driverId, table.carrierId],
+      foreignColumns: [drivers.id, drivers.carrierId],
+      name: "driver_payouts_driver_carrier_fk",
+    }).onDelete("cascade"),
+  ],
+);
+
+export const driverPayoutLineItems = pgTable(
+  "driver_payout_line_items",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    carrierId: uuid("carrier_id").notNull(),
+    payoutId: uuid("payout_id").notNull(),
+    shipmentId: uuid("shipment_id").references(() => shipments.id, {
+      onDelete: "set null",
+    }),
+    kind: payoutLineItemKindEnum("kind").notNull(),
+    description: varchar("description", { length: 300 }).notNull(),
+    /** Negative for deductions, so the items always sum to the payout's net. */
+    amountCents: integer("amount_cents").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("driver_payout_line_items_payout_idx").on(table.payoutId),
+    foreignKey({
+      columns: [table.payoutId, table.carrierId],
+      foreignColumns: [driverPayouts.id, driverPayouts.carrierId],
+      name: "driver_payout_line_items_payout_carrier_fk",
+    }).onDelete("cascade"),
   ],
 );

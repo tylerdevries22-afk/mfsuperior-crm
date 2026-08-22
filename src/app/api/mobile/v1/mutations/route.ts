@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { canTransitionShipmentStatus } from "@/app/api/carrier/_lib/validation";
 import { db } from "@/lib/db/client";
 import {
+  driverAvailabilityBlocks,
   driverLocations,
   drivers,
   driverStatusEvents,
@@ -12,6 +13,11 @@ import {
   shipments,
 } from "@/lib/db/schema";
 import { shipmentAccessPredicate } from "@/lib/mobile-api/access";
+import {
+  availabilityBlockAccessPredicate,
+  requireCarrierId,
+  resolveAvailabilityDriverId,
+} from "@/lib/mobile-api/fleet-access";
 import {
   authorizeMobileRequest,
   type MobilePrincipal,
@@ -434,6 +440,79 @@ async function submitShipmentPod(
   return { id: current.id, status: "delivered" };
 }
 
+/**
+ * Availability replay.
+ *
+ * A driver marking themselves off does it from the cab, often with no signal,
+ * so these two operations ride the offline queue like every other driver write.
+ * A clash with an already-assigned load never blocks the write: the truth about
+ * who can work belongs in the system, and the client surfaces the conflict.
+ */
+async function setAvailabilityBlock(
+  transaction: Transaction,
+  principal: MobilePrincipal,
+  mutation: OfflineMutation,
+): Promise<JsonValue> {
+  const payload = mutation.payload as {
+    readonly id?: string | null;
+    readonly driverId?: string | null;
+    readonly startsAt: string;
+    readonly endsAt: string;
+    readonly kind: "available" | "unavailable" | "time_off" | "preferred";
+    readonly note?: string | null;
+  };
+  const carrierId = requireCarrierId(principal);
+  const driverId = resolveAvailabilityDriverId(principal, payload.driverId);
+  const values = {
+    carrierId,
+    driverId,
+    endsAt: new Date(payload.endsAt),
+    kind: payload.kind,
+    note: payload.note ?? null,
+    startsAt: new Date(payload.startsAt),
+    updatedAt: new Date(),
+  };
+
+  const [row] = payload.id
+    ? await transaction
+        .update(driverAvailabilityBlocks)
+        .set(values)
+        .where(and(
+          eq(driverAvailabilityBlocks.id, payload.id),
+          eq(driverAvailabilityBlocks.carrierId, carrierId),
+          eq(driverAvailabilityBlocks.driverId, driverId),
+        ))
+        .returning({ id: driverAvailabilityBlocks.id })
+    : await transaction
+        .insert(driverAvailabilityBlocks)
+        .values(values)
+        .returning({ id: driverAvailabilityBlocks.id });
+
+  if (!row) {
+    throw new MobileApiError(404, "NOT_FOUND", "That availability block could not be found.");
+  }
+  return { id: row.id };
+}
+
+async function removeAvailabilityBlock(
+  transaction: Transaction,
+  principal: MobilePrincipal,
+  mutation: OfflineMutation,
+): Promise<JsonValue> {
+  const payload = mutation.payload as { readonly id: string };
+  const [row] = await transaction
+    .delete(driverAvailabilityBlocks)
+    .where(and(
+      eq(driverAvailabilityBlocks.id, payload.id),
+      availabilityBlockAccessPredicate(principal),
+    ))
+    .returning({ id: driverAvailabilityBlocks.id });
+
+  // A replayed removal for a block that is already gone is a success, not a
+  // failure — the queue must be able to drain after a partial send.
+  return { id: row?.id ?? payload.id };
+}
+
 function executeMutation(
   transaction: Transaction,
   principal: MobilePrincipal,
@@ -456,6 +535,10 @@ function executeMutation(
       return recordShipmentSignature(transaction, principal, mutation);
     case "shipment.pod.submit":
       return submitShipmentPod(transaction, principal, mutation);
+    case "availability.block.set":
+      return setAvailabilityBlock(transaction, principal, mutation);
+    case "availability.block.remove":
+      return removeAvailabilityBlock(transaction, principal, mutation);
   }
 }
 

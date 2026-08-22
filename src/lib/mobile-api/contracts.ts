@@ -274,6 +274,31 @@ const shipmentPodMutationSchema = z
   })
   .strict();
 
+const availabilityBlockMutationSchema = z
+  .object({
+    ...mutationBase,
+    operation: z.literal("availability.block.set"),
+    payload: z
+      .object({
+        id: z.uuid().nullable().optional(),
+        driverId: z.uuid().nullable().optional(),
+        startsAt: z.iso.datetime({ offset: true }),
+        endsAt: z.iso.datetime({ offset: true }),
+        kind: z.enum(["available", "unavailable", "time_off", "preferred"]),
+        note: z.string().trim().max(500).nullable().optional(),
+      })
+      .strict(),
+  })
+  .strict();
+
+const availabilityBlockRemovalMutationSchema = z
+  .object({
+    ...mutationBase,
+    operation: z.literal("availability.block.remove"),
+    payload: z.object({ id: z.uuid() }).strict(),
+  })
+  .strict();
+
 export const offlineMutationBatchSchema = z
   .object({
     mutations: z
@@ -287,6 +312,8 @@ export const offlineMutationBatchSchema = z
           shipmentSignatureMutationSchema,
           shipmentPodMutationSchema,
           requestCreateMutationSchema,
+          availabilityBlockMutationSchema,
+          availabilityBlockRemovalMutationSchema,
         ]),
       )
       .min(1)
@@ -359,3 +386,197 @@ export type FreightRequestCreate = z.output<typeof freightRequestCreateSchema>;
 export type OfflineMutation = z.output<
   typeof offlineMutationBatchSchema
 >["mutations"][number];
+
+/* ───── Fleet, availability, shop, compliance, settlements ───── */
+
+const isoDateTime = z.iso.datetime({ offset: true });
+
+export const availabilityQuerySchema = z
+  .object({
+    driverId: z.uuid().optional(),
+    from: isoDateTime.optional(),
+    to: isoDateTime.optional(),
+    limit: z.coerce.number().int().min(1).max(500).default(200),
+  })
+  .strict();
+
+export const availabilityBlockWriteSchema = z
+  .object({
+    id: z.uuid().nullable().optional(),
+    /** Admins may name a driver; a driver's own id is taken from the token. */
+    driverId: z.uuid().nullable().optional(),
+    startsAt: isoDateTime,
+    endsAt: isoDateTime,
+    kind: z.enum(["available", "unavailable", "time_off", "preferred"]),
+    note: z.string().trim().max(500).nullable().optional(),
+  })
+  .strict()
+  .refine(
+    (value) => Date.parse(value.endsAt) > Date.parse(value.startsAt),
+    { message: "An availability block has to end after it starts.", path: ["endsAt"] },
+  );
+
+export const availabilityRuleWriteSchema = z
+  .object({
+    id: z.uuid().nullable().optional(),
+    driverId: z.uuid().nullable().optional(),
+    weekday: z.number().int().min(0).max(6),
+    startMinute: z.number().int().min(0).max(1_440),
+    endMinute: z.number().int().min(0).max(1_440),
+    kind: z.enum(["available", "unavailable", "time_off", "preferred"]),
+    effectiveFrom: isoDateTime,
+    effectiveUntil: isoDateTime.nullable().optional(),
+  })
+  .strict()
+  .refine((value) => value.endMinute > value.startMinute, {
+    message: "A weekly pattern has to cover a real span inside one day.",
+    path: ["endMinute"],
+  });
+
+/**
+ * A payout handle, never a card or bank account number. The length ceiling and
+ * the digit guard exist so a mistyped account number is refused at the boundary
+ * rather than written to a column.
+ */
+export const payoutMethodWriteSchema = z
+  .object({
+    id: z.uuid().nullable().optional(),
+    rail: z.enum(["apple_cash", "venmo", "cash_app", "zelle"]),
+    handle: z
+      .string()
+      .trim()
+      .min(3)
+      .max(200)
+      .refine(
+        (handle) => !(handle.replace(/\D/g, "").length >= 12 && !handle.includes("@")),
+        { message: "That looks like a card or account number. Enter the handle for the app instead." },
+      ),
+    label: z.string().trim().max(80).nullable().optional(),
+    isDefault: z.boolean().nullable().optional(),
+  })
+  .strict();
+
+export const vehicleQuerySchema = z
+  .object({
+    status: z.enum(["active", "in_shop", "out_of_service", "retired"]).optional(),
+    type: z.enum(["tractor", "trailer"]).optional(),
+    limit: z.coerce.number().int().min(1).max(200).default(100),
+  })
+  .strict();
+
+export const vehicleWriteSchema = z
+  .object({
+    id: z.uuid().nullable().optional(),
+    unitNumber: z.string().trim().min(1).max(40),
+    type: z.enum(["tractor", "trailer"]),
+    vin: z.string().trim().length(17).toUpperCase(),
+    make: z.string().trim().min(1).max(60),
+    model: z.string().trim().min(1).max(80),
+    year: z.number().int().min(1950).max(2100),
+    plateNumber: z.string().trim().min(1).max(20),
+    plateState: z.string().trim().min(2).max(10),
+    status: z.enum(["active", "in_shop", "out_of_service", "retired"]),
+    odometerMiles: z.number().int().min(0).max(5_000_000),
+    assignedDriverId: z.uuid().nullable().optional(),
+  })
+  .strict();
+
+export const vehicleAssignmentSchema = z
+  .object({ driverId: z.uuid().nullable() })
+  .strict();
+
+export const maintenanceQuerySchema = z
+  .object({
+    vehicleId: z.uuid().optional(),
+    status: z.enum(["open", "scheduled", "in_progress", "completed", "cancelled"]).optional(),
+    limit: z.coerce.number().int().min(1).max(200).default(100),
+  })
+  .strict();
+
+export const maintenanceCreateSchema = z
+  .object({
+    vehicleId: z.uuid(),
+    kind: z.enum(["repair", "preventive", "inspection"]),
+    severity: z.enum(["low", "medium", "high", "critical"]),
+    summary: z.string().trim().min(3).max(200),
+    description: z.string().trim().max(4_000).default(""),
+    scheduledFor: isoDateTime.nullable().optional(),
+    odometerMiles: z.number().int().min(0).max(5_000_000).nullable().optional(),
+    vendorName: z.string().trim().max(200).nullable().optional(),
+    costCents: z.number().int().min(0).max(100_000_000).nullable().optional(),
+    reportedByDriverId: z.uuid().nullable().optional(),
+  })
+  .strict();
+
+export const maintenanceUpdateSchema = z
+  .object({
+    status: z.enum(["open", "scheduled", "in_progress", "completed", "cancelled"]).nullable().optional(),
+    severity: z.enum(["low", "medium", "high", "critical"]).nullable().optional(),
+    scheduledFor: isoDateTime.nullable().optional(),
+    completedAt: isoDateTime.nullable().optional(),
+    vendorName: z.string().trim().max(200).nullable().optional(),
+    costCents: z.number().int().min(0).max(100_000_000).nullable().optional(),
+    description: z.string().trim().max(4_000).nullable().optional(),
+  })
+  .strict();
+
+export const complianceQuerySchema = z
+  .object({
+    subjectType: z.enum(["vehicle", "driver"]).optional(),
+    subjectId: z.uuid().optional(),
+    limit: z.coerce.number().int().min(1).max(500).default(200),
+  })
+  .strict();
+
+export const complianceWriteSchema = z
+  .object({
+    id: z.uuid().nullable().optional(),
+    subjectType: z.enum(["vehicle", "driver"]),
+    subjectId: z.uuid(),
+    kind: z.enum([
+      "registration",
+      "ifta",
+      "annual_inspection",
+      "insurance",
+      "cdl",
+      "medical_card",
+      "hazmat_endorsement",
+    ]),
+    identifier: z.string().trim().min(1).max(120),
+    issuingState: z.string().trim().min(2).max(10),
+    issuedOn: isoDateTime,
+    expiresOn: isoDateTime,
+  })
+  .strict()
+  .refine(
+    (value) => Date.parse(value.expiresOn) > Date.parse(value.issuedOn),
+    { message: "A document has to expire after it was issued.", path: ["expiresOn"] },
+  );
+
+export const payoutQuerySchema = z
+  .object({
+    driverId: z.uuid().optional(),
+    status: z.enum(["pending", "processing", "paid", "failed"]).optional(),
+    limit: z.coerce.number().int().min(1).max(200).default(100),
+  })
+  .strict();
+
+export const payoutIssueSchema = z
+  .object({
+    driverId: z.uuid(),
+    periodStart: isoDateTime,
+    periodEnd: isoDateTime,
+  })
+  .strict()
+  .refine(
+    (value) => Date.parse(value.periodEnd) > Date.parse(value.periodStart),
+    { message: "A settlement period has to end after it starts.", path: ["periodEnd"] },
+  );
+
+/**
+ * Recording a settlement as paid names the rail only. The handle is never sent
+ * to, or accepted from, an admin client.
+ */
+export const payoutPaymentSchema = z
+  .object({ rail: z.enum(["apple_cash", "venmo", "cash_app", "zelle"]) })
+  .strict();
