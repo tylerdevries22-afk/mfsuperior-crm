@@ -217,10 +217,7 @@ export function apiFailureResponse(
     );
   }
 
-  const databaseCode =
-    typeof error === "object" && error !== null && "code" in error
-      ? String(error.code)
-      : "unknown";
+  const databaseCode = databaseErrorCode(error);
   console.error(
     JSON.stringify({
       severity: "error",
@@ -241,6 +238,28 @@ export function apiFailureResponse(
     },
     requestId,
   );
+}
+
+/**
+ * The SQLSTATE behind a failure, wherever the driver left it.
+ *
+ * Drizzle wraps driver errors, so the `code` a unique or foreign-key violation
+ * carries sits on `error.cause` rather than on the error itself. Reading only
+ * the top level reported every constraint violation as "unknown" and answered
+ * 500, turning "that unit number is already taken" — which a client can act on —
+ * into "the operation is temporarily unavailable", which it cannot.
+ */
+function databaseErrorCode(error: unknown): string {
+  let current = error;
+  for (let depth = 0; current !== null && current !== undefined && depth < 5; depth += 1) {
+    if (typeof current !== "object") break;
+    const candidate = current as { code?: unknown; cause?: unknown };
+    if (typeof candidate.code === "string" && /^[0-9A-Z]{5}$/.test(candidate.code)) {
+      return candidate.code;
+    }
+    current = candidate.cause;
+  }
+  return "unknown";
 }
 
 export function mergeResponseHeaders(response: Response, headers: Headers): Response {
