@@ -1,4 +1,4 @@
-import { and, eq, gte, isNull, sql } from "drizzle-orm";
+import { and, eq, gte, isNull, ne, sql } from "drizzle-orm";
 import {
   Card,
   CardContent,
@@ -11,7 +11,13 @@ import {
   emailEvents,
   leadSequenceEnrollments,
   leads,
+  shipments,
 } from "@/lib/db/schema";
+import {
+  RevenueByPartner,
+  type PartnerRevenueRow,
+} from "@/components/partners";
+import { listPartners } from "@/lib/partners/store";
 import { Upload } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -64,10 +70,31 @@ export default async function DashboardPage() {
   // sends-to-distinct-recipients instead of inflating with multi-opens.
   const uniqueOpens7d = uniqueLeads("opened");
 
+  // ── Revenue by partner ───────────────────────────────────────────
+  // Booked revenue is line haul + fuel + accessorials on every load that
+  // hasn't been cancelled, grouped by the partner the load bills to. Loads
+  // with no partner assigned roll up under a single "Unassigned" row rather
+  // than being dropped, so the totals still reconcile.
+  const partnerRevenuePromise = db
+    .select({
+      partnerSlug: shipments.partnerSlug,
+      revenueCents: sql<number>`coalesce(sum(
+        coalesce(${shipments.rateCents}, 0)
+        + coalesce(${shipments.fuelSurchargeCents}, 0)
+        + coalesce(${shipments.accessorialsCents}, 0)
+      ), 0)::int`,
+      loadCount: sql<number>`count(*)::int`,
+    })
+    .from(shipments)
+    .where(ne(shipments.status, "cancelled"))
+    .groupBy(shipments.partnerSlug);
+
   const [
     [{ activeEnrollments }],
     [{ totalLeads }],
     [{ newThisWeek }],
+    partnerRevenue,
+    partners,
   ] = await Promise.all([
     db
       .select({ activeEnrollments: sql<number>`count(*)::int` })
@@ -93,6 +120,9 @@ export default async function DashboardPage() {
           gte(leads.createdAt, since),
         ),
       ),
+
+    partnerRevenuePromise,
+    listPartners(),
   ]);
 
   // Engagement rate (open rate) — unique opens / sends. Sends ==0
@@ -197,6 +227,13 @@ export default async function DashboardPage() {
             </CardContent>
           </Card>
         ))}
+      </section>
+
+      <section className="mt-10">
+        <RevenueByPartner
+          rows={partnerRevenue as PartnerRevenueRow[]}
+          partners={partners}
+        />
       </section>
 
       <section className="mt-10">

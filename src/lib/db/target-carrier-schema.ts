@@ -194,6 +194,13 @@ export const shipments = pgTable(
     driverId: uuid("driver_id").references(() => drivers.id, {
       onDelete: "set null",
     }),
+    /**
+     * Slug from `src/data/partners.ts` — which broker / retailer program the
+     * load came from. Denormalised text rather than a FK because the partner
+     * directory is committed application data, not a table, and a load's
+     * partner has to survive a partner being renamed or retired.
+     */
+    partnerSlug: varchar("partner_slug", { length: 64 }),
     targetLoadId: varchar("target_load_id", { length: 100 }),
     targetPoNumber: varchar("target_po_number", { length: 100 }),
     bolNumber: varchar("bol_number", { length: 100 }),
@@ -229,6 +236,7 @@ export const shipments = pgTable(
   },
   (table) => [
     index("shipments_status_created_at_idx").on(table.status, table.createdAt),
+    index("shipments_partner_slug_idx").on(table.partnerSlug, table.createdAt),
     index("shipments_driver_status_idx").on(table.driverId, table.status),
     index("shipments_org_status_idx").on(table.organizationId, table.status),
     // Composite target for every tenant-scoped child row.

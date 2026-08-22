@@ -29,6 +29,7 @@ async function loadShipment(id: string, carrierId: string) {
       id: shipments.id,
       carrierId: shipments.carrierId,
       driverId: shipments.driverId,
+      partnerSlug: shipments.partnerSlug,
       targetLoadId: shipments.targetLoadId,
       targetPoNumber: shipments.targetPoNumber,
       bolNumber: shipments.bolNumber,
@@ -119,6 +120,7 @@ async function updateShipment(
       .select({
         carrierId: shipments.carrierId,
         driverId: shipments.driverId,
+        partnerSlug: shipments.partnerSlug,
         status: shipments.status,
         estimatedPickupAt: shipments.estimatedPickupAt,
         estimatedDeliveryAt: shipments.estimatedDeliveryAt,

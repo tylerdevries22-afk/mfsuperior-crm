@@ -6,7 +6,7 @@ import { useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { DriverAvatar } from "@/components/operations";
-import { AnimatedButton, Card, Header, ListRow, Screen, SectionHeader, SegmentedControl, Sheet, StatusBadge } from "@/components/ui";
+import { AnimatedButton, Card, Header, ListRow, PartnerLogo, Screen, SectionHeader, SegmentedControl, Sheet, StatusBadge } from "@/components/ui";
 import type { AppRole } from "@/domain/types";
 import { FREIGHT_PARTNERS, validatedPartnerPortal, type FreightPartnerDefinition } from "@/features/partner-integrations";
 import { useOperations } from "@/store";
@@ -50,7 +50,7 @@ function PartnerSheet({ partner, onClose }: { readonly partner: FreightPartnerDe
 function IntegrationsSection() {
   const theme = useTheme();
   const [selected, setSelected] = useState<FreightPartnerDefinition | null>(null);
-  return <><SectionHeader title="Integrations" /><Card padding="none">{FREIGHT_PARTNERS.map((partner, index) => <ListRow isLast={index === FREIGHT_PARTNERS.length - 1} key={partner.id} leading={<View style={[styles.integrationIcon, { backgroundColor: partner.status === "portal_available" ? theme.warningMuted : theme.surfaceElevated }]}><Feather color={partner.status === "portal_available" ? theme.warning : theme.textMuted} name={partner.id === "target" ? "target" : "link-2"} size={19} /></View>} onPress={() => setSelected(partner)} subtitle={partner.statusLabel} title={partner.name} trailing={<Feather color={theme.textMuted} name="chevron-right" size={18} />} />)}</Card><PartnerSheet onClose={() => setSelected(null)} partner={selected} /></>;
+  return <><SectionHeader title="Integrations" /><Card padding="none">{FREIGHT_PARTNERS.map((partner, index) => <ListRow isLast={index === FREIGHT_PARTNERS.length - 1} key={partner.id} leading={<PartnerLogo label={partner.name} size="md" slug={partner.id} />} onPress={() => setSelected(partner)} subtitle={partner.statusLabel} title={partner.name} trailing={<Feather color={theme.textMuted} name="chevron-right" size={18} />} />)}</Card><PartnerSheet onClose={() => setSelected(null)} partner={selected} /></>;
 }
 
 function DriverToolsSection() {

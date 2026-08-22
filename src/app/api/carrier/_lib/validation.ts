@@ -25,6 +25,21 @@ const optionalText = (maximum: number) =>
   z.string().trim().min(1).max(maximum).nullable().optional();
 
 const optionalUuid = z.uuid().nullable().optional();
+
+/**
+ * Partner slugs come from `src/data/partners.ts`, which operators can extend
+ * at runtime through Admin → Partners. Validating the shape rather than an
+ * enum keeps a newly uploaded partner assignable without a redeploy; an
+ * unknown slug renders as a monogram instead of breaking the row.
+ */
+const partnerSlugSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(64)
+  .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Use a lowercase, hyphenated slug.");
+
+const optionalPartnerSlug = partnerSlugSchema.nullable().optional();
 const optionalDate = z.iso.datetime({ offset: true }).transform((value) =>
   new Date(value),
 ).nullable().optional();
@@ -69,12 +84,14 @@ export const shipmentListQuerySchema = z
   .object({
     ...paginationFields,
     status: z.enum(shipmentStatuses).optional(),
+    partner: partnerSlugSchema.optional(),
   })
   .strict();
 
 export const shipmentCreateSchema = z
   .object({
     driverId: optionalUuid,
+    partnerSlug: optionalPartnerSlug,
     targetLoadId: optionalText(100),
     targetPoNumber: optionalText(100),
     bolNumber: optionalText(100),
@@ -102,6 +119,7 @@ export const shipmentCreateSchema = z
 export const shipmentUpdateSchema = z
   .object({
     driverId: optionalUuid,
+    partnerSlug: optionalPartnerSlug,
     status: z.enum(shipmentStatuses).optional(),
     statusCode: optionalText(10),
     statusReason: optionalText(100),

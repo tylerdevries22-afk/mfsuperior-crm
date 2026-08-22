@@ -1,6 +1,7 @@
 import Link from "next/link";
 import {
   Activity,
+  Building2,
   HeartPulse,
   Inbox,
   ListChecks,
@@ -24,6 +25,7 @@ export type AdminTabId =
   | "tick"
   | "operations"
   | "imports"
+  | "partners"
   | "suppression"
   | "health";
 
@@ -35,6 +37,7 @@ export const ADMIN_TABS: ReadonlyArray<{
   { id: "tick", label: "Engine", icon: Activity },
   { id: "operations", label: "Operations", icon: ListChecks },
   { id: "imports", label: "Imports", icon: Inbox },
+  { id: "partners", label: "Partners", icon: Building2 },
   { id: "suppression", label: "Suppression", icon: ShieldOff },
   { id: "health", label: "Health", icon: HeartPulse },
 ];

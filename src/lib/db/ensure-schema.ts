@@ -56,6 +56,11 @@ const STATEMENTS: ReadonlyArray<string> = [
     "verified_at" timestamp with time zone NOT NULL DEFAULT now()
   )`,
   `CREATE UNIQUE INDEX IF NOT EXISTS "quick_add_backlog_email_unique" ON "quick_add_backlog" ("email")`,
+
+  // Partner directory integration — which broker / retailer program a load
+  // came from, so every load row can render that partner's logo.
+  `ALTER TABLE "shipments" ADD COLUMN IF NOT EXISTS "partner_slug" varchar(64)`,
+  `CREATE INDEX IF NOT EXISTS "shipments_partner_slug_idx" ON "shipments" ("partner_slug", "created_at")`,
 ];
 
 // Module-level flag. Survives between requests inside a single

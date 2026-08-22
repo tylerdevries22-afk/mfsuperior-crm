@@ -23,6 +23,7 @@ function searchPattern(query: string) {
 function shipmentFilters(query: ShipmentListQuery, carrierId: string) {
   const filters: SQL[] = [eq(shipments.carrierId, carrierId)];
   if (query.status) filters.push(eq(shipments.status, query.status));
+  if (query.partner) filters.push(eq(shipments.partnerSlug, query.partner));
   if (query.q) {
     const needle = searchPattern(query.q);
     const search = or(
@@ -47,6 +48,7 @@ async function listShipments(query: ShipmentListQuery, carrierId: string) {
         id: shipments.id,
         carrierId: shipments.carrierId,
         driverId: shipments.driverId,
+        partnerSlug: shipments.partnerSlug,
         targetLoadId: shipments.targetLoadId,
         targetPoNumber: shipments.targetPoNumber,
         bolNumber: shipments.bolNumber,

@@ -1509,6 +1509,14 @@ const PENDING_DDL: ReadonlyArray<{ sql: string; describe: string }> = [
     sql: `ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "email_validated_at" timestamp with time zone;`,
     describe: "leads.email_validated_at",
   },
+  {
+    sql: `ALTER TABLE "shipments" ADD COLUMN IF NOT EXISTS "partner_slug" varchar(64);`,
+    describe: "shipments.partner_slug",
+  },
+  {
+    sql: `CREATE INDEX IF NOT EXISTS "shipments_partner_slug_idx" ON "shipments" ("partner_slug", "created_at");`,
+    describe: "shipments.partner_slug index",
+  },
 ];
 
 export async function applyPendingMigrationsAction(): Promise<void> {
