@@ -53,6 +53,38 @@ describe("auth configuration", () => {
       EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "key",
       EXPO_PUBLIC_SUPABASE_URL: "https://project.supabase.co",
     }).mode).toBe("unconfigured");
+
+    // A physical device reaches the development machine by LAN address, so
+    // plaintext HTTP is allowed for private ranges and loopback only.
+    for (const host of [
+      "192.168.1.42",
+      "10.0.0.7",
+      "172.16.9.9",
+      "127.0.0.1",
+      "localhost",
+      "macbook.local",
+    ]) {
+      expect(
+        resolveAuthRuntimeConfig({
+          EXPO_PUBLIC_API_BASE_URL: `http://${host}:3000/api/mobile`,
+          EXPO_PUBLIC_MOBILE_PARITY_V2: "true",
+          EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "key",
+          EXPO_PUBLIC_SUPABASE_URL: `http://${host}:55321`,
+        }).mode,
+      ).toBe("production");
+    }
+
+    // Public and near-miss addresses must still fail closed over plaintext.
+    for (const host of ["8.8.8.8", "172.32.0.1", "11.0.0.1", "example.com", "192.169.1.1"]) {
+      expect(
+        resolveAuthRuntimeConfig({
+          EXPO_PUBLIC_API_BASE_URL: `http://${host}:3000/api/mobile`,
+          EXPO_PUBLIC_MOBILE_PARITY_V2: "true",
+          EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "key",
+          EXPO_PUBLIC_SUPABASE_URL: "https://project.supabase.co",
+        }).mode,
+      ).toBe("unconfigured");
+    }
     expect(resolveAuthRuntimeConfig({
       EXPO_PUBLIC_API_BASE_URL: "https://api.example.com/api/mobile",
       EXPO_PUBLIC_MOBILE_PARITY_V2: "false",

@@ -21,7 +21,7 @@
  */
 
 import { config } from "dotenv";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, gt, isNull, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import {
@@ -188,7 +188,7 @@ async function main(): Promise<void> {
             sql`lower(${organizationInvitations.email}) = ${adminEmail}`,
             isNull(organizationInvitations.acceptedAt),
             isNull(organizationInvitations.revokedAt),
-            sql`${organizationInvitations.expiresAt} > ${now}`,
+            gt(organizationInvitations.expiresAt, now),
           ),
         );
 

@@ -1,20 +1,50 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { db } from "@/lib/db/client";
 import { auditLog, emailEvents, leads, notifications } from "@/lib/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { env } from "@/lib/env";
+import { PersistentRateLimiter } from "@/lib/mobile-api/rate-limit";
 
 const FROM_ADDRESS = "MF Superior Products <info@mfsuperiorproducts.com>";
 const NOTIFY_ADDRESS = "info@mfsuperiorproducts.com";
 
-type ContactBody = {
-  name?: string;
-  email?: string;
-  phone?: string;
-  company?: string;
-  serviceType?: string;
-  message?: string;
-};
+/**
+ * This endpoint is unauthenticated and CORS-open by design — it backs the
+ * public marketing form. That makes it the one place where an anonymous
+ * caller can cause a database write and two outbound emails, so every field
+ * is length-bounded and the whole route is rate limited. Without those, it is
+ * a spam amplifier that burns the Resend quota and fills the leads table.
+ */
+const contactBodySchema = z
+  .object({
+    name: z.string().trim().min(1).max(120),
+    email: z.string().trim().toLowerCase().email().max(254),
+    phone: z.string().trim().max(40).optional().default(""),
+    company: z.string().trim().max(200).optional().default(""),
+    serviceType: z.string().trim().max(80).optional().default(""),
+    message: z.string().trim().max(5000).optional().default(""),
+  })
+  .strict();
+
+const rateLimiter = new PersistentRateLimiter();
+
+/** Submissions allowed per client address, and per submitted email, hourly. */
+const PER_ADDRESS_HOURLY_LIMIT = 5;
+const PER_EMAIL_HOURLY_LIMIT = 3;
+const HOUR_MS = 60 * 60 * 1000;
+
+/**
+ * Trusts the left-most `x-forwarded-for` entry, which on Vercel is the client
+ * address the platform observed. Falls back to a constant bucket so a missing
+ * header degrades to a shared limit rather than to no limit at all.
+ */
+function clientAddress(req: NextRequest): string {
+  const forwarded = req.headers.get("x-forwarded-for");
+  const first = forwarded?.split(",")[0]?.trim();
+  if (first) return first;
+  return req.headers.get("x-real-ip")?.trim() || "unknown-client";
+}
 
 function escHtml(s: string): string {
   return s
@@ -68,23 +98,48 @@ export async function OPTIONS(): Promise<NextResponse> {
 
 export async function POST(req: NextRequest) {
   const APP_URL = env().APP_URL;
-  let body: ContactBody;
-  try {
-    body = (await req.json()) as ContactBody;
-  } catch {
+
+  const raw: unknown = await req.json().catch(() => undefined);
+  if (raw === undefined) {
     return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
   }
-
-  const { name = "", email = "", phone = "", company = "", serviceType = "", message = "" } = body;
-
-  if (!name.trim() || !email.trim()) {
+  const parsed = contactBodySchema.safeParse(raw);
+  if (!parsed.success) {
     return NextResponse.json(
-      { error: "Name and email are required." },
+      { error: "Please provide a valid name and email address." },
       { status: 422 },
     );
   }
+  const { name, phone, company, serviceType, message } = parsed.data;
+  const emailLower = parsed.data.email;
 
-  const emailLower = email.trim().toLowerCase();
+  const address = await rateLimiter.consume({
+    key: `contact:ip:${clientAddress(req)}`,
+    limit: PER_ADDRESS_HOURLY_LIMIT,
+    windowMs: HOUR_MS,
+  });
+  const perEmail = await rateLimiter.consume({
+    key: `contact:email:${emailLower}`,
+    limit: PER_EMAIL_HOURLY_LIMIT,
+    windowMs: HOUR_MS,
+  });
+  if (!address.allowed || !perEmail.allowed) {
+    const resetAt = address.allowed ? perEmail.resetAt : address.resetAt;
+    return NextResponse.json(
+      {
+        error:
+          "Too many quote requests from this sender. Please try again later, or call (256) 468-0751.",
+      },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": String(
+            Math.max(1, Math.ceil((resetAt.getTime() - Date.now()) / 1000)),
+          ),
+        },
+      },
+    );
+  }
 
   // ── Upsert lead ──────────────────────────────────────────────────────────
   let leadId: string;

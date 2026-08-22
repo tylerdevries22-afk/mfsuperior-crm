@@ -79,9 +79,18 @@ async function verifySignature(req: Request): Promise<{ ok: true; body: string }
     .update(toSign)
     .digest("base64");
 
-  // msgSig is "v1,<base64sig>" — could be multiple, comma-separated
+  // msgSig is "v1,<base64sig>" — could be multiple, space-separated.
+  // Compared in constant time so a rejected signature does not leak how much
+  // of it matched through response timing.
+  const { timingSafeEqual } = await import("node:crypto");
+  const expected = Buffer.from(computed, "utf8");
   const signatures = msgSig.split(" ").map((s) => s.replace(/^v1,/, ""));
-  const valid = signatures.some((s) => s === computed);
+  const valid = signatures.reduce((matched, candidate) => {
+    const supplied = Buffer.from(candidate, "utf8");
+    const equal =
+      supplied.length === expected.length && timingSafeEqual(supplied, expected);
+    return matched || equal;
+  }, false);
 
   return valid ? { ok: true, body } : { ok: false };
 }

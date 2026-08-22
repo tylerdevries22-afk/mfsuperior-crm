@@ -1,70 +1,75 @@
+import { createHash, timingSafeEqual } from "node:crypto";
+
 /**
- * Shared bearer-token check for the cron route handlers. Returns null
- * when the request is authorized; otherwise returns a 401 Response with
- * a *safe* diagnostic JSON body that helps the operator figure out why
- * the two secrets don't match — without leaking the secret itself.
+ * Shared bearer-token check for the cron route handlers. Returns null when the
+ * request is authorized, otherwise a 401.
  *
- * The diagnostic exposes only:
- *   - received_length: bytes in the Authorization header
- *   - received_has_bearer_prefix
- *   - received_token_length, expected_token_length
- *   - length_match
- *   - received_token_trimmed_changes_length: true if .trim() changes the
- *     received token (= it has leading/trailing whitespace, the classic
- *     "trailing newline pasted into the secret" bug)
- *   - expected_token_trimmed_changes_length: same for the env-side secret
- *   - common_prefix_length: chars that match from the start
+ * Security note: an earlier version of this helper returned a diagnostic body
+ * containing `common_prefix_length` and `expected_token_length`. Together those
+ * form a character-by-character oracle — roughly 512 unauthenticated requests
+ * recover a 32-character hex secret, which gates the routes that send email to
+ * leads. Nothing derived from the expected secret may ever be returned to a
+ * caller that has not already proven it knows the secret.
  *
- * Knowing common_prefix_length tells you whether the values share a
- * leading section (= same secret with one side truncated/extended) vs
- * being entirely different strings.
+ * What remains is deliberately one-sided: the diagnostics describe only what
+ * the caller itself sent (length, Bearer prefix, stray whitespace), which the
+ * caller already knows, and they are withheld entirely in production.
  */
 export function checkCronAuth(request: Request, expected: string): Response | null {
   const received = request.headers.get("authorization") ?? "";
-  if (received === `Bearer ${expected}`) return null;
+  if (constantTimeEquals(received, `Bearer ${expected}`)) return null;
+
+  if (process.env.NODE_ENV === "production") {
+    return unauthorized({ error: "Unauthorized" });
+  }
 
   const prefix = "Bearer ";
   const hasBearer = received.startsWith(prefix);
   const receivedToken = hasBearer ? received.slice(prefix.length) : received;
-  const expectedToken = expected;
+  const hasSurroundingWhitespace = receivedToken.trim().length !== receivedToken.length;
 
-  const expectedTrimmed = expectedToken.trim();
-  const receivedTrimmed = receivedToken.trim();
-
-  let common = 0;
-  const max = Math.min(receivedToken.length, expectedToken.length);
-  while (common < max && receivedToken[common] === expectedToken[common]) common++;
-
-  const body = {
+  return unauthorized({
     error: "Unauthorized",
     diagnostic: {
       received_length: received.length,
       received_has_bearer_prefix: hasBearer,
       received_token_length: receivedToken.length,
-      expected_token_length: expectedToken.length,
-      length_match: receivedToken.length === expectedToken.length,
-      received_token_trimmed_changes_length:
-        receivedTrimmed.length !== receivedToken.length,
-      expected_token_trimmed_changes_length:
-        expectedTrimmed.length !== expectedToken.length,
-      common_prefix_length: common,
-      hint:
-        receivedToken.length === 0
-          ? "Authorization header missing or has no Bearer payload — check the GitHub workflow yml's `Authorization: Bearer ${CRON_SECRET}` line."
-          : !hasBearer
-            ? "Authorization header isn't a Bearer token. Workflow should send `Authorization: Bearer <secret>`."
-            : receivedTrimmed.length !== receivedToken.length
-              ? "GitHub Actions CRON_SECRET has leading/trailing whitespace (probably a trailing newline pasted in). Re-paste WITHOUT a trailing newline."
-              : expectedTrimmed.length !== expectedToken.length
-                ? "Vercel CRON_SECRET has leading/trailing whitespace. Re-paste WITHOUT a trailing newline."
-                : receivedToken.length !== expectedToken.length
-                  ? `Length mismatch: GitHub side is ${receivedToken.length} chars, Vercel side is ${expectedToken.length} chars. They must be identical.`
-                  : common === 0
-                    ? "Values are completely different strings. Generate one fresh value with `openssl rand -hex 16` and paste it into both sides."
-                    : `Values share the first ${common} chars but diverge after that. One side was truncated or edited; re-paste the same value into both.`,
+      received_token_has_surrounding_whitespace: hasSurroundingWhitespace,
+      hint: hintFor(receivedToken, hasBearer, hasSurroundingWhitespace),
     },
-  };
+  });
+}
 
+function hintFor(
+  receivedToken: string,
+  hasBearer: boolean,
+  hasSurroundingWhitespace: boolean,
+): string {
+  if (receivedToken.length === 0) {
+    return "Authorization header missing or has no Bearer payload — check the workflow's `Authorization: Bearer ${CRON_SECRET}` line.";
+  }
+  if (!hasBearer) {
+    return "Authorization header isn't a Bearer token. Send `Authorization: Bearer <secret>`.";
+  }
+  if (hasSurroundingWhitespace) {
+    return "The sent CRON_SECRET has leading/trailing whitespace (usually a pasted trailing newline). Re-paste it without one.";
+  }
+  return "The sent CRON_SECRET does not match the server's. Regenerate one value with `openssl rand -hex 16` and paste it into both sides.";
+}
+
+/**
+ * Constant-time compare of two arbitrary-length strings. `timingSafeEqual`
+ * throws when the buffers differ in length, and returning early on that check
+ * would itself leak the secret's length, so both sides are reduced to
+ * fixed-width SHA-256 digests first.
+ */
+function constantTimeEquals(a: string, b: string): boolean {
+  const left = createHash("sha256").update(a, "utf8").digest();
+  const right = createHash("sha256").update(b, "utf8").digest();
+  return timingSafeEqual(left, right);
+}
+
+function unauthorized(body: unknown): Response {
   return new Response(JSON.stringify(body, null, 2), {
     status: 401,
     headers: { "Content-Type": "application/json" },
