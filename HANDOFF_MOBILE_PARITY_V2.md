@@ -3,7 +3,7 @@
 Last updated: 2026-08-21  
 Working branch: `codex/mobile-parity-v2`  
 First durable checkpoint: `f8ec099`  
-Latest feature checkpoint at this update: `7c1a0d6`
+Latest feature checkpoint at this update: `220ce0a`
 Remote: `origin` (`tylerdevries22-afk/mfsuperior-crm`)
 
 ## Objective and immutable baseline
@@ -14,6 +14,10 @@ Rebuild `mobile/` to match the Appliance Diagnostic Expo app screen-for-screen w
 - Mobile source: `/Users/tylerdevries/Dev/appliance-diagnostic-systems/artifacts/mobile`
 - Pinned commit: `480991b7eb0036e4e85c37d3784b2de2ca97d10d`
 - Requested canonical device: iPhone 16 Pro, 393×852 logical pixels, iOS 26, dark appearance, default text size, Expo Go
+
+The reference app is Expo SDK 54.0.37 / React Native 0.81.5. The MF app now
+matches that, which is a prerequisite for both device testing and any honest
+pixel comparison.
 
 Do not silently move the baseline to a later reference commit. Approved visual deviations are MF lime branding, freight terminology/data, original freight artwork, and semantic status colors.
 
@@ -47,7 +51,61 @@ The native audit found an acceptance-contract conflict: Apple’s iPhone 16 Pro 
 - Added `freight_requests.subject` and `freight_requests.request_type` in additive migration `0009_freight_request_intake.sql` so mobile request intake round-trips faithfully instead of overloading `reference_number`/`commodity`. The mobile request form now collects the pickup and delivery addresses the API requires.
 - Made the surfaces with no production backing fail closed instead of posting to URLs that do not exist: intermediate-stop advance and tractor/trailer assignment now raise structured domain errors.
 - Made the operational tenant boundary structural instead of application-only in additive migration `0010_tenant_backfill_constraints.sql`. `carriers.organization_id` and `shipments.carrier_id` are now non-null, `shipments` carries an `organization_id` tenant pin, and composite foreign keys make it impossible for a shipment to name another tenant's carrier, for a shipment to name another carrier's driver, or for `customer_shipment_access` / `freight_documents` / `shipment_external_references` to name a shipment outside their own organization. The backfill gives an orphan carrier its own **suspended** organization so the row survives without granting anyone access, and refuses to guess a tenant for a carrier-less shipment.
+- **Aligned the mobile app to Expo SDK 54 / React Native 0.81.5, matching the pinned reference exactly.** Expo Go on the App Store is capped at SDK 54 (Expo submitted SDK 55 on 2026-05-04; Apple has not approved it), so SDK 55/56/57 cannot be opened by any App Store Expo Go on a physical device. The reference app at `480991b` is itself Expo 54.0.37 / RN 0.81.5, so the previous SDK 57 / RN 0.86.2 setup was both a device blocker and a parity confound — RN 0.81 and 0.86 differ in text layout and flexbox metrics. Two API migrations were required: expo-router 6 exports `Icon`/`Label` as elements rather than `NativeTabs.Trigger` statics and uses `drawable` instead of `md`, and `StyleSheet.absoluteFill` is not spreadable in RN 0.81 (`absoluteFillObject` is).
+- Closed a **critical** authentication oracle in `checkCronAuth`: the 401 body returned `common_prefix_length` and `expected_token_length`, which together let an unauthenticated caller recover the 32-character `CRON_SECRET` in roughly 512 requests. That secret gates the cron routes that send email to leads. Diagnostics are now one-sided and withheld in production, and the compare is constant-time.
+- Hardened the public `POST /api/contact`: it is unauthenticated and CORS-open by design but accepted unbounded fields, did not validate the address it then emailed, and had no rate limit. Fields are now strictly parsed and length-bounded, and the route is limited per client address and per submitted email.
+- Made the Resend webhook signature comparison constant-time.
+- Created the `notifications` table in additive migration `0011_notifications_repair.sql`. It had been declared in `schema.ts` and present in the drizzle snapshot since `0004`, but no migration ever emitted the DDL, so every freshly migrated database was missing it.
+- Unified the "is this host reachable without TLS" rule. Three separate copies disagreed: auth config accepted only loopback, `ApiClient` had its own loopback-only copy, and the server required HTTPS outright. A physical device reaches the dev machine by LAN address, so the app passed configuration validation and then crashed inside the API client. One shared `mobile/lib/private-network.ts` now backs both mobile call sites, and the server mirrors it; loopback, RFC1918, link-local, and `.local` are allowed over plaintext and public hosts still fail closed.
 - Added `scripts/seed-mf-superior.ts` (`npm run tenant:seed`): an idempotent seed for the MF Superior Products organization, its carrier profile, and the initial `info@mfsuperiorproducts.com` admin invitation. It mints an invitation rather than a membership, so admins stay invitation-only, prints the raw token exactly once because only the SHA-256 hash is stored, and refuses to rewrite an existing SCAC or reactivate a non-active organization.
+
+## Local Docker stack (running, verified end to end)
+
+A local Supabase stack now runs in Docker for this repository (`supabase start`,
+`supabase/config.toml`, ports shifted to 55321-55324 so they do not collide with
+the appliance reference stack). This removed the standing "no database" blocker
+for local work:
+
+- **Migrations 0000-0011 have now been applied to a real Postgres database.** They
+  are no longer generated-but-unrun. `drizzle-kit generate` reports no drift and
+  all 45 declared tables exist.
+- Migration `0010`'s tenant boundary was verified adversarially against the live
+  database: a shipment naming another tenant's carrier is rejected, a shipment
+  naming another carrier's driver is rejected, and a same-tenant shipment is
+  accepted.
+- `npm run tenant:seed` has now been executed. It created the MF Superior
+  organization, its carrier, and the first admin invitation, and re-running it is
+  idempotent. **The SCAC used locally is the placeholder `MFSP`; the real
+  NMFTA-assigned code is still required before production.**
+- The full identity chain works: a Supabase user signs in, `POST /api/auth/sync`
+  redeems the admin invitation and creates the membership, and
+  `/api/mobile/v1/bootstrap|shipments|requests|exceptions|messages` all return
+  200 with the `{ data, error, meta }` envelope.
+- The mobile app was loaded on the iPhone 16 Pro simulator through Expo Go 57.0.9
+  against this stack and renders the login screen. Expo Go 57 is now installed on
+  the simulator, which the previous audit had left unfinished.
+
+Local-only credentials live in the gitignored `.env.local` and `mobile/.env.local`.
+The Supabase keys there are the CLI's well-known local defaults, not secrets.
+
+Bringing the stack up from cold:
+
+```bash
+supabase start                                    # Postgres + auth + storage in Docker
+npm run db:migrate                                # applies 0000-0011
+MF_SUPERIOR_SCAC=<scac> npm run tenant:seed       # prints the admin token once
+npx next dev -H 0.0.0.0 -p 3100                   # backend, reachable on the LAN
+cd mobile && npx expo start --lan                 # Metro for Expo Go
+```
+
+`mobile/.env.local` and the backend `APP_URL`/`MOBILE_ALLOWED_ORIGINS` contain
+this machine's LAN address. **A different machine or network needs those
+rewritten** — a phone cannot reach `localhost`.
+
+Expo Go must be the SDK 54 build (`54.0.7`). The simulator copy lives at
+`~/.expo/ios-simulator-app-cache/Expo-Go-54.0.7.tar.app` and can be installed
+with `xcrun simctl install <udid> <path>`; `npx expo start --ios` prompts for it
+but needs an interactive terminal.
 
 ## Verification already passing (re-run at this checkpoint)
 
@@ -58,8 +116,9 @@ Re-run and green at this checkpoint:
 - Complete mobile Jest suite: 17 suites, 87/87 assertions
 - Backend TypeScript: `npx tsc --noEmit --incremental false` — clean
 - Web ESLint: `npm run lint` — zero warnings
-- Complete web Vitest suite: 118 passed, 14 skipped (14 files, 2 skipped)
+- Complete web Vitest suite: 122 passed, 14 skipped (15 files, 2 skipped)
 - Backend mobile-API contract tests (`tests/unit/carrier-api.test.ts`): 20/20
+- Cron authentication regression tests (`tests/unit/cron-auth.test.ts`): 4/4
 - Tenant provisioning and boundary tests (`tests/unit/tenant-provisioning.test.ts`): 15/15, covering the invitation token/TTL contract, the Drizzle-level tenant constraints, and migration `0010`'s backfill and constraint ordering
 - `drizzle-kit generate` reports no drift between `src/lib/db/*schema.ts` and the `0010` snapshot
 - `git diff --check`: clean at checkpoint
@@ -86,7 +145,7 @@ Items 1 through 4 are complete and pushed. The remaining order is:
 2. **(Done)** `/api/auth/sync` is the mobile identity source of truth and `pending_customer_approval` renders.
 3. **(Done)** Production online mutation/message routes implemented; the only writes that still refuse are the two with no server-side model (intermediate stops, tractor/trailer assignment), and they now fail closed with structured errors instead of hitting missing URLs.
 4. **(Done, unapplied)** Tenant backfill/validation constraints landed as migration `0010_tenant_backfill_constraints.sql`, and `npm run tenant:seed` provisions the MF Superior organization, its carrier, and the first admin invitation. Migrations `0008`, `0009`, and `0010` are generated but have **not been applied to any database**, and the seed has **never been executed**, because no Neon/Supabase project is provisioned yet. The seed additionally needs the real `MF_SUPERIOR_SCAC` from Tyler.
-5. Resolve the canonical simulator geometry, then capture both apps natively and close measured typography/spacing/component diffs. The current MF login sheet and monolithic role-home composition are source-inspection parity risks. Web screenshots are not a release substitute.
+5. Resolve the canonical simulator geometry, then capture both apps natively and close measured typography/spacing/component diffs. The simulator still reports 402x874, so the conflict is unresolved; the SDK/RN alignment removes the version-skew confound but does not settle the device geometry question. The current MF login sheet and monolithic role-home composition are source-inspection parity risks. Web screenshots are not a release substitute.
 6. Add Maestro journeys, screenshot masks/threshold checks, accessibility automation, Playwright staging coverage, mutation testing, health checks, and CI gates from the approved plan.
 7. Run the complete final suite after pending backend edits: mobile lint/typecheck/Jest/Expo Doctor/export, web lint/typecheck/Vitest/build/Playwright, audits, secret scan, bundle and asset budgets.
 
@@ -98,6 +157,7 @@ Items 1 through 4 are complete and pushed. The remaining order is:
 - Messaging is tenant-scoped to sender plus listed recipients; admins deliberately do not get a blanket read over private threads.
 - `shipment_events`, `driver_locations`, and `driver_status_events` inherit tenancy transitively through non-null foreign keys to `shipments` and `drivers`, which are themselves tenant-pinned by migration `0010`. They carry no tenant column of their own, so a telemetry row naming a driver from one carrier and a shipment from another is still blocked only by the application check, not by a database constraint. Closing that would require either a denormalized `carrier_id` on each table or a trigger; neither is in place.
 - Migration `0010` gives an orphan carrier a **suspended** organization rather than an active one. That is deliberate — no one gains access from a backfill — but an operator must consciously activate such an organization before its carrier is usable.
+- The mobile dependency audit reports 19 advisories (10 moderate, 9 high) at SDK 54, all transitive inside Expo's own build tooling (`image-size` via metro, `uuid` via xcode/config-plugins, `postcss`). These are dev-time tooling, not code shipped to the device. `npm audit fix --force` must not be used: it would break the SDK 54 pinning that device access depends on.
 - `scripts/seed-mf-superior.ts` requires `MF_SUPERIOR_SCAC` and has no default. A placeholder SCAC would end up in EDI envelopes, so the script fails closed instead.
 
 ## Native audit artifacts and reproducibility
