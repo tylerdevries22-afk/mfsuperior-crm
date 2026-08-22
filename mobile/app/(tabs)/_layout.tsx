@@ -1,5 +1,5 @@
 import { Redirect, useSegments } from "expo-router";
-import { NativeTabs } from "expo-router/unstable-native-tabs";
+import { Icon, Label, NativeTabs } from "expo-router/unstable-native-tabs";
 import type { ColorValue } from "react-native";
 
 import { useOperations } from "@/store";
@@ -25,8 +25,8 @@ export default function TabLayout() {
     || (isStaff && CUSTOMER_TABS.has(currentTab ?? ""));
   if (blocked) return <Redirect href="/(tabs)" />;
 
-  // Keep minimizeBehavior and disableTransparentOnScrollEdge unset. Expo 57
-  // then follows UIKit's automatic iOS 26 behavior exactly.
+  // Keep minimizeBehavior and disableTransparentOnScrollEdge unset so UIKit's
+  // automatic iOS 26 behavior applies, matching the reference app.
   return (
     <NativeTabs
       blurEffect="systemChromeMaterial"
@@ -35,50 +35,50 @@ export default function TabLayout() {
       tintColor={theme.primaryLight}
     >
       <NativeTabs.Trigger name="index">
-        <NativeTabs.Trigger.Icon
-          md={{ default: "home", selected: "home_filled" }}
+        <Icon
+          drawable="home"
           sf={{ default: "house", selected: "house.fill" }}
         />
-        <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
+        <Label>Home</Label>
       </NativeTabs.Trigger>
 
       <NativeTabs.Trigger name="schedule" hidden={!isStaff}>
-        <NativeTabs.Trigger.Icon md="calendar_month" sf="calendar" />
-        <NativeTabs.Trigger.Label>Schedule</NativeTabs.Trigger.Label>
+        <Icon drawable="calendar_month" sf="calendar" />
+        <Label>Schedule</Label>
       </NativeTabs.Trigger>
 
       <NativeTabs.Trigger name="assistant" hidden={!isStaff}>
-        <NativeTabs.Trigger.Icon md="assistant" sf="sparkles" />
-        <NativeTabs.Trigger.Label>Assistant</NativeTabs.Trigger.Label>
+        <Icon drawable="assistant" sf="sparkles" />
+        <Label>Assistant</Label>
       </NativeTabs.Trigger>
 
       <NativeTabs.Trigger name="inventory" hidden={!isStaff}>
-        <NativeTabs.Trigger.Icon
-          md={{ default: "inventory_2", selected: "inventory_2" }}
+        <Icon
+          drawable="inventory_2"
           sf={{ default: "shippingbox", selected: "shippingbox.fill" }}
         />
-        <NativeTabs.Trigger.Label>Capacity</NativeTabs.Trigger.Label>
+        <Label>Capacity</Label>
       </NativeTabs.Trigger>
 
       <NativeTabs.Trigger name="shipments" hidden={!isCustomer}>
-        <NativeTabs.Trigger.Icon
-          md={{ default: "local_shipping", selected: "local_shipping" }}
+        <Icon
+          drawable="local_shipping"
           sf={{ default: "truck.box", selected: "truck.box.fill" }}
         />
-        <NativeTabs.Trigger.Label>Shipments</NativeTabs.Trigger.Label>
+        <Label>Shipments</Label>
       </NativeTabs.Trigger>
 
       <NativeTabs.Trigger name="requests" hidden={!isCustomer}>
-        <NativeTabs.Trigger.Icon md="assignment" sf="doc.text" />
-        <NativeTabs.Trigger.Label>Requests</NativeTabs.Trigger.Label>
+        <Icon drawable="assignment" sf="doc.text" />
+        <Label>Requests</Label>
       </NativeTabs.Trigger>
 
       <NativeTabs.Trigger name="profile">
-        <NativeTabs.Trigger.Icon
-          md={{ default: "account_circle", selected: "account_circle" }}
+        <Icon
+          drawable="account_circle"
           sf={{ default: "person.crop.circle", selected: "person.crop.circle.fill" }}
         />
-        <NativeTabs.Trigger.Label>Profile</NativeTabs.Trigger.Label>
+        <Label>Profile</Label>
       </NativeTabs.Trigger>
     </NativeTabs>
   );

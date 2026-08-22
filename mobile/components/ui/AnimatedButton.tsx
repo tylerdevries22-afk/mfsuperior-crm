@@ -213,7 +213,7 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
   },
   metalBorder: {
-    ...StyleSheet.absoluteFill,
+    ...StyleSheet.absoluteFillObject,
     borderRadius: RADIUS_LEGACY.lg,
     borderWidth: 1.5,
   },

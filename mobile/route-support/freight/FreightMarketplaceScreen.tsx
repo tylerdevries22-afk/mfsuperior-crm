@@ -45,7 +45,7 @@ const styles = StyleSheet.create({
   listings: { gap: SPACE.sm },
   listingSubtitle: { ...TYPO.caption },
   listingTitle: { ...TYPO.rowTitle },
-  overlay: { ...StyleSheet.absoluteFill, backgroundColor: "rgba(8,10,7,0.38)" },
+  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(8,10,7,0.38)" },
   pressed: { opacity: 0.72, transform: [{ scale: 0.99 }] },
   safe: { flex: 1 },
   search: { alignItems: "center", borderRadius: RADIUS.md, borderWidth: 1, flexDirection: "row", gap: 10, minHeight: 50, paddingHorizontal: 14 },
