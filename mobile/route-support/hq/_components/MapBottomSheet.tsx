@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   Animated,
-  Dimensions,
   PanResponder,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { FONTS, RADIUS_LEGACY as RADIUS, THEME, useReducedMotion } from "@/theme";
 
@@ -20,7 +21,16 @@ import { FONTS, RADIUS_LEGACY as RADIUS, THEME, useReducedMotion } from "@/theme
  * is what every other animation in this app uses.
  */
 
-const SNAP_POINTS = { collapsed: 0.08, half: 0.5, expanded: 1.0 } as const;
+/**
+ * Ratios from the actz-may sheet. `expanded` stops short of the full viewport
+ * on purpose: at 1.0 the sheet's top lands at y=0, putting the grab handle
+ * behind the status bar with nothing left to pull down. Capping it also keeps
+ * the screen's own header visible, which is how system sheets behave.
+ */
+const SNAP_POINTS = { collapsed: 0.08, half: 0.5, expanded: 0.92 } as const;
+
+/** Never let the sheet's top cross into the status bar, whatever the ratio. */
+const MIN_TOP_GAP = 8;
 const DRAG_HANDLE_HEIGHT = 28;
 const CORNER_RADIUS = 16;
 const MIN_DRAG_TO_SNAP = 20;
@@ -33,16 +43,30 @@ export function MapBottomSheet({
   title,
   subtitle,
   initialPosition = "half",
+  position: controlledPosition,
+  onPositionChange,
+  topInset,
 }: {
   readonly children: ReactNode;
   readonly title: string;
   readonly subtitle?: string;
   readonly initialPosition?: SheetPosition;
+  /** Drives the sheet from outside; the sheet still snaps on its own drags. */
+  readonly position?: SheetPosition;
+  readonly onPositionChange?: (position: SheetPosition) => void;
+  /**
+   * Points from the top of the screen the sheet must never rise past. Pass the
+   * screen header's measured height so the header stays readable at every snap
+   * — without it the sheet would swallow the title of the screen it belongs to.
+   */
+  readonly topInset?: number;
 }) {
-  const screenHeight = Dimensions.get("window").height;
+  const { height: screenHeight } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const maxHeight = screenHeight - Math.max(topInset ?? 0, insets.top) - MIN_TOP_GAP;
   const heightFor = useCallback(
-    (position: SheetPosition) => screenHeight * SNAP_POINTS[position],
-    [screenHeight],
+    (target: SheetPosition) => Math.min(screenHeight * SNAP_POINTS[target], maxHeight),
+    [maxHeight, screenHeight],
   );
 
   const reduceMotion = useReducedMotion();
@@ -60,6 +84,7 @@ export function MapBottomSheet({
   const settle = useCallback(
     (next: SheetPosition) => {
       setPosition(next);
+      onPositionChange?.(next);
       if (reduceMotion) {
         height.setValue(heightFor(next));
         return;
@@ -72,66 +97,88 @@ export function MapBottomSheet({
         useNativeDriver: false,
       }).start();
     },
-    [height, heightFor, reduceMotion],
+    [height, heightFor, onPositionChange, reduceMotion],
   );
+
+  // An outside caller (a map tap, say) can drive the sheet; ignore the echo of
+  // a position the sheet already holds so it does not fight its own drag.
+  const settleRef = useRef(settle);
+  settleRef.current = settle;
+  useEffect(() => {
+    if (!controlledPosition || controlledPosition === position) return;
+    settleRef.current(controlledPosition);
+  }, [controlledPosition, position]);
+
+  // PanResponder is created once, so live values reach it through refs.
+  const maxHeightRef = useRef(maxHeight);
+  maxHeightRef.current = maxHeight;
+  const screenHeightRef = useRef(screenHeight);
+  screenHeightRef.current = screenHeight;
 
   const panResponder = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_e, g) => Math.abs(g.dy) > 4,
       onPanResponderMove: (_e, g) => {
         // Dragging up grows the sheet, so the delta is inverted.
-        const next = heightValue.current - g.dy;
+        const nextHeight = heightValue.current - g.dy;
         const clamped = Math.max(
-          screenHeight * SNAP_POINTS.collapsed,
-          Math.min(next, screenHeight * SNAP_POINTS.expanded),
+          screenHeightRef.current * SNAP_POINTS.collapsed,
+          Math.min(nextHeight, maxHeightRef.current),
         );
         height.setValue(clamped);
       },
       onPanResponderRelease: (_e, g) => {
         const current = heightValue.current;
+        const from = nearest(current, screenHeightRef.current, maxHeightRef.current);
         if (Math.abs(g.dy) < MIN_DRAG_TO_SNAP) {
-          settle(nearest(current, screenHeight));
+          settleRef.current(from);
           return;
         }
-        settle(
-          g.dy < 0
-            ? next(nearest(current, screenHeight), "up")
-            : next(nearest(current, screenHeight), "down"),
-        );
+        settleRef.current(g.dy < 0 ? next(from, "up") : next(from, "down"));
       },
     }),
   ).current;
 
   return (
     <Animated.View style={[styles.sheet, { height }]}>
-      <View {...panResponder.panHandlers} style={styles.handleArea}>
-        <View style={styles.handle} />
-      </View>
-      <View style={styles.header}>
-        <Text numberOfLines={1} style={styles.title}>
-          {title}
-        </Text>
-        {subtitle ? (
-          <Text numberOfLines={1} style={styles.subtitle}>
-            {subtitle}
+      {/*
+        The grabber and the title block are one drag surface. Attaching the
+        handlers to the 28pt handle alone left almost nothing to aim at, which
+        is what made the sheet impossible to pull back down once raised.
+      */}
+      <View {...panResponder.panHandlers} accessibilityRole="adjustable">
+        <View style={styles.handleArea}>
+          <View style={styles.handle} />
+        </View>
+        <View style={styles.header}>
+          <Text numberOfLines={1} style={styles.title}>
+            {title}
           </Text>
-        ) : null}
+          {subtitle ? (
+            <Text numberOfLines={1} style={styles.subtitle}>
+              {subtitle}
+            </Text>
+          ) : null}
+        </View>
       </View>
       <View style={[styles.body, position === "collapsed" && styles.bodyHidden]}>{children}</View>
     </Animated.View>
   );
 }
 
-function nearest(height: number, screenHeight: number): SheetPosition {
+export function nearest(height: number, screenHeight: number, maxHeight: number): SheetPosition {
   const entries = Object.entries(SNAP_POINTS) as [SheetPosition, number][];
-  return entries.reduce((best, [key, ratio]) =>
-    Math.abs(screenHeight * ratio - height) < Math.abs(screenHeight * SNAP_POINTS[best] - height)
-      ? key
-      : best,
-  "half" as SheetPosition);
+  const heightOf = (ratio: number) => Math.min(screenHeight * ratio, maxHeight);
+  return entries.reduce(
+    (best, [key, ratio]) =>
+      Math.abs(heightOf(ratio) - height) < Math.abs(heightOf(SNAP_POINTS[best]) - height)
+        ? key
+        : best,
+    "half" as SheetPosition,
+  );
 }
 
-function next(from: SheetPosition, direction: "up" | "down"): SheetPosition {
+export function next(from: SheetPosition, direction: "up" | "down"): SheetPosition {
   const order: SheetPosition[] = ["collapsed", "half", "expanded"];
   const index = order.indexOf(from);
   const target = direction === "up" ? index + 1 : index - 1;

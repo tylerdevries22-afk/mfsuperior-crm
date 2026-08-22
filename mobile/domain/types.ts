@@ -371,7 +371,12 @@ export interface IntegrationHealth {
   readonly isSimulation: boolean;
 }
 
-export const DEMO_STATE_VERSION = 1 as const;
+/**
+ * Bumped to 2 when the demo fleet grew from two drivers to five. Persisted v1
+ * state fails validation and is rebuilt, which is what a fixture change of
+ * this size needs — otherwise a saved demo keeps showing the old fleet.
+ */
+export const DEMO_STATE_VERSION = 2 as const;
 
 export interface OperationsState {
   readonly version: typeof DEMO_STATE_VERSION;

@@ -23,6 +23,9 @@ const BUNDLED_AVATARS: Record<string, ImageSourcePropType> = {
   "driver-brenna": require("@/assets/avatars/driver-brenna.webp"),
    
   "driver-samuel": require("@/assets/avatars/driver-samuel.webp"),
+  "driver-alicia": require("@/assets/avatars/driver-alicia.webp"),
+  "driver-ray": require("@/assets/avatars/driver-ray.webp"),
+  "driver-kenji": require("@/assets/avatars/driver-kenji.webp"),
 };
 
 export function resolveDriverAvatar(driver: Driver): ImageSourcePropType | null {
