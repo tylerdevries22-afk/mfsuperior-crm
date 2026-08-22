@@ -1,9 +1,10 @@
 import { createDemoOperationsState } from "@/domain/fixtures";
 
 import {
+  earliestOpenPeriod,
   formatSettlementPeriod,
   isPeriodSettled,
-  nextSettlementPeriod,
+  nextPeriodForDriver,
   shiftWeeks,
   weekContaining,
 } from "../utils";
@@ -50,34 +51,27 @@ describe("already-settled detection", () => {
 });
 
 describe("choosing a period", () => {
-  /**
-   * The fixture's one delivered load lands Tuesday of the current week and is
-   * deliberately unsettled, so the console should offer that week rather than
-   * the already-settled one before it.
-   */
-  it("offers the week holding the unsettled delivery", () => {
-    const period = nextSettlementPeriod(state.shipments, state.payouts, DRIVER_IDS, NOW);
-    expect(period).toEqual(weekContaining(NOW));
+  it("covers the unsettled delivery", () => {
+    const period = nextPeriodForDriver(state.shipments, state.payouts, "driver-brenna", NOW);
+    const delivered = Date.parse(
+      state.shipments.find((shipment) => shipment.status === "delivered")
+        ?.stops.slice(-1)[0].completedAt ?? "",
+    );
+    expect(Date.parse(period?.start ?? "")).toBeLessThanOrEqual(delivered);
+    expect(Date.parse(period?.end ?? "")).toBeGreaterThan(delivered);
   });
 
-  it("falls back to the last closed week when nothing is owed", () => {
-    const period = nextSettlementPeriod([], state.payouts, DRIVER_IDS, NOW);
-    expect(period).toEqual(shiftWeeks(weekContaining(NOW), -1));
+  it("proposes nothing when there is nothing delivered", () => {
+    expect(nextPeriodForDriver([], state.payouts, "driver-brenna", NOW)).toBeNull();
   });
 
-  it("skips a week whose work is already settled", () => {
-    // Settle the current week too; the walk-back should find nothing owed and
-    // fall through to the last closed week.
-    const settled = [
-      ...state.payouts,
-      {
-        ...state.payouts[0],
-        id: "payout-current",
-        periodEnd: weekContaining(NOW).end,
-        periodStart: weekContaining(NOW).start,
-      },
-    ];
-    const period = nextSettlementPeriod(state.shipments, settled, DRIVER_IDS, NOW);
-    expect(period).toEqual(shiftWeeks(weekContaining(NOW), -1));
+  it("names the earliest open period across the fleet for the header", () => {
+    const header = earliestOpenPeriod(state.shipments, state.payouts, DRIVER_IDS, NOW);
+    const brenna = nextPeriodForDriver(state.shipments, state.payouts, "driver-brenna", NOW);
+    expect(header).toEqual(brenna);
+  });
+
+  it("has no header period once the fleet is square", () => {
+    expect(earliestOpenPeriod([], state.payouts, DRIVER_IDS, NOW)).toBeNull();
   });
 });

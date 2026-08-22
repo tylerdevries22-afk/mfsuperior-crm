@@ -16,15 +16,16 @@ import {
   StatusBadge,
 } from "@/components/ui";
 import { buildPayoutLineItems, summarizePayout } from "@/domain/payouts";
+import type { SettlementPeriod } from "@/route-support/payouts/utils";
 import {
   PAYOUT_STATUS_LABELS,
   formatPeriod,
   sortPayouts,
 } from "@/route-support/driver-payments/utils";
 import {
+  earliestOpenPeriod,
   formatSettlementPeriod,
-  isPeriodSettled,
-  nextSettlementPeriod,
+  nextPeriodForDriver,
 } from "@/route-support/payouts/utils";
 import { driverFullName } from "@/route-support/schedule/utils";
 import { formatCents } from "@/route-support/trip-history/utils";
@@ -40,10 +41,8 @@ export default function PayoutsScreen() {
   const [issueError, setIssueError] = useState<string | null>(null);
 
   const ordered = useMemo(() => sortPayouts(payouts), [payouts]);
-  // The week to offer is derived from the data rather than assumed to be last
-  // week, so the sheet is never a page of zeroes with no explanation.
-  const period = useMemo(
-    () => nextSettlementPeriod(shipments, payouts, state.drivers.map((driver) => driver.id)),
+  const headerPeriod = useMemo(
+    () => earliestOpenPeriod(shipments, payouts, state.drivers.map((driver) => driver.id)),
     [payouts, shipments, state.drivers],
   );
 
@@ -58,11 +57,16 @@ export default function PayoutsScreen() {
   }, [payouts]);
 
   /**
-   * What each driver would be owed for the offered week, computed with the same
-   * builder the repository uses, so the preview cannot disagree with what
-   * issuing actually produces.
+   * Each driver's own next period, previewed with the same builder the
+   * repository uses so the sheet cannot disagree with what issuing produces.
+   * Periods are per-driver because they run on from each driver's last
+   * settlement, and two drivers rarely settled on the same day.
    */
   const drafts = useMemo(() => state.drivers.map((driver) => {
+    const period = nextPeriodForDriver(shipments, payouts, driver.id);
+    if (!period) {
+      return { driver, lineItems: [], period: null, totals: summarizePayout([]) };
+    }
     let sequence = 0;
     const lineItems = buildPayoutLineItems({
       driverId: driver.id,
@@ -71,11 +75,10 @@ export default function PayoutsScreen() {
       periodStart: period.start,
       shipments,
     });
-    const alreadyIssued = isPeriodSettled(payouts, driver.id, period);
-    return { alreadyIssued, driver, lineItems, totals: summarizePayout(lineItems) };
-  }), [payouts, period, shipments, state.drivers]);
+    return { driver, lineItems, period, totals: summarizePayout(lineItems) };
+  }), [payouts, shipments, state.drivers]);
 
-  const issue = useCallback(async (driverId: string) => {
+  const issue = useCallback(async (driverId: string, period: SettlementPeriod) => {
     setBusy(driverId);
     setIssueError(null);
     const issued = await actions.issuePayout(driverId, period.start, period.end);
@@ -83,7 +86,7 @@ export default function PayoutsScreen() {
     if (!issued) {
       setIssueError("That period could not be settled. It may overlap an existing settlement or have no delivered loads.");
     }
-  }, [actions, period]);
+  }, [actions]);
 
   if (effectiveRole !== "admin") {
     return (
@@ -114,7 +117,9 @@ export default function PayoutsScreen() {
           />
         }
         showBack
-        subtitle={`${formatCents(totals.pendingCents)} outstanding`}
+        subtitle={headerPeriod
+          ? `${formatCents(totals.pendingCents)} outstanding · next ${formatSettlementPeriod(headerPeriod)}`
+          : `${formatCents(totals.pendingCents)} outstanding · all settled`}
         title="Payouts & payments"
       />
       <Screen contentContainerStyle={styles.content} safeEdges={["left", "right", "bottom"]} scroll>
@@ -186,35 +191,27 @@ export default function PayoutsScreen() {
       </Screen>
 
       {issuing ? (
-        <Sheet
-          onClose={() => setIssuing(false)}
-          title={`Settle ${formatSettlementPeriod(period)}`}
-          visible
-        >
+        <Sheet onClose={() => setIssuing(false)} title="Issue settlements" visible>
           <View style={styles.sheetBody}>
             {drafts.map((draft, index) => (
               <ListRow
-                disabled={busy !== null || draft.alreadyIssued || draft.lineItems.length === 0}
+                disabled={busy !== null || draft.period === null}
                 isLast={index === drafts.length - 1}
                 key={draft.driver.id}
                 leading={<DriverAvatar driver={draft.driver} ring={false} size={36} />}
-                onPress={() => void issue(draft.driver.id)}
+                onPress={draft.period
+                  ? () => void issue(draft.driver.id, draft.period)
+                  : undefined}
                 rich
-                subtitle={draft.alreadyIssued
-                  ? "Already settled for this period"
-                  : draft.lineItems.length === 0
-                    ? "No delivered loads in this period"
-                    : `${draft.lineItems.length} line items`}
+                subtitle={draft.period
+                  ? `${formatSettlementPeriod(draft.period)} · ${draft.lineItems.length} line items`
+                  : "Everything delivered is already settled"}
                 title={driverFullName(draft.driver)}
                 trailing={
                   <Text
                     style={[
                       styles.net,
-                      {
-                        color: draft.lineItems.length === 0 || draft.alreadyIssued
-                          ? theme.textMuted
-                          : theme.text,
-                      },
+                      { color: draft.period ? theme.text : theme.textMuted },
                     ]}
                   >
                     {formatCents(draft.totals.netCents)}
