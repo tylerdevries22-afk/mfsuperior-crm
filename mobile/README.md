@@ -14,7 +14,7 @@ Open the QR code in Expo Go, or press `i` for an iOS Simulator.
 The local Expo Go workflow is development-only. It depends on a running
 development server and is not a public deployment.
 
-### Hosted Expo Go preview (authorized Expo users only)
+### Hosted Expo Go preview (SDK 54, best effort)
 
 The demo update is published to EAS and can be opened directly from Expo Go
 without running this project locally. The viewer must be signed in to an Expo
@@ -25,12 +25,13 @@ authorized viewer this link:
 exp://u.expo.dev/b28781fa-dd92-41cd-9363-e0860729a811?runtime-version=exposdk%3A54.0.0&channel-name=demo
 ```
 
-The viewer installs Expo Go, signs in to the authorized Expo account, and taps
-the link on the iPhone. The link uses the `demo` channel, so publish future
-JavaScript and styling changes with `npm run eas:update:demo` and keep the
-runtime version compatible. Demo records remain on the viewer's device.
-The published update uses the Expo Go-compatible SDK 54 runtime
-`exposdk:54.0.0`.
+The viewer installs the SDK 54 Expo Go app, signs in to an authorized Expo
+account, and taps the link on the iPhone. The link uses the `demo` channel, so
+publish future JavaScript and styling changes with `npm run eas:update:demo`
+and keep the runtime version compatible. Demo records remain on the viewer's
+device. Expo Go on iOS is a preview sandbox; it does not reliably follow an
+EAS channel or install runtime-version updates like a release build.
+The published update uses the SDK 54 runtime `exposdk:54.0.0`.
 
 ### Share an Expo Go preview
 
@@ -42,8 +43,8 @@ npm run start:tunnel
 
 Copy the `exp://` URL or share the terminal QR code. The recipient needs Expo
 Go installed and the tunnel must remain running; closing the terminal ends the
-preview. For a durable link that works without your computer, use the EAS demo
-build through TestFlight instead.
+preview. For a reliable client install that works without your computer, use
+the EAS demo build through TestFlight instead.
 
 ## Cloud deployment and OTA updates
 
@@ -79,6 +80,13 @@ the workflow fails clearly if that secret is missing instead of silently
 leaving the phone on an old update. This does not hot-reload an already-open
 Expo Go session: close that session and reopen the hosted link to load the
 newest published update.
+
+To create the reliable client install without running anything locally, run
+the `Build Mobile Demo for TestFlight` workflow from GitHub Actions (or run
+`gh workflow run mobile-demo-testflight.yml`). It builds and submits the
+SDK 54 demo through EAS using the `demo` channel. After the first TestFlight
+install, future JavaScript, styling, and bundled-asset changes are delivered
+by the automatic `main` publish workflow.
 
 ### Authenticated production access
 
