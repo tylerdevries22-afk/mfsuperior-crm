@@ -59,6 +59,7 @@
     "lint": "eslint . --max-warnings=0",
     "test": "jest --runInBand",
     "verify:demo": "node scripts/verify-demo-release.mjs",
+    "verify:demo:bundle": "node scripts/verify-demo-bundle.mjs",
     "build": "expo export --platform all --output-dir dist",
     "eas:build:demo": "npx eas-cli@latest build --profile demo --platform ios",
     "eas:build:demo:testflight": "npx eas-cli@latest build --profile demo --platform ios --auto-submit-with-profile production",

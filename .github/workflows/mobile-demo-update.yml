@@ -53,6 +53,14 @@ jobs:
         run: npm test -- --runInBand
         working-directory: mobile
 
+      - name: Export demo iOS bundle
+        run: EXPO_PUBLIC_DEMO_AUTH_ENABLED=true npx expo export --platform ios --output-dir dist-demo-verify
+        working-directory: mobile
+
+      - name: Verify demo iOS bundle
+        run: npm run verify:demo:bundle -- dist-demo-verify
+        working-directory: mobile
+
       - name: Publish Expo demo update
         run: npm run eas:update:demo
         working-directory: mobile
