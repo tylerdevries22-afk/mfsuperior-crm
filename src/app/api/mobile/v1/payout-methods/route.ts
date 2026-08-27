@@ -1,4 +1,4 @@
-import { and, asc, eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import { driverPayoutMethods } from "@/lib/db/schema";
 import { authorizeMobileRequest } from "@/lib/mobile-api/authorize";
@@ -10,6 +10,7 @@ import {
   mergeResponseHeaders,
   parseStrictJson,
 } from "@/lib/mobile-api/http";
+import { toPayoutMethod } from "@/lib/mobile-api/route-serializers";
 
 /**
  * A driver's payout handles.
@@ -108,34 +109,4 @@ export async function POST(request: Request) {
   } catch (error) {
     return apiFailureResponse(error, requestId, "payout-methods.write");
   }
-}
-
-export function toPayoutMethod(row: typeof driverPayoutMethods.$inferSelect) {
-  return {
-    createdAt: row.createdAt.toISOString(),
-    driverId: row.driverId,
-    handle: row.handle,
-    id: row.id,
-    isDefault: row.isDefault,
-    label: row.label,
-    rail: row.rail,
-    updatedAt: row.updatedAt.toISOString(),
-  };
-}
-
-/** Shared by the two id-scoped routes below. */
-export async function listOwnMethods(driverId: string) {
-  const rows = await db
-    .select()
-    .from(driverPayoutMethods)
-    .where(eq(driverPayoutMethods.driverId, driverId))
-    .orderBy(asc(driverPayoutMethods.rail));
-  return rows.map(toPayoutMethod);
-}
-
-export function ownMethodPredicate(driverId: string, methodId: string) {
-  return and(
-    eq(driverPayoutMethods.id, methodId),
-    eq(driverPayoutMethods.driverId, driverId),
-  );
 }

@@ -42,6 +42,7 @@ export default function JobsScreen() {
     availabilityBlocks,
     availabilityRules,
     effectiveRole,
+    isDemo,
     shipments,
     state,
   } = useOperations();
@@ -110,6 +111,18 @@ export default function JobsScreen() {
     setBusy(false);
   }, [actions]);
 
+  const addDemoLoad = useCallback(async () => {
+    if (!isDemo) {
+      return;
+    }
+    setBusy(true);
+    const added = await actions.addDemoUnassignedLoad();
+    setBusy(false);
+    if (added) {
+      setLane("unassigned");
+    }
+  }, [actions, isDemo]);
+
   if (effectiveRole !== "admin") {
     return (
       <View style={[styles.fill, { backgroundColor: theme.background }]}>
@@ -135,6 +148,22 @@ export default function JobsScreen() {
         title="Jobs"
       />
       <Screen contentContainerStyle={styles.content} safeEdges={["left", "right", "bottom"]} scroll>
+        {isDemo ? (
+          <Card variant="tinted">
+            <View style={styles.demoLoadCopy}>
+              <Text style={[styles.demoLoadTitle, { color: theme.text }]}>Demo load generator</Text>
+              <Text style={[styles.demoLoadDescription, { color: theme.textSecondary }]}>Add a realistic accepted load to the unassigned lane without contacting a carrier or partner.</Text>
+            </View>
+            <AnimatedButton
+              accessibilityLabel="Add demo unassigned load"
+              fullWidth
+              icon={<Feather color={theme.primaryForeground} name="plus" size={16} />}
+              loading={busy}
+              onPress={() => void addDemoLoad()}
+              title="Add unassigned load"
+            />
+          </Card>
+        ) : null}
         <SegmentedControl
           accessibilityLabel="Dispatch lane"
           onChange={setLane}
@@ -322,6 +351,9 @@ function Meta({
 const styles = StyleSheet.create({
   actions: { flexDirection: "row", gap: SPACE.xs },
   content: { gap: SPACE.md, paddingBottom: SPACE.xxl },
+  demoLoadCopy: { gap: SPACE.xs, marginBottom: SPACE.md },
+  demoLoadDescription: { ...TYPO.caption },
+  demoLoadTitle: { ...TYPO.cardTitle },
   driverName: { ...TYPO.caption },
   driverRow: { alignItems: "center", flexDirection: "row", gap: SPACE.xs },
   exception: {

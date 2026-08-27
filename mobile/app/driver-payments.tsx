@@ -17,6 +17,7 @@ import {
   Sheet,
   StatusBadge,
 } from "@/components/ui";
+import { PayoutRailLogo } from "@/components/operations";
 import type { Payout, PayoutMethod, PayoutMethodInput, PayoutRail } from "@/domain/types";
 import { PayoutMethodSheet } from "@/route-support/driver-payments/_components/PayoutMethodSheet";
 import {
@@ -265,9 +266,7 @@ function RailRow({
         onPress={onEdit}
         style={styles.railMain}
       >
-        <View style={[styles.railIcon, { backgroundColor: theme.tint.primary.muted }]}>
-          <Feather color={theme.primaryLight} name={presentation.icon} size={ICON.md} />
-        </View>
+        <PayoutRailLogo rail={presentation.rail} />
         <View style={styles.grow}>
           <View style={styles.railTitleRow}>
             <Text style={[styles.railTitle, { color: theme.text }]}>{presentation.label}</Text>
@@ -502,7 +501,6 @@ const styles = StyleSheet.create({
     paddingRight: SPACE.md,
   },
   railHandle: { ...TYPO.caption, marginTop: 2 },
-  railIcon: { alignItems: "center", borderRadius: 12, height: 40, justifyContent: "center", width: 40 },
   railMain: {
     alignItems: "center",
     flexDirection: "row",

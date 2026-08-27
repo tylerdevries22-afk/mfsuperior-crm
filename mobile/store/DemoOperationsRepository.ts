@@ -16,6 +16,11 @@ import {
   transitionHosStatus,
   transitionShipmentStatus,
 } from "../domain/transitions";
+import {
+  driverShiftConflict,
+  eligibleCoverageDrivers,
+  shiftInputToRecord,
+} from "../domain/scheduling";
 import { buildPayoutLineItems, summarizePayout } from "../domain/payouts";
 import type {
   AppRole,
@@ -29,6 +34,8 @@ import type {
   CustomerRequest,
   DemoOperationsState,
   Driver,
+  DriverShift,
+  DriverShiftInput,
   EdiTransaction,
   EdiTransactionType,
   EntityId,
@@ -49,10 +56,13 @@ import type {
   ProofOfDelivery,
   ProofOfDeliveryInput,
   SendMessageInput,
+  ScheduleSyncStatus,
   Shipment,
   ShipmentEvent,
   ShipmentEventSource,
   ShipmentStatus,
+  ShiftCoverageRequest,
+  ShiftCoverageRequestInput,
   Vehicle,
   VehicleInput,
 } from "../domain/types";
@@ -291,6 +301,38 @@ export class DemoOperationsRepository implements OperationsRepository {
       };
       const nextState: DemoOperationsState = replaceShipment(state, assignedShipment, occurredAt);
       return { state: nextState, result: assignedShipment };
+    });
+  }
+
+  addDemoUnassignedLoad(): Promise<Shipment> {
+    return this.commit((state, occurredAt) => {
+      const context = getSessionContext(state);
+      requireRole(context, "admin", "Only an admin can add a demo load.");
+      const template = state.shipments.find((shipment) => shipment.status === "tendered")
+        ?? state.shipments.find((shipment) => !shipment.assignedDriverId);
+      if (!template) {
+        throw new OperationsDomainError("NOT_FOUND", "No shipment template is available for the demo load.");
+      }
+
+      const shipmentId = nextDemoShipmentId(state, occurredAt);
+      const shipment: Shipment = {
+        ...template,
+        id: shipmentId,
+        loadNumber: nextDemoLoadNumber(state),
+        purchaseOrderNumber: `${shipmentId}-PO`,
+        billOfLadingNumber: `${shipmentId}-BOL`,
+        proNumber: `${shipmentId}-PRO`,
+        assignedDriverId: undefined,
+        status: "accepted",
+        stops: createDemoStops(template, shipmentId, occurredAt),
+        events: [createDemoAcceptanceEvent(this.nextId("event", occurredAt), shipmentId, occurredAt)],
+        createdAt: occurredAt,
+        updatedAt: occurredAt,
+      };
+      return {
+        result: shipment,
+        state: { ...state, shipments: [...state.shipments, shipment], updatedAt: occurredAt },
+      };
     });
   }
 
@@ -949,6 +991,227 @@ export class DemoOperationsRepository implements OperationsRepository {
     });
   }
 
+  setDriverShift(input: DriverShiftInput): Promise<DriverShift> {
+    return this.commit((state, occurredAt) => {
+      requireRole(getSessionContext(state), "admin", "Only an admin can manage driver shifts.");
+      findDriver(state, input.driverId);
+      const startsAt = normalizedIsoDateTime(input.startsAt);
+      const endsAt = normalizedIsoDateTime(input.endsAt);
+      if (Date.parse(endsAt) <= Date.parse(startsAt)) {
+        throw new OperationsDomainError(
+          "VALIDATION_FAILED",
+          "A shift has to end after it starts.",
+        );
+      }
+
+      const existing = input.id
+        ? state.driverShifts.find((shift) => shift.id === input.id)
+        : undefined;
+      if (input.id && !existing) {
+        throw new OperationsDomainError("NOT_FOUND", "That driver shift could not be found.");
+      }
+      const shift = shiftInputToRecord(
+        {
+          ...input,
+          endsAt,
+          startsAt,
+          status: input.status ?? existing?.status,
+        },
+        existing?.id ?? this.nextId("shift", occurredAt),
+        occurredAt,
+      );
+      const conflict = driverShiftConflict(state, shift);
+      if (conflict) {
+        throw new OperationsDomainError("VALIDATION_FAILED", conflict);
+      }
+
+      const sync = scheduleSyncForShift(state.scheduleSyncStatuses, shift.id, occurredAt);
+      const nextState: DemoOperationsState = {
+        ...state,
+        driverShifts: [...state.driverShifts.filter((candidate) => candidate.id !== shift.id), shift],
+        scheduleSyncStatuses: [
+          ...state.scheduleSyncStatuses.filter((candidate) => candidate.entityId !== shift.id),
+          sync,
+        ],
+        updatedAt: occurredAt,
+      };
+      return { result: shift, state: nextState };
+    });
+  }
+
+  removeDriverShift(shiftId: EntityId): Promise<DemoOperationsState> {
+    return this.commit((state, occurredAt) => {
+      requireRole(getSessionContext(state), "admin", "Only an admin can remove driver shifts.");
+      findDriverShift(state, shiftId);
+      const nextState: DemoOperationsState = {
+        ...state,
+        driverShifts: state.driverShifts.filter((shift) => shift.id !== shiftId),
+        shiftCoverageRequests: state.shiftCoverageRequests.map((request) => (
+          request.shiftId === shiftId && request.status === "pending"
+            ? { ...request, status: "closed", respondedAt: occurredAt }
+            : request
+        )),
+        scheduleSyncStatuses: state.scheduleSyncStatuses.filter((sync) => sync.entityId !== shiftId),
+        updatedAt: occurredAt,
+      };
+      return { result: nextState, state: nextState };
+    });
+  }
+
+  requestShiftCoverage(input: ShiftCoverageRequestInput): Promise<ShiftCoverageRequest> {
+    return this.commit((state, occurredAt) => {
+      const context = getSessionContext(state);
+      const shift = findDriverShift(state, input.shiftId);
+      if (context.effectiveRole === "driver" && shift.driverId !== requireDriverId(context)) {
+        throw new OperationsDomainError(
+          "UNAUTHORIZED",
+          "A driver can only request coverage for their own shift.",
+        );
+      }
+      if (Date.parse(shift.startsAt) <= Date.parse(occurredAt)) {
+        throw new OperationsDomainError(
+          "VALIDATION_FAILED",
+          "Only future shifts can be sent for coverage.",
+        );
+      }
+      const target = eligibleCoverageDrivers(state, shift).find(
+        (candidate) => candidate.driver.id === input.targetDriverId,
+      );
+      if (!target) {
+        throw new OperationsDomainError(
+          "VALIDATION_FAILED",
+          "That driver is no longer qualified, available, or conflict-free for this shift.",
+        );
+      }
+      if (state.shiftCoverageRequests.some((request) => (
+        request.shiftId === input.shiftId &&
+        request.targetDriverId === input.targetDriverId &&
+        request.status === "pending"
+      ))) {
+        throw new OperationsDomainError(
+          "INVALID_TRANSITION",
+          "A coverage request is already waiting for that driver.",
+        );
+      }
+
+      const request: ShiftCoverageRequest = {
+        createdAt: occurredAt,
+        fromDriverId: shift.driverId,
+        id: this.nextId("coverage", occurredAt),
+        requestedByAccountId: context.account.id,
+        shiftId: shift.id,
+        status: "pending",
+        targetDriverId: target.driver.id,
+      };
+      return {
+        result: request,
+        state: {
+          ...state,
+          shiftCoverageRequests: [...state.shiftCoverageRequests, request],
+          updatedAt: occurredAt,
+        },
+      };
+    });
+  }
+
+  respondToShiftCoverage(
+    requestId: EntityId,
+    response: "accepted" | "declined",
+  ): Promise<ShiftCoverageRequest> {
+    return this.commit((state, occurredAt) => {
+      const context = getSessionContext(state);
+      const request = state.shiftCoverageRequests.find((candidate) => candidate.id === requestId);
+      if (!request) {
+        throw new OperationsDomainError("NOT_FOUND", "That coverage request could not be found.");
+      }
+      if (request.status !== "pending") {
+        throw new OperationsDomainError("INVALID_TRANSITION", "That coverage request is already closed.");
+      }
+      if (context.effectiveRole === "driver" && request.targetDriverId !== requireDriverId(context)) {
+        throw new OperationsDomainError("UNAUTHORIZED", "This coverage request is assigned to another driver.");
+      }
+      const shift = findDriverShift(state, request.shiftId);
+      if (response === "accepted") {
+        const eligible = eligibleCoverageDrivers(state, shift).some(
+          (candidate) => candidate.driver.id === request.targetDriverId,
+        );
+        if (!eligible) {
+          throw new OperationsDomainError(
+            "VALIDATION_FAILED",
+            "This driver is no longer eligible for the shift.",
+          );
+        }
+      }
+
+      const updatedRequest: ShiftCoverageRequest = {
+        ...request,
+        respondedAt: occurredAt,
+        status: response,
+      };
+      let nextState: DemoOperationsState = {
+        ...state,
+        shiftCoverageRequests: state.shiftCoverageRequests.map((candidate) => (
+          candidate.id === request.id
+            ? updatedRequest
+            : response === "accepted" && candidate.shiftId === request.shiftId && candidate.status === "pending"
+              ? { ...candidate, respondedAt: occurredAt, status: "closed" }
+              : candidate
+        )),
+        updatedAt: occurredAt,
+      };
+      if (response === "accepted") {
+        const transferred: DriverShift = { ...shift, driverId: request.targetDriverId, updatedAt: occurredAt };
+        const sync = scheduleSyncForShift(nextState.scheduleSyncStatuses, shift.id, occurredAt);
+        nextState = {
+          ...nextState,
+          driverShifts: nextState.driverShifts.map((candidate) => (
+            candidate.id === shift.id ? transferred : candidate
+          )),
+          scheduleSyncStatuses: [
+            ...nextState.scheduleSyncStatuses.filter((candidate) => candidate.entityId !== shift.id),
+            sync,
+          ],
+        };
+      }
+      return { result: updatedRequest, state: nextState };
+    });
+  }
+
+  retryScheduleSync(shiftId: EntityId): Promise<ScheduleSyncStatus> {
+    return this.commit((state, occurredAt) => {
+      requireRole(getSessionContext(state), "admin", "Only an admin can retry Target sync.");
+      findDriverShift(state, shiftId);
+      const current = state.scheduleSyncStatuses.find((candidate) => candidate.entityId === shiftId);
+      const sync: ScheduleSyncStatus = {
+        ...(current ?? {
+          entityType: "shift" as const,
+          id: this.nextId("sync", occurredAt),
+          entityId: shiftId,
+          provider: "target" as const,
+          status: "pending" as const,
+          attempts: 0,
+          updatedAt: occurredAt,
+        }),
+        attempts: (current?.attempts ?? 0) + 1,
+        lastAttemptAt: occurredAt,
+        lastError: "Target credentials are not configured yet.",
+        status: "pending",
+        updatedAt: occurredAt,
+      };
+      return {
+        result: sync,
+        state: {
+          ...state,
+          scheduleSyncStatuses: [
+            ...state.scheduleSyncStatuses.filter((candidate) => candidate.entityId !== shiftId),
+            sync,
+          ],
+          updatedAt: occurredAt,
+        },
+      };
+    });
+  }
+
   /**
    * Payout handles. Driver-only and scoped to the signed-in driver — an admin
    * has no read path to a raw handle through this repository at all.
@@ -1469,6 +1732,34 @@ function findDriver(state: DemoOperationsState, driverId: EntityId): Driver {
   return driver;
 }
 
+function findDriverShift(state: DemoOperationsState, shiftId: EntityId): DriverShift {
+  const shift = state.driverShifts.find((candidate) => candidate.id === shiftId);
+  if (!shift) {
+    throw new OperationsDomainError("NOT_FOUND", "The driver shift could not be found.");
+  }
+  return shift;
+}
+
+function scheduleSyncForShift(
+  statuses: readonly ScheduleSyncStatus[],
+  shiftId: EntityId,
+  occurredAt: string,
+): ScheduleSyncStatus {
+  const existing = statuses.find((candidate) => candidate.entityId === shiftId);
+  return {
+    ...(existing ?? {
+      entityType: "shift" as const,
+      entityId: shiftId,
+      id: `sync-${shiftId}`,
+      provider: "target" as const,
+      attempts: 0,
+    }),
+    lastError: undefined,
+    status: "pending",
+    updatedAt: occurredAt,
+  };
+}
+
 function findVehicle(state: DemoOperationsState, vehicleId: EntityId): Vehicle {
   const vehicle = state.vehicles.find((candidate) => candidate.id === vehicleId);
   if (!vehicle) {
@@ -1483,6 +1774,84 @@ function findShipment(state: DemoOperationsState, shipmentId: EntityId): Shipmen
     throw new OperationsDomainError("NOT_FOUND", "The shipment could not be found.", { shipmentId });
   }
   return shipment;
+}
+
+function nextDemoShipmentId(state: DemoOperationsState, occurredAt: IsoDateTime): EntityId {
+  const timestamp = Date.parse(occurredAt);
+  let ordinal = 1;
+  let id = `shipment-demo-${timestamp}-${ordinal}`;
+  while (state.shipments.some((shipment) => shipment.id === id)) {
+    ordinal += 1;
+    id = `shipment-demo-${timestamp}-${ordinal}`;
+  }
+  return id;
+}
+
+function nextDemoLoadNumber(state: DemoOperationsState): string {
+  const highest = state.shipments.reduce((currentHighest, shipment) => {
+    const match = /^MF-DEMO-(\d+)$/.exec(shipment.loadNumber);
+    return match ? Math.max(currentHighest, Number(match[1])) : currentHighest;
+  }, 0);
+  return `MF-DEMO-${String(highest + 1).padStart(3, "0")}`;
+}
+
+function createDemoStops(
+  template: Shipment,
+  shipmentId: EntityId,
+  occurredAt: IsoDateTime,
+): Shipment["stops"] {
+  const pickup = template.stops.find((stop) => stop.type === "pickup") ?? template.stops[0];
+  const delivery = template.stops.find((stop) => stop.type === "delivery") ?? template.stops.at(-1);
+  if (!pickup || !delivery) {
+    throw new OperationsDomainError("VALIDATION_FAILED", "The demo shipment template has no route stops.");
+  }
+
+  const pickupStart = addMinutes(occurredAt, 90);
+  const deliveryStart = addMinutes(occurredAt, 540);
+  return [
+    createDemoStop(pickup, `${shipmentId}-pickup`, 1, pickupStart, addMinutes(pickupStart, 60)),
+    createDemoStop(delivery, `${shipmentId}-delivery`, 2, deliveryStart, addMinutes(deliveryStart, 60)),
+  ];
+}
+
+function createDemoStop(
+  template: Shipment["stops"][number],
+  id: EntityId,
+  sequence: number,
+  startsAt: IsoDateTime,
+  endsAt: IsoDateTime,
+): Shipment["stops"][number] {
+  return {
+    ...template,
+    id,
+    sequence,
+    status: "pending",
+    appointment: { ...template.appointment, startsAt, endsAt },
+    arrivedAt: undefined,
+    completedAt: undefined,
+  };
+}
+
+function addMinutes(value: IsoDateTime, minutes: number): IsoDateTime {
+  return new Date(Date.parse(value) + minutes * 60_000).toISOString();
+}
+
+function createDemoAcceptanceEvent(
+  id: EntityId,
+  shipmentId: EntityId,
+  occurredAt: IsoDateTime,
+): ShipmentEvent {
+  return {
+    id,
+    shipmentId,
+    type: "tender_accepted",
+    eventCode: "990",
+    source: "admin",
+    occurredAt,
+    description: "Demo load accepted and waiting for driver assignment.",
+    resultingStatus: "accepted",
+    isSimulated: true,
+  };
 }
 
 function assertCanOperateShipment(context: SessionContext, shipment: Shipment): void {

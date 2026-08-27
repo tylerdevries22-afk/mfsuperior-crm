@@ -12,7 +12,7 @@ import {
   parseStrictJson,
 } from "@/lib/mobile-api/http";
 import { parseRouteId } from "@/lib/mobile-api/shipment-mutations";
-import { toPayout } from "../../route";
+import { toPayout } from "@/lib/mobile-api/route-serializers";
 
 type RouteContext = { params: Promise<{ id: string }> };
 

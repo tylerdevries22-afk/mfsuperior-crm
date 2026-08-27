@@ -119,6 +119,55 @@ describe("availability authorization", () => {
   });
 });
 
+describe("driver shift coverage", () => {
+  it("lets an admin create a shift and rejects hard conflicts", async () => {
+    const repository = await signedInAs("admin");
+    const created = await repository.setDriverShift({
+      driverId: "driver-ray",
+      endsAt: "2026-09-02T16:00:00.000Z",
+      startsAt: "2026-09-02T08:00:00.000Z",
+    });
+    expect(created.status).toBe("scheduled");
+    expect(repository.getState().scheduleSyncStatuses.find((sync) => sync.entityId === created.id)?.status).toBe("pending");
+    await expect(repository.setDriverShift({
+      driverId: "driver-ray",
+      endsAt: "2026-09-02T12:00:00.000Z",
+      startsAt: "2026-09-02T10:00:00.000Z",
+    })).rejects.toThrow(/another shift/);
+  });
+
+  it("requires the target driver to approve before transferring one shift", async () => {
+    const repository = await signedInAs("admin");
+    const request = repository.getState().shiftCoverageRequests[0];
+    expect(request?.status).toBe("pending");
+    const originalShipmentAssignments = repository.getState().shipments.map((shipment) => ({
+      driverId: shipment.assignedDriverId,
+      id: shipment.id,
+    }));
+    const declined = await repository.respondToShiftCoverage(request?.id ?? "", "declined");
+    expect(declined.status).toBe("declined");
+    expect(repository.getState().driverShifts.find((shift) => shift.id === request?.shiftId)?.driverId).toBe(request?.fromDriverId);
+
+    const secondRequest = await repository.requestShiftCoverage({
+      shiftId: request?.shiftId ?? "",
+      targetDriverId: "driver-brenna",
+    });
+    const accepted = await repository.respondToShiftCoverage(secondRequest.id, "accepted");
+    expect(accepted.status).toBe("accepted");
+    expect(repository.getState().driverShifts.find((shift) => shift.id === secondRequest.shiftId)?.driverId).toBe("driver-brenna");
+    expect(repository.getState().shipments.map((shipment) => ({ driverId: shipment.assignedDriverId, id: shipment.id }))).toEqual(originalShipmentAssignments);
+  });
+
+  it("allows a driver to request coverage only for a future shift", async () => {
+    const repository = await signedInAs("driver");
+    const ownShift = repository.getState().driverShifts.find((shift) => shift.driverId === "driver-brenna");
+    await expect(repository.requestShiftCoverage({
+      shiftId: ownShift?.id ?? "",
+      targetDriverId: "driver-samuel",
+    })).rejects.toThrow(/future shifts/);
+  });
+});
+
 describe("payout methods", () => {
   it("keeps handles out of the operations state entirely", async () => {
     const repository = await signedInAs("driver");

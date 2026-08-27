@@ -10,11 +10,21 @@ import { SPACE, useTheme } from "@/theme";
 export default function EdiAuditScreen() {
   const router = useRouter();
   const theme = useTheme();
-  const { ediTransactions, shipments } = useOperations();
+  const { ediTransactions, effectiveRole, shipments } = useOperations();
   const transactions = useMemo(
     () => [...ediTransactions].sort((left, right) => right.createdAt.localeCompare(left.createdAt)),
     [ediTransactions],
   );
+  if (effectiveRole !== "admin") {
+    return (
+      <View style={[styles.fill, { backgroundColor: theme.background }]}>
+        <Header centered onBack={() => router.back()} showBack title="X12 audit" />
+        <Screen safeEdges={["left", "right", "bottom"]}>
+          <EmptyState message="The X12 audit is available to admin users only." title="Admin role required" />
+        </Screen>
+      </View>
+    );
+  }
   const outboundCount = transactions.filter(({ direction }) => direction === "outbound").length;
   const attentionCount = transactions.filter(({ status }) => status === "failed").length;
 

@@ -5,7 +5,7 @@ import type { ColorValue } from "react-native";
 import { useOperations } from "@/store";
 import { useTheme } from "@/theme";
 
-const INTERNAL_TABS = new Set(["schedule", "assistant", "hq"]);
+const INTERNAL_TABS = new Set(["schedule", "assistant", "hq", "fleet"]);
 const CUSTOMER_TABS = new Set(["shipments", "requests"]);
 
 // Expo Router's public prop is typed as ColorValue even though the iOS native
@@ -20,9 +20,11 @@ export default function TabLayout() {
   const currentTab = (segments as readonly string[])[1];
   const isCustomer = effectiveRole === "customer";
   const isStaff = effectiveRole === "admin" || effectiveRole === "driver";
+  const isAdmin = effectiveRole === "admin";
 
   const blocked = (isCustomer && INTERNAL_TABS.has(currentTab ?? ""))
-    || (isStaff && CUSTOMER_TABS.has(currentTab ?? ""));
+    || (isStaff && CUSTOMER_TABS.has(currentTab ?? ""))
+    || (currentTab === "fleet" && !isAdmin);
   if (blocked) return <Redirect href="/(tabs)" />;
 
   // Keep minimizeBehavior and disableTransparentOnScrollEdge unset so UIKit's
@@ -47,9 +49,14 @@ export default function TabLayout() {
         <Label>Schedule</Label>
       </NativeTabs.Trigger>
 
-      <NativeTabs.Trigger name="assistant" hidden={!isStaff}>
+      <NativeTabs.Trigger name="assistant" hidden>
         <Icon drawable="assistant" sf="sparkles" />
         <Label>Assistant</Label>
+      </NativeTabs.Trigger>
+
+      <NativeTabs.Trigger name="fleet" hidden={!isAdmin}>
+        <Icon drawable="local_shipping" sf={{ default: "truck.box", selected: "truck.box.fill" }} />
+        <Label>Fleet</Label>
       </NativeTabs.Trigger>
 
       <NativeTabs.Trigger name="hq" hidden={!isStaff}>

@@ -18,6 +18,7 @@ const logo = require("@/assets/brand/mf-logo-mark.png") as ImageSourcePropType;
 export default function LoginScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const { accounts } = useOperations();
   const [mode, setMode] = useState<SheetMode>("sign-in");
   const [sheetVisible, setSheetVisible] = useState(false);
   const [email, setEmail] = useState("");
@@ -36,7 +37,16 @@ export default function LoginScreen() {
     setSheetVisible(true);
   };
 
-  return <View style={[styles.container, { backgroundColor: theme.background, paddingBottom: insets.bottom + SPACE.lg }]}><View style={styles.center}><View style={[styles.logoFrame, { backgroundColor: theme.surface, borderColor: theme.border }]}><Image accessibilityLabel="MF Superior Products" source={logo} style={styles.logo} /></View><Text style={[styles.title, { color: theme.text }]}>MF Superior Products</Text><Text style={[styles.subtitle, { color: theme.textSecondary }]}>Freight capacity &amp; operations</Text>{runtimeMode === "demo" ? <View style={[styles.demoPill, { backgroundColor: theme.primaryMuted, borderColor: theme.tint.primary.medium }]}><View style={[styles.demoDot, { backgroundColor: theme.primaryLight }]} /><Text style={[styles.demoText, { color: theme.primaryLight }]}>DEMO WORKSPACE</Text></View> : null}</View><View style={styles.bottom}><AnimatedButton fullWidth icon={<Feather color={theme.primaryForeground} name="log-in" size={18} />} iconPosition="right" onPress={() => openSheet("sign-in")} size="lg" title="Sign In" /><View style={styles.divider}><View style={[styles.line, { backgroundColor: theme.border }]} /><Text style={[styles.or, { color: theme.textMuted }]}>or</Text><View style={[styles.line, { backgroundColor: theme.border }]} /></View><Pressable accessibilityRole="button" onPress={() => openSheet("sign-up")} style={({ pressed }) => [styles.createButton, { backgroundColor: theme.surfaceElevated, borderColor: theme.border }, pressed && styles.pressed]}><Feather color={theme.primaryLight} name="user-plus" size={18} /><Text style={[styles.createButtonText, { color: theme.text }]}>Create customer account</Text></Pressable><Text style={[styles.inviteNote, { color: theme.textMuted }]}>Admins and drivers join by invitation. Google Workspace connects from Profile after sign-in.</Text><Text style={[styles.terms, { color: theme.textMuted }]}>By continuing, you agree to our Terms of Service and Privacy Policy.</Text></View><AuthSheet busy={busy} completion={completion} email={email} error={error} fullName={fullName} mode={mode} onClose={() => setSheetVisible(false)} onEmail={setEmail} onError={setError} onFullName={setFullName} onMode={setMode} onPassword={setPassword} onSetBusy={setBusy} onSetCompletion={setCompletion} onShowPassword={() => setShowPassword((current) => !current)} password={password} showPassword={showPassword} visible={sheetVisible} /></View>;
+  const openDemoLogin = (account: (typeof accounts)[number]) => {
+    setMode("sign-in");
+    setEmail(account.email);
+    setPassword(account.demoPin ?? "");
+    setError(null);
+    setCompletion(null);
+    setSheetVisible(true);
+  };
+
+  return <View style={[styles.container, { backgroundColor: theme.background, paddingBottom: insets.bottom + SPACE.lg }]}><View style={styles.center}><View style={[styles.logoFrame, { backgroundColor: theme.surface, borderColor: theme.border }]}><Image accessibilityLabel="MF Superior Products" source={logo} style={styles.logo} /></View><Text style={[styles.title, { color: theme.text }]}>MF Superior Products</Text><Text style={[styles.subtitle, { color: theme.textSecondary }]}>Freight capacity &amp; operations</Text>{runtimeMode === "demo" ? <View style={[styles.demoPill, { backgroundColor: theme.primaryMuted, borderColor: theme.tint.primary.medium }]}><View style={[styles.demoDot, { backgroundColor: theme.primaryLight }]} /><Text style={[styles.demoText, { color: theme.primaryLight }]}>DEMO WORKSPACE</Text></View> : null}</View><View style={styles.bottom}><AnimatedButton fullWidth icon={<Feather color={theme.primaryForeground} name="log-in" size={18} />} iconPosition="right" onPress={() => openSheet("sign-in")} size="lg" title="Sign In" />{runtimeMode === "demo" ? <QuickDemoAccess accounts={accounts} onSelect={openDemoLogin} /> : null}<View style={styles.divider}><View style={[styles.line, { backgroundColor: theme.border }]} /><Text style={[styles.or, { color: theme.textMuted }]}>or</Text><View style={[styles.line, { backgroundColor: theme.border }]} /></View><Pressable accessibilityRole="button" onPress={() => openSheet("sign-up")} style={({ pressed }) => [styles.createButton, { backgroundColor: theme.surfaceElevated, borderColor: theme.border }, pressed && styles.pressed]}><Feather color={theme.primaryLight} name="user-plus" size={18} /><Text style={[styles.createButtonText, { color: theme.text }]}>Create customer account</Text></Pressable><Text style={[styles.inviteNote, { color: theme.textMuted }]}>Admins and drivers join by invitation. Google Workspace connects from Profile after sign-in.</Text><Text style={[styles.terms, { color: theme.textMuted }]}>By continuing, you agree to our Terms of Service and Privacy Policy.</Text></View><AuthSheet busy={busy} completion={completion} email={email} error={error} fullName={fullName} mode={mode} onClose={() => setSheetVisible(false)} onEmail={setEmail} onError={setError} onFullName={setFullName} onMode={setMode} onPassword={setPassword} onSetBusy={setBusy} onSetCompletion={setCompletion} onShowPassword={() => setShowPassword((current) => !current)} password={password} showPassword={showPassword} visible={sheetVisible} /></View>;
 }
 
 interface AuthSheetProps {
@@ -103,6 +113,13 @@ function AuthInput({ icon, label, onEye, ...inputProps }: { readonly icon: "user
   return <View style={styles.field}><Text style={[styles.inputLabel, { color: theme.textSecondary }]}>{label}</Text><View style={[styles.inputWrap, { backgroundColor: theme.surfaceElevated, borderColor: theme.border }]}><Feather color={theme.textMuted} name={icon} size={18} /><TextInput accessibilityLabel={label} placeholderTextColor={theme.textMuted} style={[styles.input, { color: theme.text }]} {...inputProps} />{onEye ? <Pressable accessibilityLabel="Toggle password visibility" accessibilityRole="button" hitSlop={8} onPress={onEye}><Feather color={theme.textMuted} name={inputProps.secureTextEntry ? "eye" : "eye-off"} size={18} /></Pressable> : null}</View></View>;
 }
 
+function QuickDemoAccess({ accounts, onSelect }: { readonly accounts: readonly ReturnType<typeof useOperations>["accounts"][number][]; readonly onSelect: (account: ReturnType<typeof useOperations>["accounts"][number]) => void }) {
+  const theme = useTheme();
+  const demoAccounts = accounts.filter((account) => account.demoPin !== undefined);
+  if (demoAccounts.length === 0) return null;
+  return <View style={[styles.quickAccess, { backgroundColor: theme.surface, borderColor: theme.border }]} testID="quick-demo-access"><View style={styles.quickAccessCopy}><View style={styles.quickAccessTitleRow}><Feather color={theme.primaryLight} name="zap" size={16} /><Text style={[styles.quickAccessTitle, { color: theme.text }]}>Quick demo login</Text></View><Text style={[styles.quickAccessSubtitle, { color: theme.textSecondary }]}>Choose a role to autofill its demo credentials.</Text></View><View style={styles.quickButtons}>{demoAccounts.map((account) => <Pressable accessibilityLabel={`Autofill ${account.role} demo login`} accessibilityRole="button" key={account.id} onPress={() => onSelect(account)} style={({ pressed }) => [styles.quickButton, { backgroundColor: theme.surfaceElevated, borderColor: theme.border }, pressed && styles.pressed]}><Feather color={theme.primaryLight} name={account.role === "admin" ? "shield" : account.role === "driver" ? "truck" : "user"} size={14} /><Text style={[styles.quickButtonText, { color: theme.text }]}>{account.role}</Text><Feather color={theme.textMuted} name="arrow-up-right" size={14} /></Pressable>)}</View></View>;
+}
+
 function DemoAccess({ accounts, onEmail, onPassword }: { readonly accounts: ReturnType<typeof useOperations>["accounts"]; readonly onEmail: (value: string) => void; readonly onPassword: (value: string) => void }) {
   const theme = useTheme();
   return <View style={styles.demoAccess}><View style={styles.demoLabelRow}><View style={[styles.line, { backgroundColor: theme.border }]} /><Text style={[styles.demoAccessLabel, { color: theme.textMuted }]}>DEMO ACCESS</Text><View style={[styles.line, { backgroundColor: theme.border }]} /></View><View style={styles.demoButtons}>{accounts.map((account) => <Pressable accessibilityRole="button" key={account.id} onPress={() => { onEmail(account.email); onPassword(account.demoPin ?? ""); }} style={({ pressed }) => [styles.demoButton, { backgroundColor: theme.surfaceElevated, borderColor: theme.border }, pressed && styles.pressed]}><Feather color={theme.primaryLight} name={account.role === "admin" ? "shield" : account.role === "driver" ? "truck" : "user"} size={14} /><Text style={[styles.demoButtonText, { color: theme.textSecondary }]}>{account.role}</Text></Pressable>)}</View></View>;
@@ -163,6 +180,14 @@ const styles = StyleSheet.create({
   or: { ...TYPO.caption },
   pendingNote: { ...TYPO.caption, lineHeight: 18, textAlign: "center" },
   pressed: { opacity: 0.68, transform: [{ scale: 0.98 }] },
+  quickAccess: { borderRadius: RADIUS_LEGACY.lg, borderWidth: 1, gap: SPACE.sm, padding: SPACE.md },
+  quickAccessCopy: { gap: 3 },
+  quickAccessSubtitle: { ...TYPO.caption, lineHeight: 17 },
+  quickAccessTitle: { ...TYPO.cardTitle, fontSize: 14 },
+  quickAccessTitleRow: { alignItems: "center", flexDirection: "row", gap: 7 },
+  quickButton: { alignItems: "center", borderRadius: RADIUS_LEGACY.md, borderWidth: 1, flex: 1, flexDirection: "row", gap: 5, justifyContent: "center", minHeight: 42, paddingHorizontal: 6 },
+  quickButtonText: { ...TYPO.captionStrong, textTransform: "capitalize" },
+  quickButtons: { flexDirection: "row", gap: SPACE.xs },
   sheetContent: { gap: SPACE.md, paddingBottom: SPACE.xl },
   sheetLogo: { alignSelf: "center", borderRadius: 14, height: 58, width: 58 },
   subtitle: { ...TYPO.body, textAlign: "center" },

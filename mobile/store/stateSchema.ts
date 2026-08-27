@@ -5,6 +5,9 @@ import {
   DEMO_STATE_VERSION,
   HOS_DUTY_STATUSES,
   PAYOUT_STATUSES,
+  DRIVER_SHIFT_STATUSES,
+  SHIFT_COVERAGE_REQUEST_STATUSES,
+  SCHEDULE_SYNC_STATUSES,
   SHIPMENT_STATUSES,
   VEHICLE_STATUSES,
   type DemoOperationsState,
@@ -16,6 +19,9 @@ const dutyStatusSet = new Set<string>(HOS_DUTY_STATUSES);
 const availabilityKindSet = new Set<string>(AVAILABILITY_KINDS);
 const payoutStatusSet = new Set<string>(PAYOUT_STATUSES);
 const vehicleStatusSet = new Set<string>(VEHICLE_STATUSES);
+const driverShiftStatusSet = new Set<string>(DRIVER_SHIFT_STATUSES);
+const coverageRequestStatusSet = new Set<string>(SHIFT_COVERAGE_REQUEST_STATUSES);
+const scheduleSyncStatusSet = new Set<string>(SCHEDULE_SYNC_STATUSES);
 
 export function serializeDemoOperationsState(state: DemoOperationsState): string {
   return JSON.stringify(state);
@@ -64,6 +70,9 @@ export function isDemoOperationsState(value: unknown): value is DemoOperationsSt
     !isRecordArray(value.vehicles) ||
     !isRecordArray(value.availabilityBlocks) ||
     !isRecordArray(value.availabilityRules) ||
+    !isRecordArray(value.driverShifts) ||
+    !isRecordArray(value.shiftCoverageRequests) ||
+    !isRecordArray(value.scheduleSyncStatuses) ||
     !isRecordArray(value.maintenanceOrders) ||
     !isRecordArray(value.complianceDocuments) ||
     !isRecordArray(value.payouts)
@@ -83,6 +92,9 @@ export function isDemoOperationsState(value: unknown): value is DemoOperationsSt
     !value.vehicles.every(isVehicle) ||
     !value.availabilityBlocks.every(isAvailabilityBlock) ||
     !value.availabilityRules.every(isAvailabilityRule) ||
+    !value.driverShifts.every(isDriverShift) ||
+    !value.shiftCoverageRequests.every(isShiftCoverageRequest) ||
+    !value.scheduleSyncStatuses.every(isScheduleSyncStatus) ||
     !value.maintenanceOrders.every(isMaintenanceOrder) ||
     !value.complianceDocuments.every(isComplianceDocument) ||
     !value.payouts.every(isPayout)
@@ -243,6 +255,48 @@ function isAvailabilityRule(value: Record<string, unknown>): boolean {
     value.endMinute > value.startMinute &&
     value.endMinute <= 1440 &&
     isIsoDateTime(value.effectiveFrom)
+  );
+}
+
+function isDriverShift(value: Record<string, unknown>): boolean {
+  return (
+    hasStringId(value) &&
+    isNonEmptyString(value.driverId) &&
+    typeof value.status === "string" &&
+    driverShiftStatusSet.has(value.status) &&
+    isIsoDateTime(value.startsAt) &&
+    isIsoDateTime(value.endsAt) &&
+    Date.parse(value.endsAt) > Date.parse(value.startsAt) &&
+    (value.note === undefined || typeof value.note === "string")
+  );
+}
+
+function isShiftCoverageRequest(value: Record<string, unknown>): boolean {
+  return (
+    hasStringId(value) &&
+    isNonEmptyString(value.shiftId) &&
+    isNonEmptyString(value.fromDriverId) &&
+    isNonEmptyString(value.targetDriverId) &&
+    isNonEmptyString(value.requestedByAccountId) &&
+    typeof value.status === "string" &&
+    coverageRequestStatusSet.has(value.status) &&
+    isIsoDateTime(value.createdAt) &&
+    (value.respondedAt === undefined || isIsoDateTime(value.respondedAt))
+  );
+}
+
+function isScheduleSyncStatus(value: Record<string, unknown>): boolean {
+  return (
+    hasStringId(value) &&
+    value.entityType === "shift" &&
+    isNonEmptyString(value.entityId) &&
+    value.provider === "target" &&
+    typeof value.status === "string" &&
+    scheduleSyncStatusSet.has(value.status) &&
+    isNonNegativeNumber(value.attempts) &&
+    (value.lastAttemptAt === undefined || isIsoDateTime(value.lastAttemptAt)) &&
+    (value.lastError === undefined || typeof value.lastError === "string") &&
+    isIsoDateTime(value.updatedAt)
   );
 }
 

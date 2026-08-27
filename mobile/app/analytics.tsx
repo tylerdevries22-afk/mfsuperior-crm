@@ -1,7 +1,7 @@
 import { useRouter } from "expo-router";
 import { StyleSheet, Text, View } from "react-native";
 
-import { Card, Header, KeyValueRow, Screen, SectionHeader, StatTile, StatusBadge } from "@/components/ui";
+import { Card, EmptyState, Header, KeyValueRow, Screen, SectionHeader, StatTile, StatusBadge } from "@/components/ui";
 import { formatCurrency } from "@/lib/operations-format";
 import { useOperations } from "@/store";
 import { SPACE, TYPO, useTheme } from "@/theme";
@@ -10,6 +10,16 @@ export default function AnalyticsScreen() {
   const router = useRouter();
   const theme = useTheme();
   const { effectiveRole, shipments, state } = useOperations();
+  if (effectiveRole !== "admin") {
+    return (
+      <View style={[styles.fill, { backgroundColor: theme.background }]}>
+        <Header centered onBack={() => router.back()} showBack title="Analytics" />
+        <Screen safeEdges={["left", "right", "bottom"]}>
+          <EmptyState message="Operational analytics are available to admin users only." title="Admin role required" />
+        </Screen>
+      </View>
+    );
+  }
   const visibleShipments = shipments;
   const delivered = visibleShipments.filter((shipment) => shipment.status === "delivered");
   const active = visibleShipments.filter((shipment) => !["delivered", "declined", "cancelled"].includes(shipment.status));
@@ -27,14 +37,14 @@ export default function AnalyticsScreen() {
         <View style={styles.intro}>
           <Text style={[styles.eyebrow, { color: theme.primaryLight }]}>OPERATIONS PERFORMANCE</Text>
           <Text style={[styles.title, { color: theme.text }]}>Freight at a glance</Text>
-          <Text style={[styles.body, { color: theme.textSecondary }]}>Shipment, service, and integration indicators derived from the current freight records.</Text>
+          <Text style={[styles.body, { color: theme.textSecondary }]}>Shipment and service indicators derived from the current freight records.</Text>
         </View>
 
 
         <View style={styles.statGrid}>
           <StatTile label="Active loads" value={String(active.length)} />
           <StatTile label="Delivered" value={String(delivered.length)} />
-          <StatTile label={effectiveRole === "customer" ? "Delivered value" : "Recognized revenue"} value={formatCurrency(totalRevenue)} />
+          <StatTile label="Recognized revenue" value={formatCurrency(totalRevenue)} />
           <StatTile label="EDI success" value={`${ediRate}%`} />
           <StatTile label="Open exceptions" value={String(openExceptions)} />
           <StatTile label="POD captured" value={String(state.proofsOfDelivery.length)} />

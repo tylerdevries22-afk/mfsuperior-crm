@@ -12,6 +12,7 @@ import {
   parseStrictJson,
   parseStrictQuery,
 } from "@/lib/mobile-api/http";
+import { toVehicle } from "@/lib/mobile-api/route-serializers";
 
 /** The fleet register. Carrier-scoped and admin-only. */
 export async function GET(request: Request) {
@@ -94,23 +95,4 @@ export async function POST(request: Request) {
   } catch (error) {
     return apiFailureResponse(error, requestId, "vehicles.write");
   }
-}
-
-export function toVehicle(row: typeof vehicles.$inferSelect) {
-  return {
-    assignedDriverId: row.assignedDriverId,
-    createdAt: row.createdAt.toISOString(),
-    id: row.id,
-    make: row.make,
-    model: row.model,
-    odometerMiles: row.odometerMiles,
-    plateNumber: row.plateNumber,
-    plateState: row.plateState,
-    status: row.status,
-    type: row.type,
-    unitNumber: row.unitNumber,
-    updatedAt: row.updatedAt.toISOString(),
-    vin: row.vin,
-    year: row.year,
-  };
 }

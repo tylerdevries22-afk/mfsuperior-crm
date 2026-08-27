@@ -17,6 +17,8 @@ import type {
   CreateCustomerRequestInput,
   CustomerRequest,
   DemoOperationsState,
+  DriverShift,
+  DriverShiftInput,
   EdiTransaction,
   EntityId,
   ExceptionReport,
@@ -36,8 +38,11 @@ import type {
   ProofOfDelivery,
   ProofOfDeliveryInput,
   SendMessageInput,
+  ScheduleSyncStatus,
   Shipment,
   ShipmentStatus,
+  ShiftCoverageRequest,
+  ShiftCoverageRequestInput,
   Vehicle,
   VehicleInput,
 } from "../domain/types";
@@ -91,6 +96,9 @@ export interface ProductionOperationsRepositoryOptions {
 interface ExtendedCollections {
   readonly availabilityBlocks: readonly AvailabilityBlock[];
   readonly availabilityRules: readonly AvailabilityRule[];
+  readonly driverShifts: readonly DriverShift[];
+  readonly shiftCoverageRequests: readonly ShiftCoverageRequest[];
+  readonly scheduleSyncStatuses: readonly ScheduleSyncStatus[];
   readonly complianceDocuments: readonly ComplianceDocument[];
   readonly maintenanceOrders: readonly MaintenanceOrder[];
   readonly payouts: readonly Payout[];
@@ -102,6 +110,9 @@ type ExtendedRefresh = "all" | "cached" | readonly (keyof ExtendedCollections)[]
 const EMPTY_EXTENDED: ExtendedCollections = {
   availabilityBlocks: [],
   availabilityRules: [],
+  driverShifts: [],
+  shiftCoverageRequests: [],
+  scheduleSyncStatuses: [],
   complianceDocuments: [],
   maintenanceOrders: [],
   payouts: [],
@@ -199,6 +210,10 @@ export class ProductionOperationsRepository implements OperationsRepository {
       { driverId },
     );
     return this.requireShipment(shipmentId);
+  }
+
+  async addDemoUnassignedLoad(): Promise<Shipment> {
+    throw productionOnlyError("Adding demo loads is only available in the explicit demo.");
   }
 
   async transitionShipment(
@@ -492,6 +507,61 @@ export class ProductionOperationsRepository implements OperationsRepository {
     return this.state;
   }
 
+  async setDriverShift(input: DriverShiftInput): Promise<DriverShift> {
+    const saved = await this.performMutation<{ readonly id: string }>(
+      "v1/shifts",
+      {
+        driverId: input.driverId,
+        endsAt: input.endsAt,
+        id: input.id ?? null,
+        note: input.note ?? null,
+        startsAt: input.startsAt,
+        status: input.status ?? "scheduled",
+      },
+      ["driverShifts", "scheduleSyncStatuses"],
+    );
+    return this.requireDriverShift(saved.id);
+  }
+
+  async removeDriverShift(shiftId: EntityId): Promise<DemoOperationsState> {
+    await this.performMutation<{ readonly id: string }>(
+      `v1/shifts/${encodeId(shiftId)}/removal`,
+      {},
+      ["driverShifts", "shiftCoverageRequests", "scheduleSyncStatuses"],
+    );
+    return this.state;
+  }
+
+  async requestShiftCoverage(input: ShiftCoverageRequestInput): Promise<ShiftCoverageRequest> {
+    const created = await this.performMutation<{ readonly id: string }>(
+      `v1/shifts/${encodeId(input.shiftId)}/coverage`,
+      { targetDriverId: input.targetDriverId },
+      ["shiftCoverageRequests"],
+    );
+    return this.requireCoverageRequest(created.id);
+  }
+
+  async respondToShiftCoverage(
+    requestId: EntityId,
+    response: "accepted" | "declined",
+  ): Promise<ShiftCoverageRequest> {
+    await this.performMutation<{ readonly id: string }>(
+      `v1/shift-coverage/${encodeId(requestId)}/response`,
+      { response },
+      ["driverShifts", "shiftCoverageRequests", "scheduleSyncStatuses"],
+    );
+    return this.requireCoverageRequest(requestId);
+  }
+
+  async retryScheduleSync(shiftId: EntityId): Promise<ScheduleSyncStatus> {
+    await this.performMutation<{ readonly id: string }>(
+      `v1/shifts/${encodeId(shiftId)}/sync-retry`,
+      {},
+      ["scheduleSyncStatuses"],
+    );
+    return this.requireScheduleSync(shiftId);
+  }
+
   /**
    * Payout handles never enter `OperationsState`, so these read and write the
    * endpoint directly. The server scopes every one of them to the calling
@@ -659,6 +729,30 @@ export class ProductionOperationsRepository implements OperationsRepository {
     return block;
   }
 
+  private requireDriverShift(shiftId: EntityId): DriverShift {
+    const shift = this.state.driverShifts.find((candidate) => candidate.id === shiftId);
+    if (!shift) {
+      throw new OperationsDomainError("NOT_FOUND", "That driver shift could not be found.");
+    }
+    return shift;
+  }
+
+  private requireCoverageRequest(requestId: EntityId): ShiftCoverageRequest {
+    const request = this.state.shiftCoverageRequests.find((candidate) => candidate.id === requestId);
+    if (!request) {
+      throw new OperationsDomainError("NOT_FOUND", "That coverage request could not be found.");
+    }
+    return request;
+  }
+
+  private requireScheduleSync(shiftId: EntityId): ScheduleSyncStatus {
+    const status = this.state.scheduleSyncStatuses.find((candidate) => candidate.entityId === shiftId);
+    if (!status) {
+      throw new OperationsDomainError("NOT_FOUND", "That schedule sync status could not be found.");
+    }
+    return status;
+  }
+
   private requireVehicle(vehicleId: EntityId): Vehicle {
     const vehicle = this.state.vehicles.find((candidate) => candidate.id === vehicleId);
     if (!vehicle) {
@@ -778,6 +872,9 @@ export class ProductionOperationsRepository implements OperationsRepository {
     const [
       availabilityBlocks,
       availabilityRules,
+      driverShifts,
+      shiftCoverageRequests,
+      scheduleSyncStatuses,
       vehicles,
       maintenanceOrders,
       complianceDocuments,
@@ -789,6 +886,15 @@ export class ProductionOperationsRepository implements OperationsRepository {
       isStaff && wanted("availabilityRules")
         ? this.optionalCollection<AvailabilityRule>("v1/availability-rules?limit=200")
         : cached.availabilityRules,
+      isStaff && wanted("driverShifts")
+        ? this.optionalCollection<DriverShift>("v1/shifts?limit=500")
+        : cached.driverShifts,
+      isStaff && wanted("shiftCoverageRequests")
+        ? this.optionalCollection<ShiftCoverageRequest>("v1/shift-coverage?limit=200")
+        : cached.shiftCoverageRequests,
+      isStaff && wanted("scheduleSyncStatuses")
+        ? this.optionalCollection<ScheduleSyncStatus>("v1/schedule-sync?limit=500")
+        : cached.scheduleSyncStatuses,
       isAdmin && wanted("vehicles")
         ? this.optionalCollection<Vehicle>("v1/vehicles?limit=100")
         : cached.vehicles,
@@ -806,6 +912,9 @@ export class ProductionOperationsRepository implements OperationsRepository {
     this.extendedCollections = {
       availabilityBlocks,
       availabilityRules,
+      driverShifts,
+      shiftCoverageRequests,
+      scheduleSyncStatuses,
       complianceDocuments,
       maintenanceOrders,
       payouts,
@@ -1050,6 +1159,9 @@ function createEmptyOperationsState(updatedAt: string): DemoOperationsState {
     accounts: [],
     availabilityBlocks: [],
     availabilityRules: [],
+    driverShifts: [],
+    shiftCoverageRequests: [],
+    scheduleSyncStatuses: [],
     complianceDocuments: [],
     customers: [],
     drivers: [],

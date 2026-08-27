@@ -691,6 +691,112 @@ export const driverAvailabilityRules = pgTable(
   ],
 );
 
+export const driverShiftStatusEnum = pgEnum("driver_shift_status", [
+  "scheduled",
+  "confirmed",
+  "in_progress",
+  "completed",
+  "cancelled",
+]);
+
+export const shiftCoverageRequestStatusEnum = pgEnum("shift_coverage_request_status", [
+  "pending",
+  "accepted",
+  "declined",
+  "closed",
+]);
+
+export const scheduleSyncStatusEnum = pgEnum("schedule_sync_status", [
+  "pending",
+  "synced",
+  "failed",
+]);
+
+/** An individual dispatch occurrence; coverage never rewrites shipment ownership. */
+export const driverShifts = pgTable(
+  "driver_shifts",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    carrierId: uuid("carrier_id").notNull(),
+    driverId: uuid("driver_id").notNull(),
+    startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+    endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+    status: driverShiftStatusEnum("status").notNull().default("scheduled"),
+    note: text("note"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("driver_shifts_carrier_starts_at_idx").on(table.carrierId, table.startsAt),
+    index("driver_shifts_driver_starts_at_idx").on(table.driverId, table.startsAt),
+    unique("driver_shifts_id_carrier_unique").on(table.id, table.carrierId),
+    check("driver_shifts_span_check", sql`${table.endsAt} > ${table.startsAt}`),
+    foreignKey({
+      columns: [table.driverId, table.carrierId],
+      foreignColumns: [drivers.id, drivers.carrierId],
+      name: "driver_shifts_driver_carrier_fk",
+    }).onDelete("cascade"),
+  ],
+);
+
+export const shiftCoverageRequests = pgTable(
+  "shift_coverage_requests",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    carrierId: uuid("carrier_id").notNull(),
+    shiftId: uuid("shift_id").notNull(),
+    fromDriverId: uuid("from_driver_id").notNull(),
+    targetDriverId: uuid("target_driver_id").notNull(),
+    requestedByUserId: uuid("requested_by_user_id").notNull(),
+    status: shiftCoverageRequestStatusEnum("status").notNull().default("pending"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    respondedAt: timestamp("responded_at", { withTimezone: true }),
+  },
+  (table) => [
+    index("shift_coverage_requests_carrier_status_idx").on(table.carrierId, table.status),
+    index("shift_coverage_requests_target_status_idx").on(table.targetDriverId, table.status),
+    foreignKey({
+      columns: [table.shiftId, table.carrierId],
+      foreignColumns: [driverShifts.id, driverShifts.carrierId],
+      name: "shift_coverage_requests_shift_carrier_fk",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.fromDriverId, table.carrierId],
+      foreignColumns: [drivers.id, drivers.carrierId],
+      name: "shift_coverage_requests_from_driver_carrier_fk",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.targetDriverId, table.carrierId],
+      foreignColumns: [drivers.id, drivers.carrierId],
+      name: "shift_coverage_requests_target_driver_carrier_fk",
+    }).onDelete("cascade"),
+  ],
+);
+
+export const scheduleSyncStatuses = pgTable(
+  "schedule_sync_statuses",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    carrierId: uuid("carrier_id").notNull(),
+    shiftId: uuid("shift_id").notNull(),
+    provider: varchar("provider", { length: 40 }).notNull().default("target"),
+    status: scheduleSyncStatusEnum("status").notNull().default("pending"),
+    attempts: integer("attempts").notNull().default(0),
+    lastAttemptAt: timestamp("last_attempt_at", { withTimezone: true }),
+    lastError: text("last_error"),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("schedule_sync_statuses_shift_unique").on(table.shiftId),
+    index("schedule_sync_statuses_carrier_status_idx").on(table.carrierId, table.status),
+    foreignKey({
+      columns: [table.shiftId, table.carrierId],
+      foreignColumns: [driverShifts.id, driverShifts.carrierId],
+      name: "schedule_sync_statuses_shift_carrier_fk",
+    }).onDelete("cascade"),
+  ],
+);
+
 export const maintenanceOrders = pgTable(
   "maintenance_orders",
   {

@@ -10,7 +10,10 @@ import {
   MobileApiError,
 } from "@/lib/mobile-api/http";
 import { parseRouteId } from "@/lib/mobile-api/shipment-mutations";
-import { listOwnMethods, ownMethodPredicate } from "../../route";
+import {
+  listOwnPayoutMethods,
+  ownPayoutMethodPredicate,
+} from "@/lib/mobile-api/route-serializers";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -31,7 +34,7 @@ export async function POST(request: Request, context: RouteContext) {
     await db.transaction(async (transaction) => {
       const [removed] = await transaction
         .delete(driverPayoutMethods)
-        .where(ownMethodPredicate(driverId, methodId.id))
+        .where(ownPayoutMethodPredicate(driverId, methodId.id))
         .returning({ isDefault: driverPayoutMethods.isDefault });
       if (!removed) {
         throw new MobileApiError(404, "NOT_FOUND", "That payout method could not be found.");
@@ -55,7 +58,7 @@ export async function POST(request: Request, context: RouteContext) {
     });
 
     return mergeResponseHeaders(
-      apiSuccess(await listOwnMethods(driverId), requestId),
+      apiSuccess(await listOwnPayoutMethods(driverId), requestId),
       authorization.responseHeaders,
     );
   } catch (error) {

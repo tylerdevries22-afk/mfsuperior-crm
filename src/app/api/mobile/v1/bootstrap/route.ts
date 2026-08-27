@@ -82,15 +82,17 @@ export async function GET(request: Request) {
         .from(users)
         .where(eq(users.id, principal.userId))
         .limit(1),
-      db
-        .select({
-          provider: integrationConnections.provider,
-          status: integrationConnections.status,
-          lastSucceededAt: integrationConnections.lastSucceededAt,
-        })
-        .from(integrationConnections)
-        .where(eq(integrationConnections.organizationId, principal.organizationId))
-        .orderBy(asc(integrationConnections.provider)),
+      principal.role === "admin"
+        ? db
+            .select({
+              provider: integrationConnections.provider,
+              status: integrationConnections.status,
+              lastSucceededAt: integrationConnections.lastSucceededAt,
+            })
+            .from(integrationConnections)
+            .where(eq(integrationConnections.organizationId, principal.organizationId))
+            .orderBy(asc(integrationConnections.provider))
+        : Promise.resolve([]),
       db
         .select({
           id: freightLocations.id,

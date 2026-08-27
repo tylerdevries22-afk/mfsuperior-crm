@@ -12,6 +12,7 @@ import {
   parseStrictJson,
   parseStrictQuery,
 } from "@/lib/mobile-api/http";
+import { toMaintenanceOrder } from "@/lib/mobile-api/route-serializers";
 
 /** Shop work orders. Carrier-scoped and admin-only. */
 export async function GET(request: Request) {
@@ -105,23 +106,4 @@ export async function POST(request: Request) {
   } catch (error) {
     return apiFailureResponse(error, requestId, "maintenance.create");
   }
-}
-
-export function toMaintenanceOrder(row: typeof maintenanceOrders.$inferSelect) {
-  return {
-    completedAt: row.completedAt?.toISOString() ?? null,
-    costCents: row.costCents,
-    description: row.description,
-    id: row.id,
-    kind: row.kind,
-    odometerMiles: row.odometerMiles,
-    openedAt: row.openedAt.toISOString(),
-    reportedByDriverId: row.reportedByDriverId,
-    scheduledFor: row.scheduledFor?.toISOString() ?? null,
-    severity: row.severity,
-    status: row.status,
-    summary: row.summary,
-    updatedAt: row.updatedAt.toISOString(),
-    vehicleId: row.vehicleId,
-  };
 }

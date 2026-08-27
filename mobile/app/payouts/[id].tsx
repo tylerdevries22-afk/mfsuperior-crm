@@ -3,7 +3,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
-import { DriverAvatar } from "@/components/operations";
+import { DriverAvatar, PayoutRailLogo } from "@/components/operations";
 import {
   AnimatedButton,
   Card,
@@ -182,6 +182,7 @@ export default function PayoutDetailScreen() {
                   fullWidth
                   key={rail}
                   onPress={() => void markPaid(rail)}
+                  icon={<PayoutRailLogo rail={rail} size="sm" />}
                   title={presentation.label}
                   variant="outline"
                 />

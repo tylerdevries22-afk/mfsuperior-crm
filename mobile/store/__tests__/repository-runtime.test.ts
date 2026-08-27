@@ -157,6 +157,9 @@ describe("ProductionOperationsRepository", () => {
       type: "pickup",
     });
     expect(captured.onlineWrites).toEqual([
+      "/v1/shifts",
+      "/v1/shift-coverage",
+      "/v1/schedule-sync",
       "/v1/shipments/shipment-28492/tender-response",
       "/v1/shipments/shipment-28492/assignment",
       `/v1/exceptions/${state.exceptions[0]?.id ?? "exception-delay"}/resolution`,
@@ -175,6 +178,7 @@ describe("ProductionOperationsRepository", () => {
     ).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
     await expect(repository.switchDemoRole("driver")).rejects.toMatchObject({ code: "UNAUTHORIZED" });
     await expect(repository.resetDemo()).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    await expect(repository.addDemoUnassignedLoad()).rejects.toMatchObject({ code: "UNAUTHORIZED" });
   });
 
   it("hydrates a pending customer from freight requests only, never from bootstrap", async () => {

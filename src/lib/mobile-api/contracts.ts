@@ -433,6 +433,29 @@ export const availabilityRuleWriteSchema = z
     path: ["endMinute"],
   });
 
+export const driverShiftWriteSchema = z
+  .object({
+    id: z.uuid().nullable().optional(),
+    driverId: z.uuid(),
+    startsAt: isoDateTime,
+    endsAt: isoDateTime,
+    status: z.enum(["scheduled", "confirmed", "in_progress", "completed", "cancelled"]).optional(),
+    note: z.string().trim().max(500).nullable().optional(),
+  })
+  .strict()
+  .refine((value) => Date.parse(value.endsAt) > Date.parse(value.startsAt), {
+    message: "A shift has to end after it starts.",
+    path: ["endsAt"],
+  });
+
+export const shiftCoverageRequestSchema = z
+  .object({ targetDriverId: z.uuid() })
+  .strict();
+
+export const shiftCoverageResponseSchema = z
+  .object({ response: z.enum(["accepted", "declined"]) })
+  .strict();
+
 /**
  * A payout handle, never a card or bank account number. The length ceiling and
  * the digit guard exist so a mistyped account number is refused at the boundary

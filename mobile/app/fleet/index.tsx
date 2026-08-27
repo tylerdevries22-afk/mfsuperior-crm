@@ -29,13 +29,17 @@ import { ICON, RADIUS, SPACE, TYPO, useTheme } from "@/theme";
 
 type FleetFilter = "all" | "tractor" | "trailer";
 
+export type FleetScreenProps = {
+  readonly isTab?: boolean;
+};
+
 const FILTER_OPTIONS = [
   { label: "All", value: "all" as const },
   { label: "Tractors", value: "tractor" as const },
   { label: "Trailers", value: "trailer" as const },
 ];
 
-export default function FleetScreen() {
+export function FleetScreen({ isTab = false }: FleetScreenProps = {}) {
   const router = useRouter();
   const theme = useTheme();
   const {
@@ -76,8 +80,8 @@ export default function FleetScreen() {
     <View style={[styles.fill, { backgroundColor: theme.background }]}>
       <Header
         centered
-        onBack={() => router.back()}
-        showBack
+        onBack={isTab ? undefined : () => router.back()}
+        showBack={!isTab}
         subtitle={`${totals.total} units · ${totals.active} active`}
         title="Fleet"
       />
@@ -120,6 +124,8 @@ export default function FleetScreen() {
     </View>
   );
 }
+
+export default FleetScreen;
 
 function FleetRow({
   entry,

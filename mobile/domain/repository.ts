@@ -30,6 +30,11 @@ import type {
   SendMessageInput,
   Shipment,
   ShipmentStatus,
+  DriverShift,
+  DriverShiftInput,
+  ScheduleSyncStatus,
+  ShiftCoverageRequest,
+  ShiftCoverageRequestInput,
   Vehicle,
   VehicleInput,
 } from "./types";
@@ -55,6 +60,8 @@ export interface OperationsRepository {
     response: "accepted" | "declined",
   ): Promise<Shipment>;
   assignShipment(shipmentId: EntityId, driverId: EntityId): Promise<Shipment>;
+  /** Adds a local sample load; production repositories intentionally reject it. */
+  addDemoUnassignedLoad(): Promise<Shipment>;
   transitionShipment(
     shipmentId: EntityId,
     nextStatus: ShipmentStatus,
@@ -86,6 +93,14 @@ export interface OperationsRepository {
   removeAvailabilityBlock(blockId: EntityId): Promise<DemoOperationsState>;
   setAvailabilityRule(input: AvailabilityRuleInput): Promise<AvailabilityRule>;
   removeAvailabilityRule(ruleId: EntityId): Promise<DemoOperationsState>;
+  setDriverShift(input: DriverShiftInput): Promise<DriverShift>;
+  removeDriverShift(shiftId: EntityId): Promise<DemoOperationsState>;
+  requestShiftCoverage(input: ShiftCoverageRequestInput): Promise<ShiftCoverageRequest>;
+  respondToShiftCoverage(
+    requestId: EntityId,
+    response: "accepted" | "declined",
+  ): Promise<ShiftCoverageRequest>;
+  retryScheduleSync(shiftId: EntityId): Promise<ScheduleSyncStatus>;
 
   /**
    * Payout handles. These never enter `OperationsState`; they are held in the

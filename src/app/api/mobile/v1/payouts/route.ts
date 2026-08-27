@@ -13,6 +13,7 @@ import {
   parseStrictQuery,
 } from "@/lib/mobile-api/http";
 import { requireCarrierDriver } from "@/lib/mobile-api/shipment-mutations";
+import { toPayout } from "@/lib/mobile-api/route-serializers";
 
 /** The driver's share of a load's linehaul. Mirrors DRIVER_LINEHAUL_SHARE. */
 const DRIVER_LINEHAUL_SHARE = 0.72;
@@ -211,34 +212,4 @@ export async function POST(request: Request) {
   } catch (error) {
     return apiFailureResponse(error, requestId, "payouts.issue");
   }
-}
-
-export function toPayout(
-  row: typeof driverPayouts.$inferSelect,
-  lineItems: readonly (typeof driverPayoutLineItems.$inferSelect)[],
-) {
-  return {
-    createdAt: row.createdAt.toISOString(),
-    deductionCents: row.deductionCents,
-    driverId: row.driverId,
-    grossCents: row.grossCents,
-    id: row.id,
-    issuedAt: row.issuedAt?.toISOString() ?? null,
-    lineItems: lineItems
-      .filter((lineItem) => lineItem.payoutId === row.id)
-      .map((lineItem) => ({
-        amountCents: lineItem.amountCents,
-        description: lineItem.description,
-        id: lineItem.id,
-        kind: lineItem.kind,
-        shipmentId: lineItem.shipmentId,
-      })),
-    netCents: row.netCents,
-    paidAt: row.paidAt?.toISOString() ?? null,
-    periodEnd: row.periodEnd.toISOString(),
-    periodStart: row.periodStart.toISOString(),
-    rail: row.rail,
-    status: row.status,
-    updatedAt: row.updatedAt.toISOString(),
-  };
 }

@@ -6,6 +6,7 @@ import type {
   CustomerRequest,
   DemoOperationsState,
   Driver,
+  DriverShift,
   EquipmentType,
   ExceptionCategory,
   ExceptionReport,
@@ -16,10 +17,12 @@ import type {
   OperationsAccount,
   OperationsMessage,
   Payout,
+  ScheduleSyncStatus,
   PostalAddress,
   Shipment,
   ShipmentStatus,
   ShipmentStop,
+  ShiftCoverageRequest,
   Vehicle,
 } from "../domain/types";
 import {
@@ -99,6 +102,9 @@ export interface ProductionHydrationInput {
    */
   readonly availabilityBlocks?: readonly AvailabilityBlock[];
   readonly availabilityRules?: readonly AvailabilityRule[];
+  readonly driverShifts?: readonly DriverShift[];
+  readonly shiftCoverageRequests?: readonly ShiftCoverageRequest[];
+  readonly scheduleSyncStatuses?: readonly ScheduleSyncStatus[];
   readonly complianceDocuments?: readonly ComplianceDocument[];
   readonly maintenanceOrders?: readonly MaintenanceOrder[];
   readonly payouts?: readonly Payout[];
@@ -172,6 +178,9 @@ export function buildProductionOperationsState(
     accounts: mergeContacts(account, bootstrap),
     availabilityBlocks: input.availabilityBlocks ?? [],
     availabilityRules: input.availabilityRules ?? [],
+    driverShifts: input.driverShifts ?? [],
+    shiftCoverageRequests: input.shiftCoverageRequests ?? [],
+    scheduleSyncStatuses: input.scheduleSyncStatuses ?? [],
     complianceDocuments: input.complianceDocuments ?? [],
     customers: [],
     drivers: bootstrap.referenceData.drivers.map(toDriver),
@@ -292,6 +301,9 @@ export function buildPendingCustomerOperationsState(
     accounts: [account],
     availabilityBlocks: [],
     availabilityRules: [],
+    driverShifts: [],
+    shiftCoverageRequests: [],
+    scheduleSyncStatuses: [],
     complianceDocuments: [],
     customers: [],
     drivers: [],

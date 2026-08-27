@@ -23,6 +23,8 @@ import type {
   CustomerRequest,
   DemoOperationsState,
   Driver,
+  DriverShift,
+  DriverShiftInput,
   EdiTransaction,
   ExceptionReportInput,
   FreightQuote,
@@ -41,10 +43,13 @@ import type {
   PayoutRail,
   ProofOfDeliveryInput,
   SendMessageInput,
+  ScheduleSyncStatus,
   Shipment,
   ShipmentStatus,
   Vehicle,
   VehicleInput,
+  ShiftCoverageRequest,
+  ShiftCoverageRequestInput,
 } from "../domain/types";
 import { createOperationsRepositoryFromEnvironment } from "./repositoryFactory";
 
@@ -56,6 +61,7 @@ export interface OperationsActions {
   resetDemo(): Promise<boolean>;
   respondToTender(shipmentId: string, response: "accepted" | "declined"): Promise<boolean>;
   assignShipment(shipmentId: string, driverId: string): Promise<boolean>;
+  addDemoUnassignedLoad(): Promise<boolean>;
   transitionShipment(
     shipmentId: string,
     nextStatus: ShipmentStatus,
@@ -78,6 +84,11 @@ export interface OperationsActions {
   removeAvailabilityBlock(blockId: string): Promise<boolean>;
   setAvailabilityRule(input: AvailabilityRuleInput): Promise<boolean>;
   removeAvailabilityRule(ruleId: string): Promise<boolean>;
+  setDriverShift(input: DriverShiftInput): Promise<boolean>;
+  removeDriverShift(shiftId: string): Promise<boolean>;
+  requestShiftCoverage(input: ShiftCoverageRequestInput): Promise<boolean>;
+  respondToShiftCoverage(requestId: string, response: "accepted" | "declined"): Promise<boolean>;
+  retryScheduleSync(shiftId: string): Promise<boolean>;
   upsertVehicle(input: VehicleInput): Promise<boolean>;
   assignVehicle(vehicleId: string, driverId: string | null): Promise<boolean>;
   createMaintenanceOrder(input: MaintenanceOrderInput): Promise<boolean>;
@@ -100,6 +111,7 @@ export interface OperationsActions {
 export interface OperationsContextValue {
   readonly state: DemoOperationsState;
   readonly isHydrated: boolean;
+  readonly isDemo: boolean;
   readonly currentAccount: OperationsAccount | null;
   readonly effectiveRole: AppRole | null;
   readonly accessState: AccessState;
@@ -117,6 +129,9 @@ export interface OperationsContextValue {
   readonly vehicles: readonly Vehicle[];
   readonly availabilityBlocks: readonly AvailabilityBlock[];
   readonly availabilityRules: readonly AvailabilityRule[];
+  readonly driverShifts: readonly DriverShift[];
+  readonly shiftCoverageRequests: readonly ShiftCoverageRequest[];
+  readonly scheduleSyncStatuses: readonly ScheduleSyncStatus[];
   readonly maintenanceOrders: readonly MaintenanceOrder[];
   readonly complianceDocuments: readonly ComplianceDocument[];
   readonly payouts: readonly Payout[];
@@ -197,6 +212,7 @@ export function OperationsProvider({
       assignShipment: (shipmentId, driverId) => runMutation(
         () => repository.assignShipment(shipmentId, driverId),
       ),
+      addDemoUnassignedLoad: () => runMutation(() => repository.addDemoUnassignedLoad()),
       transitionShipment: (shipmentId, nextStatus, stopId) => runMutation(
         () => repository.transitionShipment(shipmentId, nextStatus, stopId),
       ),
@@ -231,6 +247,15 @@ export function OperationsProvider({
       removeAvailabilityRule: (ruleId) => runMutation(
         () => repository.removeAvailabilityRule(ruleId),
       ),
+      setDriverShift: (input) => runMutation(() => repository.setDriverShift(input)),
+      removeDriverShift: (shiftId) => runMutation(() => repository.removeDriverShift(shiftId)),
+      requestShiftCoverage: (input) => runMutation(
+        () => repository.requestShiftCoverage(input),
+      ),
+      respondToShiftCoverage: (requestId, response) => runMutation(
+        () => repository.respondToShiftCoverage(requestId, response),
+      ),
+      retryScheduleSync: (shiftId) => runMutation(() => repository.retryScheduleSync(shiftId)),
       upsertVehicle: (input) => runMutation(() => repository.upsertVehicle(input)),
       assignVehicle: (vehicleId, driverId) => runMutation(
         () => repository.assignVehicle(vehicleId, driverId),
@@ -319,6 +344,25 @@ export function OperationsProvider({
       : driverId
         ? state.availabilityRules.filter((rule) => rule.driverId === driverId)
         : [];
+    const driverShifts = effectiveRole === "admin"
+      ? state.driverShifts
+      : driverId
+        ? state.driverShifts.filter((shift) => shift.driverId === driverId)
+        : [];
+    const shiftCoverageRequests = effectiveRole === "admin"
+      ? state.shiftCoverageRequests
+      : driverId
+        ? state.shiftCoverageRequests.filter((request) => (
+          request.fromDriverId === driverId || request.targetDriverId === driverId
+        ))
+        : [];
+    const scheduleSyncStatuses = effectiveRole === "admin"
+      ? state.scheduleSyncStatuses
+      : driverId
+        ? state.scheduleSyncStatuses.filter((sync) => (
+          state.driverShifts.some((shift) => shift.id === sync.entityId && shift.driverId === driverId)
+        ))
+        : [];
     const payouts = effectiveRole === "admin"
       ? state.payouts
       : driverId
@@ -330,6 +374,7 @@ export function OperationsProvider({
     return {
       state,
       isHydrated,
+      isDemo: repository.mode === "demo",
       currentAccount,
       effectiveRole,
       accessState: state.session.accessState ?? "active",
@@ -341,18 +386,21 @@ export function OperationsProvider({
       quotes,
       messages: state.messages,
       ediTransactions: state.ediTransactions,
-      integrations: state.integrations,
+      integrations: isAdmin ? state.integrations : [],
       currentDriver,
       vehicles: isAdmin ? state.vehicles : [],
       availabilityBlocks,
       availabilityRules,
+      driverShifts,
+      shiftCoverageRequests,
+      scheduleSyncStatuses,
       maintenanceOrders: isAdmin ? state.maintenanceOrders : [],
       complianceDocuments: isAdmin ? state.complianceDocuments : [],
       payouts,
       error,
       actions,
     };
-  }, [actions, error, isHydrated, state]);
+  }, [actions, error, isHydrated, repository.mode, state]);
 
   return <OperationsContext.Provider value={value}>{children}</OperationsContext.Provider>;
 }

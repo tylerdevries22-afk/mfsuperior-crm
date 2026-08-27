@@ -145,6 +145,27 @@ describe("unified demo operations domain", () => {
     expect(reloaded.getState().session.accountId).toBeNull();
   });
 
+  it("creates unique accepted loads in the demo unassigned lane", async () => {
+    const repository = createRepository(new MemoryPersistenceAdapter());
+    await repository.hydrate();
+    await repository.signIn("admin@demo.mfsuperior.com", "3333");
+
+    const first = await repository.addDemoUnassignedLoad();
+    const second = await repository.addDemoUnassignedLoad();
+
+    expect(first.status).toBe("accepted");
+    expect(first.assignedDriverId).toBeUndefined();
+    expect(first.stops.map((stop) => stop.type)).toEqual(["pickup", "delivery"]);
+    expect(second.id).not.toBe(first.id);
+    expect(second.loadNumber).not.toBe(first.loadNumber);
+    expect(repository.getState().shipments).toHaveLength(
+      createDemoOperationsState().shipments.length + 2,
+    );
+
+    await repository.switchDemoRole("driver");
+    await expect(repository.addDemoUnassignedLoad()).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+  });
+
   it("runs the freight tender, driver, exception, POD, GPS, and EDI flows", async () => {
     const repository = createRepository(new MemoryPersistenceAdapter());
     await repository.hydrate();

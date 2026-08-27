@@ -97,7 +97,7 @@ export function AdminHome() {
           key: "unassigned",
           title: `${unassigned.length} load${unassigned.length === 1 ? "" : "s"} without a driver`,
           hint: "Assign capacity to keep the lane on schedule",
-          onPress: () => router.push("/(tabs)/schedule"),
+          onPress: () => router.push("/jobs"),
         },
       ].filter(Boolean) as readonly {
         key: string;

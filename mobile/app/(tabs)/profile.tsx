@@ -2,10 +2,10 @@ import Feather from "@expo/vector-icons/Feather";
 import Constants from "expo-constants";
 import * as Linking from "expo-linking";
 import { useRouter } from "expo-router";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
-import { DriverAvatar } from "@/components/operations";
+import { DriverAvatar, PayoutRailMosaic } from "@/components/operations";
 import { AnimatedButton, Card, Header, ListRow, PartnerLogo, Screen, SectionHeader, SegmentedControl, Sheet, StatusBadge } from "@/components/ui";
 import type { AppRole } from "@/domain/types";
 import { FREIGHT_PARTNERS, validatedPartnerPortal, type FreightPartnerDefinition } from "@/features/partner-integrations";
@@ -37,7 +37,7 @@ function DemoRolePreview() {
   const isDemoAdmin = currentAccount?.role === "admin" && currentAccount.email.includes("@demo.");
   if (!isDemoAdmin) return null;
   const switchRole = (role: AppRole) => { void actions.switchDemoRole(role); };
-  return <><SectionHeader title="Demo workspace preview" /><Card variant="tinted"><View style={styles.demoTitleRow}><Feather color={theme.primaryLight} name="play-circle" size={19} /><Text style={[styles.cardTitle, { color: theme.text }]}>Demo only</Text></View><Text style={[styles.cardCopy, { color: theme.textSecondary }]}>Preview another role without changing the signed-in admin demo account. Production users cannot switch roles.</Text><SegmentedControl accessibilityLabel="Preview demo role" onChange={switchRole} options={ROLE_OPTIONS} value={effectiveRole ?? "admin"} /></Card></>;
+  return <View style={[styles.demoSwitcher, { borderBottomColor: theme.border }]}><View style={styles.demoSwitcherCopy}><Text style={[styles.demoSwitcherLabel, { color: theme.textMuted }]}>DEMO VIEW</Text><Text style={[styles.demoSwitcherValue, { color: theme.text }]}>Preview as</Text></View><SegmentedControl accessibilityLabel="Preview demo role" onChange={switchRole} options={ROLE_OPTIONS} value={effectiveRole ?? "admin"} /></View>;
 }
 
 function PartnerSheet({ partner, onClose }: { readonly partner: FreightPartnerDefinition | null; readonly onClose: () => void }) {
@@ -58,11 +58,10 @@ function DriverToolsSection() {
   const theme = useTheme();
   const { effectiveRole } = useOperations();
   // Gated on effectiveRole rather than the account role, so an admin previewing
-  // the driver experience actually sees the driver's own tools. The
-  // Integrations section above deliberately stays on the true account role:
-  // partner credentials are not part of a role preview.
+  // the driver experience actually sees the driver's own tools. Partner
+  // integrations use the same effective-role boundary below.
   if (effectiveRole !== "driver") return null;
-  return <><SectionHeader title="Driver tools" /><Card padding="none"><ListRow leading={<Feather color={theme.primaryLight} name="calendar" size={19} />} onPress={() => router.push("/availability")} subtitle="Set your days and block time" title="Availability" /><ListRow leading={<Feather color={theme.primaryLight} name="map" size={19} />} onPress={() => router.push("/trip-history")} subtitle="Delivered loads and what they earned" title="Trip history" /><ListRow isLast leading={<Feather color={theme.primaryLight} name="dollar-sign" size={19} />} onPress={() => router.push("/driver-payments")} subtitle="Payout methods and settlements" title="Payments" /></Card></>;
+  return <><SectionHeader title="Driver tools" /><Card padding="none"><ListRow leading={<Feather color={theme.primaryLight} name="calendar" size={19} />} onPress={() => router.push("/availability")} subtitle="Set your days and block time" title="Availability" /><ListRow leading={<Feather color={theme.primaryLight} name="map" size={19} />} onPress={() => router.push("/trip-history")} subtitle="Delivered loads and what they earned" title="Trip history" /><ListRow isLast leading={<PayoutRailMosaic />} onPress={() => router.push("/driver-payments")} subtitle="Payout methods and settlements" title="Payments" /></Card></>;
 }
 
 const ADMIN_CONSOLES = [
@@ -77,24 +76,25 @@ const ADMIN_CONSOLES = [
 function AdminConsoleSection() {
   const router = useRouter();
   const theme = useTheme();
-  const { effectiveRole } = useOperations();
+  const { effectiveRole, isDemo } = useOperations();
   if (effectiveRole !== "admin") return null;
-  return <><SectionHeader title="Operations" /><Card padding="none">{ADMIN_CONSOLES.map((console, index) => <ListRow isLast={index === ADMIN_CONSOLES.length - 1} key={console.route} leading={<Feather color={theme.primaryLight} name={console.icon} size={19} />} onPress={() => router.push(console.route)} subtitle={console.subtitle} title={console.title} />)}</Card></>;
+  return <><SectionHeader title="Operations" /><Card padding="none">{ADMIN_CONSOLES.map((console, index) => <ListRow isLast={index === ADMIN_CONSOLES.length - 1} key={console.route} leading={<Feather color={theme.primaryLight} name={console.icon} size={19} />} onPress={() => router.push(console.route)} subtitle={console.title === "Jobs" && isDemo ? "Dispatch board · add demo loads" : console.subtitle} title={console.title} />)}</Card></>;
 }
 
 function SettingsGroups() {
   const router = useRouter();
   const theme = useTheme();
-  return <><SectionHeader title="Preferences" /><Card padding="none"><ListRow isLast leading={<Feather color={theme.primaryLight} name="shield" size={19} />} onPress={() => router.push("/profile-details")} subtitle="Password, MFA, and active sessions" title="Security" trailing={<Feather color={theme.textMuted} name="chevron-right" size={18} />} /></Card><SectionHeader title="Support" /><Card padding="none"><ListRow leading={<Feather color={theme.info} name="book-open" size={19} />} onPress={() => router.push("/knowledge")} subtitle="Freight playbooks and guides" title="Knowledge" trailing={<Feather color={theme.textMuted} name="chevron-right" size={18} />} /><ListRow isLast leading={<Feather color={theme.info} name="message-circle" size={19} />} onPress={() => router.push("/messages")} subtitle="Operations support" title="Messages" trailing={<Feather color={theme.textMuted} name="chevron-right" size={18} />} /></Card></>;
+  const { effectiveRole } = useOperations();
+  const isStaff = effectiveRole === "admin" || effectiveRole === "driver";
+  return <><SectionHeader title="Preferences" /><Card padding="none"><ListRow isLast leading={<Feather color={theme.primaryLight} name="shield" size={19} />} onPress={() => router.push("/profile-details")} subtitle="Password, MFA, and active sessions" title="Security" trailing={<Feather color={theme.textMuted} name="chevron-right" size={18} />} /></Card><SectionHeader title="Support" /><Card padding="none">{isStaff ? <ListRow leading={<Feather color={theme.info} name="zap" size={19} />} onPress={() => router.push("/(tabs)/assistant")} subtitle="Ask about loads and freight operations" title="Assistant" /> : null}<ListRow leading={<Feather color={theme.info} name="book-open" size={19} />} onPress={() => router.push("/knowledge")} subtitle="Freight playbooks and guides" title="Knowledge" trailing={<Feather color={theme.textMuted} name="chevron-right" size={18} />} /><ListRow isLast leading={<Feather color={theme.info} name="message-circle" size={19} />} onPress={() => router.push("/messages")} subtitle="Operations support" title="Messages" trailing={<Feather color={theme.textMuted} name="chevron-right" size={18} />} /></Card></>;
 }
 
 export default function ProfileScreen() {
   const theme = useTheme();
-  const { actions, currentAccount } = useOperations();
+  const { actions, effectiveRole } = useOperations();
   const [signingOut, setSigningOut] = useState(false);
-  const isDemo = useMemo(() => currentAccount?.email.includes("@demo.") ?? false, [currentAccount?.email]);
   const signOut = async () => { setSigningOut(true); await actions.signOut(); setSigningOut(false); };
-  return <View style={[styles.fill, { backgroundColor: theme.background }]}><Header subtitle="Account, security, and connections" title="Profile" /><Screen safeEdges={["left", "right", "bottom"]} scroll contentContainerStyle={styles.content}><AccountPanel />{isDemo ? <View style={[styles.demoBanner, { backgroundColor: theme.primaryMuted, borderColor: theme.tint.primary.medium }]}><Feather color={theme.primaryLight} name="play-circle" size={18} /><View style={styles.grow}><Text style={[styles.demoBannerTitle, { color: theme.text }]}>Demo workspace</Text><Text style={[styles.demoBannerCopy, { color: theme.textSecondary }]}>Records stay on this device and no partner portal is contacted.</Text></View></View> : null}<DemoRolePreview /><DriverToolsSection /><AdminConsoleSection />{currentAccount?.role === "admin" ? <IntegrationsSection /> : null}<SettingsGroups /><AnimatedButton fullWidth loading={signingOut} onPress={() => void signOut()} title="Sign out" variant="outline" /><View style={styles.legalRow}><Pressable accessibilityRole="link" onPress={() => void Linking.openURL("https://mfsuperiorproducts.com/privacy")}><Text style={[styles.legalLink, { color: theme.textSecondary }]}>Privacy Policy</Text></Pressable><Text style={[styles.legalDot, { color: theme.textMuted }]}>·</Text><Pressable accessibilityRole="link" onPress={() => void Linking.openURL("https://mfsuperiorproducts.com/terms")}><Text style={[styles.legalLink, { color: theme.textSecondary }]}>Terms &amp; Conditions</Text></Pressable></View><Text style={[styles.footnote, { color: theme.textMuted }]}>MF Superior Products · Freight operations · v{APP_VERSION}</Text></Screen></View>;
+  return <View style={[styles.fill, { backgroundColor: theme.background }]}><Header subtitle="Account, security, and connections" title="Profile" /><Screen safeEdges={["left", "right", "bottom"]} scroll contentContainerStyle={styles.content}><DemoRolePreview /><AccountPanel /><DriverToolsSection /><AdminConsoleSection />{effectiveRole === "admin" ? <IntegrationsSection /> : null}<SettingsGroups /><AnimatedButton fullWidth loading={signingOut} onPress={() => void signOut()} title="Sign out" variant="outline" /><View style={styles.legalRow}><Pressable accessibilityRole="link" onPress={() => void Linking.openURL("https://mfsuperiorproducts.com/privacy")}><Text style={[styles.legalLink, { color: theme.textSecondary }]}>Privacy Policy</Text></Pressable><Text style={[styles.legalDot, { color: theme.textMuted }]}>·</Text><Pressable accessibilityRole="link" onPress={() => void Linking.openURL("https://mfsuperiorproducts.com/terms")}><Text style={[styles.legalLink, { color: theme.textSecondary }]}>Terms &amp; Conditions</Text></Pressable></View><Text style={[styles.footnote, { color: theme.textMuted }]}>MF Superior Products · Freight operations · v{APP_VERSION}</Text></Screen></View>;
 }
 
 const styles = StyleSheet.create({
@@ -104,13 +104,11 @@ const styles = StyleSheet.create({
   avatar: { alignItems: "center", borderRadius: RADIUS.lg, height: 58, justifyContent: "center", width: 58 },
   bullet: { alignItems: "flex-start", flexDirection: "row", gap: SPACE.sm },
   bulletText: { ...TYPO.caption, flex: 1 },
-  cardCopy: { ...TYPO.body },
-  cardTitle: { ...TYPO.cardTitle },
   content: { gap: SPACE.md, paddingBottom: SPACE.xxl },
-  demoBanner: { alignItems: "flex-start", borderRadius: RADIUS.md, borderWidth: 1, flexDirection: "row", gap: SPACE.sm, padding: 14 },
-  demoBannerCopy: { ...TYPO.caption },
-  demoBannerTitle: { ...TYPO.captionStrong },
-  demoTitleRow: { alignItems: "center", flexDirection: "row", gap: SPACE.sm },
+  demoSwitcher: { alignItems: "center", borderBottomWidth: StyleSheet.hairlineWidth, flexDirection: "row", gap: SPACE.md, justifyContent: "space-between", paddingBottom: SPACE.sm },
+  demoSwitcherCopy: { flex: 1, gap: 2 },
+  demoSwitcherLabel: { ...TYPO.metricLabel },
+  demoSwitcherValue: { ...TYPO.captionStrong },
   divider: { height: 1, marginTop: SPACE.md },
   fill: { flex: 1 },
   legalDot: { ...TYPO.caption },

@@ -4,6 +4,9 @@ import type {
   ComplianceDocument,
   DemoAccount,
   DemoOperationsState,
+  DriverShift,
+  ScheduleSyncStatus,
+  ShiftCoverageRequest,
   MaintenanceOrder,
   Payout,
   PostalAddress,
@@ -514,6 +517,61 @@ const availabilityRules: readonly AvailabilityRule[] = [
     updatedAt: "2026-05-28T15:00:00.000Z",
   },
 ];
+
+const driverShifts: readonly DriverShift[] = [
+  {
+    id: "shift-brenna-morning",
+    driverId: "driver-brenna",
+    startsAt: "2026-08-20T06:00:00.000Z",
+    endsAt: "2026-08-20T14:00:00.000Z",
+    status: "confirmed",
+    note: "Front Range regional dispatch",
+    createdAt: "2026-08-14T16:00:00.000Z",
+    updatedAt: "2026-08-19T18:30:00.000Z",
+  },
+  {
+    id: "shift-samuel-evening",
+    driverId: "driver-samuel",
+    startsAt: "2026-08-24T14:00:00.000Z",
+    endsAt: "2026-08-24T22:00:00.000Z",
+    status: "scheduled",
+    note: "Regional grocery lane",
+    createdAt: "2026-08-15T16:00:00.000Z",
+    updatedAt: "2026-08-15T16:00:00.000Z",
+  },
+  {
+    id: "shift-alicia-early",
+    driverId: "driver-alicia",
+    startsAt: "2026-08-25T07:00:00.000Z",
+    endsAt: "2026-08-25T15:00:00.000Z",
+    status: "scheduled",
+    note: "Denver metro coverage",
+    createdAt: "2026-08-16T16:00:00.000Z",
+    updatedAt: "2026-08-16T16:00:00.000Z",
+  },
+];
+
+const shiftCoverageRequests: readonly ShiftCoverageRequest[] = [
+  {
+    id: "coverage-samuel-brenna",
+    shiftId: "shift-samuel-evening",
+    fromDriverId: "driver-samuel",
+    targetDriverId: "driver-brenna",
+    requestedByAccountId: "account-admin",
+    status: "pending",
+    createdAt: "2026-08-19T15:00:00.000Z",
+  },
+];
+
+const scheduleSyncStatuses: readonly ScheduleSyncStatus[] = driverShifts.map((shift) => ({
+  id: `sync-${shift.id}`,
+  entityType: "shift",
+  entityId: shift.id,
+  provider: "target",
+  status: "pending",
+  attempts: 0,
+  updatedAt: shift.updatedAt,
+}));
 
 const maintenanceOrders: readonly MaintenanceOrder[] = [
   {
@@ -1117,6 +1175,9 @@ export function createDemoOperationsState(): DemoOperationsState {
     vehicles: vehicles.map((vehicle) => ({ ...vehicle })),
     availabilityBlocks: availabilityBlocks.map((block) => ({ ...block })),
     availabilityRules: availabilityRules.map((rule) => ({ ...rule })),
+    driverShifts: driverShifts.map((shift) => ({ ...shift })),
+    shiftCoverageRequests: shiftCoverageRequests.map((request) => ({ ...request })),
+    scheduleSyncStatuses: scheduleSyncStatuses.map((sync) => ({ ...sync })),
     maintenanceOrders: maintenanceOrders.map((order) => ({ ...order })),
     complianceDocuments: complianceDocuments.map((document) => ({ ...document })),
     payouts: payouts.map((payout) => ({

@@ -1,6 +1,3 @@
-import type Feather from "@expo/vector-icons/Feather";
-import type { ComponentProps } from "react";
-
 import type { Payout, PayoutMethod, PayoutRail, PayoutStatus } from "@/domain/types";
 
 /**
@@ -16,7 +13,6 @@ import type { Payout, PayoutMethod, PayoutRail, PayoutStatus } from "@/domain/ty
 export interface RailPresentation {
   readonly rail: PayoutRail;
   readonly label: string;
-  readonly icon: ComponentProps<typeof Feather>["name"];
   readonly deepLink: ((handle: string) => string) | null;
   /** Why the rail cannot be opened, shown in place of an Open button. */
   readonly handoffNote: string;
@@ -26,28 +22,24 @@ export const RAIL_PRESENTATION: readonly RailPresentation[] = [
   {
     deepLink: (handle) => `https://venmo.com/u/${encodeURIComponent(stripPrefix(handle))}`,
     handoffNote: "Opens your profile in Venmo.",
-    icon: "at-sign",
     label: "Venmo",
     rail: "venmo",
   },
   {
     deepLink: (handle) => `https://cash.app/${encodeURIComponent(handle)}`,
     handoffNote: "Opens your Cash App profile.",
-    icon: "dollar-sign",
     label: "Cash App",
     rail: "cash_app",
   },
   {
     deepLink: null,
     handoffNote: "Zelle runs inside your bank's own app, so there is no link to open. Copy the handle and paste it there.",
-    icon: "send",
     label: "Zelle",
     rail: "zelle",
   },
   {
     deepLink: null,
     handoffNote: "Apple Cash is sent from Messages or Wallet. Copy the number and use it there.",
-    icon: "smartphone",
     label: "Apple Cash",
     rail: "apple_cash",
   },
