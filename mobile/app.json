@@ -68,7 +68,7 @@
     },
     "owner": "tylerdevries222",
     "runtimeVersion": {
-      "policy": "appVersion"
+      "policy": "sdkVersion"
     },
     "updates": {
       "url": "https://u.expo.dev/b28781fa-dd92-41cd-9363-e0860729a811",

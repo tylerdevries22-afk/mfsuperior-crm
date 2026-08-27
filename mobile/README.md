@@ -22,13 +22,15 @@ account that owns the project or belongs to its Expo organization. Send the
 authorized viewer this link:
 
 ```text
-exp://u.expo.dev/b28781fa-dd92-41cd-9363-e0860729a811?runtime-version=1.0.0&channel-name=demo
+exp://u.expo.dev/b28781fa-dd92-41cd-9363-e0860729a811?runtime-version=exposdk%3A54.0.0&channel-name=demo
 ```
 
 The viewer installs Expo Go, signs in to the authorized Expo account, and taps
 the link on the iPhone. The link uses the `demo` channel, so publish future
 JavaScript and styling changes with `npm run eas:update:demo` and keep the
 runtime version compatible. Demo records remain on the viewer's device.
+The published update uses the Expo Go-compatible SDK 54 runtime
+`exposdk:54.0.0`.
 
 ### Share an Expo Go preview
 
