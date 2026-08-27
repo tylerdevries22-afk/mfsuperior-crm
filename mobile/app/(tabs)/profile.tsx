@@ -78,7 +78,7 @@ function AdminConsoleSection() {
   const theme = useTheme();
   const { effectiveRole, isDemo } = useOperations();
   if (effectiveRole !== "admin") return null;
-  return <><SectionHeader title="Operations" /><Card padding="none">{ADMIN_CONSOLES.map((console, index) => <ListRow isLast={index === ADMIN_CONSOLES.length - 1} key={console.route} leading={<Feather color={theme.primaryLight} name={console.icon} size={19} />} onPress={() => router.push(console.route)} subtitle={console.title === "Jobs" && isDemo ? "Dispatch board · add demo loads" : console.subtitle} title={console.title} />)}</Card></>;
+  return <><SectionHeader title="Operations" /><Card padding="none">{ADMIN_CONSOLES.map((console, index) => <ListRow isLast={index === ADMIN_CONSOLES.length - 1} key={console.route} leading={console.route === "/payouts" ? <PayoutRailMosaic /> : <Feather color={theme.primaryLight} name={console.icon} size={19} />} onPress={() => router.push(console.route)} subtitle={console.title === "Jobs" && isDemo ? "Dispatch board · add demo loads" : console.subtitle} title={console.title} />)}</Card></>;
 }
 
 function SettingsGroups() {

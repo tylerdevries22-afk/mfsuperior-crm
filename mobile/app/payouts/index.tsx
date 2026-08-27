@@ -3,7 +3,7 @@ import { useRouter } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
-import { DriverAvatar } from "@/components/operations";
+import { DriverAvatar, PayoutRailLogo, PayoutRailMosaic } from "@/components/operations";
 import {
   AnimatedButton,
   Card,
@@ -94,7 +94,7 @@ export default function PayoutsScreen() {
         <Header onBack={() => router.back()} showBack title="Payouts & payments" />
         <Screen safeEdges={["left", "right", "bottom"]}>
           <EmptyState
-            icon={<Feather color={theme.textMuted} name="credit-card" size={36} />}
+            icon={<PayoutRailMosaic size="md" />}
             message="Settlements are an admin console. Switch to an admin account to open it."
             title="Admin role required"
           />
@@ -165,7 +165,9 @@ export default function PayoutsScreen() {
                 <ListRow
                   isLast={index === ordered.length - 1}
                   key={payout.id}
-                  leading={driver
+                  leading={payout.rail
+                    ? <PayoutRailLogo rail={payout.rail} size="sm" />
+                    : driver
                     ? <DriverAvatar driver={driver} ring={false} size={36} />
                     : <Feather color={theme.textMuted} name="user" size={ICON.md} />}
                   onPress={() => router.push({

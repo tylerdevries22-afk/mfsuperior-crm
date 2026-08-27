@@ -68,6 +68,16 @@ The first iOS build requires Apple Developer/TestFlight credentials in EAS.
 After the binary is installed, `eas:update:demo` publishes compatible changes
 over the air without requiring the Mac or a running development server.
 
+### Automatic demo publishing
+
+The GitHub Actions workflow at `.github/workflows/mobile-demo-update.yml`
+validates the mobile project and publishes the `demo` channel after every
+mobile change merged to `main`. Add an `EXPO_TOKEN` repository secret once;
+the workflow fails clearly if that secret is missing instead of silently
+leaving the phone on an old update. This does not hot-reload an already-open
+Expo Go session: close that session and reopen the hosted link to load the
+newest published update.
+
 ### Authenticated production access
 
 Production uses Supabase Auth and the public HTTPS Vercel API. Configure these
