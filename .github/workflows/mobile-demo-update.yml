@@ -21,10 +21,10 @@ jobs:
       TZ: America/Denver
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           cache: npm
           cache-dependency-path: mobile/package-lock.json
