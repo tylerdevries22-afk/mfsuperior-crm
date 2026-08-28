@@ -225,7 +225,8 @@ function isVehicle(value: Record<string, unknown>): boolean {
     isNonEmptyString(value.unitNumber) &&
     typeof value.status === "string" &&
     vehicleStatusSet.has(value.status) &&
-    isNonNegativeNumber(value.odometerMiles)
+    isNonNegativeNumber(value.odometerMiles) &&
+    (value.thumbnailUrl === undefined || value.thumbnailUrl === null || isNonEmptyString(value.thumbnailUrl))
   );
 }
 

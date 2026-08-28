@@ -96,7 +96,7 @@ values in the EAS `production` environment before building or publishing:
 ```text
 EXPO_PUBLIC_MOBILE_PARITY_V2=true
 EXPO_PUBLIC_API_BASE_URL=https://mfsuperior-crm.vercel.app/api/mobile
-EXPO_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co
+EXPO_PUBLIC_SUPABASE_URL=https://jyzgipvopoldpdcrbkvx.supabase.co
 EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<publishable-key>
 ```
 
@@ -122,11 +122,34 @@ The production cutover fails closed until all public values are present and the 
 ```bash
 EXPO_PUBLIC_MOBILE_PARITY_V2=true
 EXPO_PUBLIC_API_BASE_URL=https://your-app.example/api/mobile
-EXPO_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+EXPO_PUBLIC_SUPABASE_URL=https://jyzgipvopoldpdcrbkvx.supabase.co
 EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your-publishable-key
 ```
 
 The mobile client never receives a Supabase service-role key. Set `EXPO_PUBLIC_DEMO_AUTH_ENABLED=true` only in an explicitly labeled demo build.
+
+## Supabase migration workflow
+
+The fleet thumbnail, transfer-event, and push-token schema lives in
+`supabase/migrations/20260827215437_vehicle_thumbnails_transfers_notifications.sql`.
+Run these commands from the repository root, not from `mobile/`. Use Docker to
+validate it locally, then promote the same migration after the hosted project
+is unpaused:
+
+```bash
+npm run supabase:local:up
+npm run supabase:local:migrate
+supabase link --project-ref jyzgipvopoldpdcrbkvx
+# Set DATABASE_URL to the hosted project's migration-capable Postgres URL.
+npm run db:migrate
+npm run supabase:cloud:migrate
+```
+
+The server must still have `DATABASE_URL`, `SUPABASE_URL`, and
+`SUPABASE_SERVICE_ROLE_KEY` configured for the same hosted project. `db:migrate`
+applies the existing application schema; `supabase:cloud:migrate` adds the
+Supabase Storage bucket, Realtime event table, RLS, and push-token table. The
+mobile client only uses the publishable key.
 
 ## Explicit demo accounts
 

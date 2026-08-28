@@ -8,6 +8,7 @@ import {
   maintenanceOrders,
   vehicles,
 } from "@/lib/db/schema";
+import { vehicleThumbnailPublicUrl } from "./upload-signer";
 
 export function toMaintenanceOrder(row: typeof maintenanceOrders.$inferSelect) {
   return {
@@ -98,6 +99,7 @@ export function toVehicle(row: typeof vehicles.$inferSelect) {
     plateNumber: row.plateNumber,
     plateState: row.plateState,
     status: row.status,
+    thumbnailUrl: row.thumbnailPath ? vehicleThumbnailPublicUrl(row.thumbnailPath) : null,
     type: row.type,
     unitNumber: row.unitNumber,
     updatedAt: row.updatedAt.toISOString(),

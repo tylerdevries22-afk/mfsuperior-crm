@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { Image, Pressable, StyleSheet, Text, View, type ImageSourcePropType } from "react-native";
 
 import { FONTS, RADIUS_DENSE, SPACE, TYPO, useTheme } from "@/theme";
+import { NotificationButton } from "@/components/notifications";
 
 import type { FreightTone } from "./types";
 
@@ -18,7 +19,7 @@ export function FreightBackHeader({ title, trailing }: { readonly title: string;
         <Feather color={theme.text} name="chevron-left" size={20} />
       </Pressable>
       <Text numberOfLines={1} style={[styles.headerTitle, { color: theme.text }]}>{title}</Text>
-      <View style={styles.trailing}>{trailing ?? <View style={styles.iconPlaceholder} />}</View>
+      <View style={styles.trailing}>{trailing}<NotificationButton /></View>
     </View>
   );
 }
@@ -32,10 +33,7 @@ export function FreightBrandHeader({ context }: { readonly context?: string }) {
         <Text style={[styles.brand, { color: theme.text }]}>MF SUPERIOR</Text>
         <Text style={[styles.context, { color: theme.textMuted }]}>{context ?? "FREIGHT OPERATIONS"}</Text>
       </View>
-      <View style={[styles.network, { backgroundColor: theme.successMuted, borderColor: theme.tint.success.medium }]}> 
-        <View style={[styles.networkDot, { backgroundColor: theme.success }]} />
-        <Text style={[styles.networkText, { color: theme.success }]}>LIVE</Text>
-      </View>
+      <NotificationButton />
     </View>
   );
 }
@@ -77,5 +75,5 @@ const styles = StyleSheet.create({
   pillDot: { borderRadius: 3, height: 6, width: 6 },
   pillText: { fontFamily: FONTS.semibold, fontSize: 11, lineHeight: 15, textTransform: "capitalize" },
   pressed: { opacity: 0.7, transform: [{ scale: 0.97 }] },
-  trailing: { alignItems: "flex-end", width: 44 },
+  trailing: { alignItems: "center", flexDirection: "row", gap: SPACE.xs },
 });

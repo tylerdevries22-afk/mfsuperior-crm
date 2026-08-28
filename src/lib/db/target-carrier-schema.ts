@@ -579,6 +579,7 @@ export const vehicles = pgTable(
     plateState: varchar("plate_state", { length: 10 }).notNull(),
     status: vehicleStatusEnum("status").notNull().default("active"),
     odometerMiles: integer("odometer_miles").notNull().default(0),
+    thumbnailPath: text("thumbnail_path"),
     assignedDriverId: uuid("assigned_driver_id").references(() => drivers.id, {
       onDelete: "set null",
     }),

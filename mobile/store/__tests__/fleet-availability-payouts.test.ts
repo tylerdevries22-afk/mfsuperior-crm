@@ -222,10 +222,34 @@ describe("payout methods", () => {
 });
 
 describe("fleet and shop authorization", () => {
+  it("lets an admin add a thumbnail and transfer a unit with notes", async () => {
+    const repository = await signedInAs("admin");
+    const thumbnail = await repository.updateVehicleThumbnail("vehicle-t101", {
+      contentType: "image/jpeg",
+      fileName: "unit-t101.jpg",
+      uri: "file:///demo/unit-t101.jpg",
+    });
+    expect(thumbnail.thumbnailUrl).toBe("file:///demo/unit-t101.jpg");
+
+    const transferred = await repository.transferVehicle(
+      "vehicle-t101",
+      "driver-kenji",
+      "Covering the afternoon route.",
+    );
+    expect(transferred.assignedDriverId).toBe("driver-kenji");
+  });
+
   it("refuses a driver managing the fleet", async () => {
     const repository = await signedInAs("driver");
     await expect(repository.assignVehicle("vehicle-t101", "driver-brenna"))
       .rejects.toThrow(OperationsDomainError);
+    await expect(repository.transferVehicle("vehicle-t101", "driver-kenji", ""))
+      .rejects.toThrow(OperationsDomainError);
+    await expect(repository.updateVehicleThumbnail("vehicle-t101", {
+      contentType: "image/jpeg",
+      fileName: "unit-t101.jpg",
+      uri: "file:///demo/unit-t101.jpg",
+    })).rejects.toThrow(OperationsDomainError);
     await expect(repository.createMaintenanceOrder({
       description: "d",
       kind: "repair",

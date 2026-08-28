@@ -448,6 +448,8 @@ export interface Vehicle {
   readonly status: VehicleStatus;
   readonly odometerMiles: number;
   readonly assignedDriverId?: EntityId;
+  /** Signed or public Supabase Storage URL returned by the API. */
+  readonly thumbnailUrl?: string | null;
   readonly createdAt: IsoDateTime;
   readonly updatedAt: IsoDateTime;
 }
@@ -788,6 +790,13 @@ export interface VehicleInput {
   readonly status: VehicleStatus;
   readonly odometerMiles: number;
   readonly assignedDriverId?: EntityId;
+  readonly thumbnailUrl?: string | null;
+}
+
+export interface VehicleThumbnailSource {
+  readonly uri: string;
+  readonly fileName: string;
+  readonly contentType: string;
 }
 
 export interface MaintenanceOrderInput {

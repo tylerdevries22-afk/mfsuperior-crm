@@ -328,14 +328,13 @@ export const shipmentTenderResponseSchema = z
   })
   .strict();
 
-/**
- * Assignment is driver-only. The equipment register the mobile client once
- * carried (tractors, trailers, reefer units) has been removed from the
- * product, so there is nothing on either side to assign.
- */
+/** Driver assignment may also establish the offered linehaul price. Vehicle
+ * assignment remains a separate fleet mutation so each write is validated
+ * against the appropriate carrier-owned resource. */
 export const shipmentAssignmentSchema = z
   .object({
     driverId: z.uuid(),
+    offerPriceCents: z.number().int().min(1).max(10_000_000).optional(),
     notes: z.string().trim().min(1).max(2_000).nullable().optional(),
   })
   .strict();
@@ -506,6 +505,34 @@ export const vehicleWriteSchema = z
 
 export const vehicleAssignmentSchema = z
   .object({ driverId: z.uuid().nullable() })
+  .strict();
+
+export const vehicleTransferSchema = z
+  .object({
+    note: z.string().trim().max(1_000).default(""),
+    targetDriverId: z.uuid(),
+  })
+  .strict();
+
+export const vehicleThumbnailUploadIntentSchema = z
+  .object({
+    byteSize: z.number().int().min(1).max(10_000_000),
+    contentType: z.enum(["image/heic", "image/jpeg", "image/png", "image/webp"]),
+    fileName: z.string().trim().min(1).max(160),
+  })
+  .strict();
+
+export const vehicleThumbnailFinalizeSchema = z
+  .object({
+    path: z.string().trim().min(1).max(400),
+  })
+  .strict();
+
+export const notificationTokenSchema = z
+  .object({
+    platform: z.enum(["ios", "android"]),
+    token: z.string().trim().regex(/^Expo(?:nent)?PushToken\[[^\]]{10,220}\]$/),
+  })
   .strict();
 
 export const maintenanceQuerySchema = z

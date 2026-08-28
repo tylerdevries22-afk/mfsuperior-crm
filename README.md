@@ -45,7 +45,7 @@ deploy" bugs.
 
 | Var | Why | Example / generator |
 |---|---|---|
-| `DATABASE_URL` | Postgres connection (Neon pooler URL in prod) | `postgres://…?sslmode=require` |
+| `DATABASE_URL` | Postgres connection (Neon or Supabase pooler URL in prod) | `postgres://…?sslmode=require` |
 | `AUTH_SECRET` | Auth.js session encryption | `openssl rand -base64 32` |
 | `AUTH_GOOGLE_ID` | Google OAuth client (Gmail + Drive + Calendar) | from Google Cloud Console |
 | `AUTH_GOOGLE_SECRET` | Google OAuth client secret | from Google Cloud Console |
@@ -143,8 +143,36 @@ Drive folder: open `drive.google.com`, create a folder for the CRM (e.g. "MFS CR
 | `npm run db:migrate` | Apply committed Drizzle migrations to `DATABASE_URL` |
 | `npm run db:push` | Apply schema to `DATABASE_URL` (dev) |
 | `npm run db:studio` | Drizzle Studio |
+| `npm run supabase:local:up` | Start the local Supabase Docker stack |
+| `npm run supabase:local:migrate` | Apply tracked Supabase migrations to local Docker Postgres |
+| `npm run supabase:local:stop` | Stop the local Supabase Docker stack |
+| `npm run supabase:cloud:migrate` | Apply tracked Supabase migrations to the linked hosted project |
 | `npm run env:check` | Validate `.env.local` against `src/lib/env.ts` |
 | `npm run env:pull` | `vercel env pull .env.local` shorthand |
+
+## Supabase Docker workflow
+
+The Supabase CLI runs the local database and storage services in Docker. The
+fleet thumbnail, vehicle-transfer, and mobile push-token migration is tracked
+in `supabase/migrations/20260827215437_vehicle_thumbnails_transfers_notifications.sql`.
+Run it locally first, then link the hosted project and promote the same
+migration:
+
+```bash
+npm run supabase:local:up
+npm run supabase:local:migrate
+supabase link --project-ref jyzgipvopoldpdcrbkvx
+# Set DATABASE_URL to the hosted project's migration-capable Postgres URL.
+npm run db:migrate
+npm run supabase:cloud:migrate
+```
+
+The hosted project must be unpaused before `supabase link` can succeed. Keep
+`DATABASE_URL`, `SUPABASE_URL`, and `SUPABASE_SERVICE_ROLE_KEY` pointed at the
+same hosted project for server-side API and storage access. `db:migrate`
+applies the existing application schema; `supabase:cloud:migrate` adds the
+Supabase Storage bucket, Realtime event table, RLS, and push-token table. The
+mobile app only uses the Supabase publishable key.
 
 ## Lead research (Denver Metro) — completely free
 

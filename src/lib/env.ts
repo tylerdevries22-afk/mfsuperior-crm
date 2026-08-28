@@ -36,6 +36,14 @@ const schema = z.object({
     .regex(/^[a-z0-9](?:[a-z0-9-]{0,78}[a-z0-9])?$/)
     .optional(),
 
+  SUPABASE_URL: z.string().url().optional(),
+  NEXT_PUBLIC_SUPABASE_URL: z.string().url().optional(),
+  SUPABASE_PUBLISHABLE_KEY: z.string().min(20).optional(),
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: z.string().min(20).optional(),
+  SUPABASE_SERVICE_ROLE_KEY: z.string().min(20).optional(),
+  SUPABASE_STORAGE_BUCKET: z.string().min(1).optional(),
+  MOBILE_ALLOWED_ORIGINS: z.string().optional(),
+
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
 });
 

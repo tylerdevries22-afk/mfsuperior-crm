@@ -175,7 +175,8 @@ describe("unified demo operations domain", () => {
     await expect(
       repository.assignShipment("shipment-28492", "driver-brenna"),
     ).rejects.toThrow("already assigned");
-    await repository.assignShipment("shipment-28492", "driver-samuel");
+    const offered = await repository.assignShipment("shipment-28492", "driver-samuel", 12_500);
+    expect(offered.charges.linehaulCents).toBe(12_500);
     await repository.transitionShipment("shipment-28492", "dispatched");
     await repository.switchDemoRole("driver");
     await repository.transitionDutyStatus("driving");

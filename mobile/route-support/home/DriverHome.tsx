@@ -1,9 +1,9 @@
 import { Feather } from "@expo/vector-icons";
 import { useRouter, type Href } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
-import { FlatList, RefreshControl, ScrollView, Text, useWindowDimensions, View } from "react-native";
+import { FlatList, Image, RefreshControl, ScrollView, Text, useWindowDimensions, View } from "react-native";
 
-import { AnimatedPressable, FadeInView, Header } from "@/components/ui";
+import { AnimatedPressable, FadeInView, Header, WorkspaceCard } from "@/components/ui";
 import { formatDateKey, scheduledStart } from "@/route-support/schedule/utils";
 import { useOperations } from "@/store";
 import { SPACING, THEME } from "@/theme";
@@ -11,7 +11,7 @@ import { SPACING, THEME } from "@/theme";
 import { LoadHeroCard } from "./_components/LoadHeroCard";
 import { InlineError, PulseOrb, StatPill } from "./_components/HomePrimitives";
 import { formatCurrency, formattedDate, getGreeting } from "./homeUtils";
-import { s } from "./homeStyles";
+import { adminS, s } from "./homeStyles";
 
 /**
  * Ported from the Appliance Diagnostic Systems `TechAdminHome` at
@@ -50,6 +50,8 @@ export function DriverHome() {
   );
 
   const driverId = currentAccount?.driverId;
+  const driver = state.drivers.find((item) => item.id === driverId);
+  const vehicle = state.vehicles.find((item) => item.assignedDriverId === driverId);
   const mine = useMemo(
     () => (driverId ? shipments.filter((shipment) => shipment.assignedDriverId === driverId) : []),
     [driverId, shipments],
@@ -81,6 +83,10 @@ export function DriverHome() {
       ),
     [todayLoads],
   );
+  const offers = useMemo(() => mine.filter((shipment) => shipment.status === "accepted"), [mine]);
+  const acceptOffer = useCallback(async (shipmentId: string) => {
+    await actions.transitionShipment(shipmentId, "dispatched");
+  }, [actions]);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -162,6 +168,16 @@ export function DriverHome() {
           </FadeInView>
         ) : null}
 
+        {offers.length > 0 ? <FadeInView delay={130}>
+          <WorkspaceCard title="Needs your attention">
+            {offers.map((offer) => <View key={offer.id} style={adminS.attentionRow}>
+              <Image accessibilityIgnoresInvertColors source={require("@/assets/freight/customer-hero-truck.webp")} style={s.attentionTruck} />
+              <View style={adminS.attentionCopy}><Text style={adminS.attentionTitle}>{offer.loadNumber} · {formatCurrency(offer.charges.linehaulCents)}</Text><Text style={adminS.attentionHint}>{offer.equipmentType.replace("_", " ")} assigned · Review and accept this job</Text></View>
+              <AnimatedPressable accessibilityLabel={`Accept ${offer.loadNumber}`} accessibilityRole="button" haptic="selection" onPress={() => void acceptOffer(offer.id)} style={adminS.attentionButton}><Text style={adminS.attentionButtonText}>Accept</Text></AnimatedPressable>
+            </View>)}
+          </WorkspaceCard>
+        </FadeInView> : null}
+
         {upNext.length > 0 ? (
           <FadeInView delay={160}>
             <Text style={s.sectionLabel}>UP NEXT</Text>
@@ -175,9 +191,11 @@ export function DriverHome() {
               renderItem={({ item }) => (
                 <LoadHeroCard
                   customer={customersById[item.customerId]}
+                  driver={driver}
                   onPress={() => openLoad(item.id)}
                   shipment={item}
                   style={{ width: screenWidth * 0.82, marginRight: SPACING.md }}
+                  vehicle={vehicle}
                 />
               )}
               showsHorizontalScrollIndicator={false}

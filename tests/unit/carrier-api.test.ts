@@ -412,7 +412,13 @@ describe("strict API contracts", () => {
     ).toBe(false);
 
     expect(shipmentAssignmentSchema.safeParse({ driverId: userId }).success).toBe(true);
-    // There is no server-side equipment registry, so tractor/trailer ids are refused.
+    expect(
+      shipmentAssignmentSchema.safeParse({ driverId: userId, offerPriceCents: 12_500 }).success,
+    ).toBe(true);
+    expect(
+      shipmentAssignmentSchema.safeParse({ driverId: userId, offerPriceCents: 0 }).success,
+    ).toBe(false);
+    // Equipment assignment remains a separate fleet mutation, so unknown ids are refused.
     expect(
       shipmentAssignmentSchema.safeParse({ driverId: userId, tractorId: carrierId }).success,
     ).toBe(false);

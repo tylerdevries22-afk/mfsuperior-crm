@@ -67,7 +67,11 @@ export async function POST(request: Request, context: RouteContext) {
         const recordedAt = new Date();
         await transaction
           .update(shipments)
-          .set({ driverId: driver.id, updatedAt: recordedAt })
+          .set({
+            driverId: driver.id,
+            rateCents: body.data.offerPriceCents ?? shipment.rateCents,
+            updatedAt: recordedAt,
+          })
           .where(
             and(
               eq(shipments.id, shipment.id),
@@ -91,7 +95,11 @@ export async function POST(request: Request, context: RouteContext) {
           aggregateType: "shipment",
           aggregateId: shipment.id,
           deduplicationKey: `shipment:${shipment.id}:driver:${driver.id}`,
-          payload: { shipmentId: shipment.id, driverId: driver.id },
+          payload: {
+            shipmentId: shipment.id,
+            driverId: driver.id,
+            offerPriceCents: body.data.offerPriceCents ?? shipment.rateCents,
+          },
         });
         return {
           status: 200,

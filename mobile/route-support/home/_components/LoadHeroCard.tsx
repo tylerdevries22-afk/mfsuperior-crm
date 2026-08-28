@@ -1,9 +1,10 @@
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { Text, View, type StyleProp, type ViewStyle } from "react-native";
+import { Image, Text, View, type ImageSourcePropType, type StyleProp, type ViewStyle } from "react-native";
 
 import { AnimatedPressable, StatusBadge } from "@/components/ui";
-import type { Customer, Shipment } from "@/domain/types";
+import { DriverAvatar } from "@/components/operations";
+import type { Customer, Driver, Shipment, Vehicle } from "@/domain/types";
 import { formatTime, orderedStops, scheduledEnd, scheduledStart } from "@/route-support/schedule/utils";
 import { FONTS, THEME } from "@/theme";
 
@@ -29,11 +30,15 @@ export function LoadHeroCard({
   customer,
   onPress,
   style,
+  driver,
+  vehicle,
 }: {
   readonly shipment: Shipment;
   readonly customer?: Customer;
   readonly onPress: () => void;
   readonly style?: StyleProp<ViewStyle>;
+  readonly driver?: Driver;
+  readonly vehicle?: Vehicle;
 }) {
   const stops = orderedStops(shipment);
   const pickup = stops.find((stop) => stop.type === "pickup") ?? stops[0];
@@ -65,6 +70,11 @@ export function LoadHeroCard({
           {customer?.companyName ?? shipment.loadNumber}
         </Text>
 
+        {(driver || vehicle) ? <View style={s.loadAssets}>
+          {driver ? <View style={s.loadPerson}><DriverAvatar driver={driver} size={34} /><View><Text style={s.loadAssetLabel}>DRIVER</Text><Text style={s.loadAssetName}>{driver.firstName} {driver.lastName}</Text></View></View> : null}
+          {vehicle ? <View style={s.loadVehicle}><Image accessibilityIgnoresInvertColors source={vehicleImage(vehicle)} style={s.loadVehicleImage} /><View><Text style={s.loadAssetLabel}>VEHICLE</Text><Text numberOfLines={1} style={s.loadAssetName}>{vehicle.unitNumber} · {vehicle.make}</Text></View></View> : null}
+        </View> : null}
+
         <Text
           style={{ fontFamily: FONTS.medium, fontSize: 12, color: THEME.textMuted, marginBottom: 4 }}
         >
@@ -91,4 +101,9 @@ export function LoadHeroCard({
       </LinearGradient>
     </AnimatedPressable>
   );
+}
+
+function vehicleImage(vehicle: Vehicle): ImageSourcePropType {
+  if (vehicle.type === "trailer") return require("@/assets/freight/equipment-dry-van.webp") as ImageSourcePropType;
+  return require("@/assets/freight/customer-hero-truck.webp") as ImageSourcePropType;
 }

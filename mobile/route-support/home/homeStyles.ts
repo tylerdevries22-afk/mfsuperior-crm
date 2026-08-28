@@ -344,6 +344,13 @@ export const s = StyleSheet.create({
     fontSize: 11,
     color: THEME.textMuted,
   },
+  loadAssets: { flexDirection: "row", gap: SPACING.sm, marginBottom: SPACING.sm, marginTop: SPACING.xs },
+  loadPerson: { alignItems: "center", flexDirection: "row", flex: 1, gap: 7 },
+  loadVehicle: { alignItems: "center", flexDirection: "row", flex: 1, gap: 7 },
+  loadVehicleImage: { borderRadius: 8, height: 36, width: 48 },
+  loadAssetLabel: { fontFamily: FONTS.semibold, fontSize: 8, color: THEME.textMuted, letterSpacing: 0.6 },
+  loadAssetName: { fontFamily: FONTS.semibold, fontSize: 10, color: THEME.text, maxWidth: 100 },
+  attentionTruck: { borderRadius: RADIUS.md, height: 48, width: 64 },
 });
 
 export const adminS = StyleSheet.create({

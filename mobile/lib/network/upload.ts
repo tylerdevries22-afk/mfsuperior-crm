@@ -1,4 +1,5 @@
 import { NetworkRequestError } from "./errors";
+import { createResilientFetch } from "./retry";
 
 /** Signed upload target returned by `POST /v1/documents/upload-intent`. */
 export interface SignedUploadTarget {
@@ -63,7 +64,10 @@ export async function uploadToSignedUrl(
 ): Promise<void> {
   const fetchImplementation = options.fetchImplementation ?? fetch;
   const url = resolveUploadUrl(target, options.baseUrl);
-  const response = await fetchImplementation(url, {
+  const response = await createResilientFetch({
+    fetchImplementation,
+    timeoutMs: 10_000,
+  })(url, {
     body: upload.body,
     headers: { "Content-Type": target.contentType },
     method: "PUT",

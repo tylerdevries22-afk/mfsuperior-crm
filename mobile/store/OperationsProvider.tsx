@@ -48,10 +48,17 @@ import type {
   ShipmentStatus,
   Vehicle,
   VehicleInput,
+  VehicleThumbnailSource,
   ShiftCoverageRequest,
   ShiftCoverageRequestInput,
 } from "../domain/types";
 import { createOperationsRepositoryFromEnvironment } from "./repositoryFactory";
+import {
+  configureNotificationPresentation,
+  registerDeviceForNotifications,
+  showVehicleTransferNotification,
+  subscribeToVehicleTransfers,
+} from "../lib/notifications/service";
 
 export interface OperationsActions {
   signIn(email: string, pin: string): Promise<boolean>;
@@ -60,7 +67,7 @@ export interface OperationsActions {
   switchDemoRole(role: AppRole): Promise<boolean>;
   resetDemo(): Promise<boolean>;
   respondToTender(shipmentId: string, response: "accepted" | "declined"): Promise<boolean>;
-  assignShipment(shipmentId: string, driverId: string): Promise<boolean>;
+  assignShipment(shipmentId: string, driverId: string, offerPriceCents?: number): Promise<boolean>;
   addDemoUnassignedLoad(): Promise<boolean>;
   transitionShipment(
     shipmentId: string,
@@ -91,6 +98,8 @@ export interface OperationsActions {
   retryScheduleSync(shiftId: string): Promise<boolean>;
   upsertVehicle(input: VehicleInput): Promise<boolean>;
   assignVehicle(vehicleId: string, driverId: string | null): Promise<boolean>;
+  transferVehicle(vehicleId: string, targetDriverId: string, note: string): Promise<boolean>;
+  updateVehicleThumbnail(vehicleId: string, source: VehicleThumbnailSource): Promise<boolean>;
   createMaintenanceOrder(input: MaintenanceOrderInput): Promise<boolean>;
   updateMaintenanceOrder(orderId: string, patch: MaintenanceOrderPatch): Promise<boolean>;
   upsertComplianceDocument(input: ComplianceDocumentInput): Promise<boolean>;
@@ -188,6 +197,31 @@ export function OperationsProvider({
     };
   }, [repository]);
 
+  useEffect(() => {
+    configureNotificationPresentation();
+    const account = state.accounts.find((candidate) => candidate.id === state.session.accountId);
+    const driverId = state.session.effectiveRole === "driver" ? account?.driverId : undefined;
+    if (!isHydrated || repository.mode !== "production" || !driverId) return undefined;
+
+    let cancelled = false;
+    let unsubscribe: () => void = () => undefined;
+    void registerDeviceForNotifications().catch(() => undefined);
+    void subscribeToVehicleTransfers(driverId, (event) => {
+      if (!cancelled) void showVehicleTransferNotification(event).catch(() => undefined);
+    }).then((remove) => {
+      if (cancelled) {
+        remove();
+      } else {
+        unsubscribe = remove;
+      }
+    }).catch(() => undefined);
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [isHydrated, repository.mode, state.accounts, state.session.accountId, state.session.effectiveRole]);
+
   const actions = useMemo<OperationsActions>(() => {
     const runMutation = async (mutation: () => Promise<unknown>): Promise<boolean> => {
       setError(null);
@@ -209,8 +243,8 @@ export function OperationsProvider({
       respondToTender: (shipmentId, response) => runMutation(
         () => repository.respondToTender(shipmentId, response),
       ),
-      assignShipment: (shipmentId, driverId) => runMutation(
-        () => repository.assignShipment(shipmentId, driverId),
+      assignShipment: (shipmentId, driverId, offerPriceCents) => runMutation(
+        () => repository.assignShipment(shipmentId, driverId, offerPriceCents),
       ),
       addDemoUnassignedLoad: () => runMutation(() => repository.addDemoUnassignedLoad()),
       transitionShipment: (shipmentId, nextStatus, stopId) => runMutation(
@@ -259,6 +293,12 @@ export function OperationsProvider({
       upsertVehicle: (input) => runMutation(() => repository.upsertVehicle(input)),
       assignVehicle: (vehicleId, driverId) => runMutation(
         () => repository.assignVehicle(vehicleId, driverId),
+      ),
+      transferVehicle: (vehicleId, targetDriverId, note) => runMutation(
+        () => repository.transferVehicle(vehicleId, targetDriverId, note),
+      ),
+      updateVehicleThumbnail: (vehicleId, source) => runMutation(
+        () => repository.updateVehicleThumbnail(vehicleId, source),
       ),
       createMaintenanceOrder: (input) => runMutation(
         () => repository.createMaintenanceOrder(input),
@@ -411,4 +451,9 @@ export function useOperations(): OperationsContextValue {
     throw new Error("useOperations must be used inside an OperationsProvider.");
   }
   return value;
+}
+
+/** For shared chrome that can also render in isolated previews and tests. */
+export function useOptionalOperations(): OperationsContextValue | null {
+  return useContext(OperationsContext);
 }

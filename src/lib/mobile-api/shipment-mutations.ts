@@ -22,6 +22,7 @@ export type LockedShipment = {
   status: ShipmentStatus;
   driverId: string | null;
   carrierId: string | null;
+  rateCents: number | null;
 };
 
 export const shipmentIdParamSchema = z.uuid();
@@ -41,6 +42,7 @@ export async function lockAccessibleShipment(
       status: shipments.status,
       driverId: shipments.driverId,
       carrierId: shipments.carrierId,
+      rateCents: shipments.rateCents,
     })
     .from(shipments)
     .where(and(eq(shipments.id, shipmentId), shipmentAccessPredicate(principal)))

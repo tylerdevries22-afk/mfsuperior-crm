@@ -48,6 +48,18 @@ const schema = z.object({
   WARMUP_DAILY_CAP: z.coerce.number().int().positive().default(5),
 
   CARRIER_DEMO_MODE: z.enum(["true", "false"]).optional(),
+  CUSTOMER_SELF_REGISTRATION_ORGANIZATION_SLUG: z
+    .string()
+    .regex(/^[a-z0-9](?:[a-z0-9-]{0,78}[a-z0-9])?$/)
+    .optional(),
+
+  SUPABASE_URL: z.string().url().optional(),
+  NEXT_PUBLIC_SUPABASE_URL: z.string().url().optional(),
+  SUPABASE_PUBLISHABLE_KEY: z.string().min(20).optional(),
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: z.string().min(20).optional(),
+  SUPABASE_SERVICE_ROLE_KEY: z.string().min(20).optional(),
+  SUPABASE_STORAGE_BUCKET: z.string().min(1).optional(),
+  MOBILE_ALLOWED_ORIGINS: z.string().optional(),
 
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
 });
@@ -77,6 +89,14 @@ const OPTIONAL = [
   "GOOGLE_MAPS_API_KEY",
   "HUNTER_API_KEY",
   "CARRIER_DEMO_MODE",
+  "CUSTOMER_SELF_REGISTRATION_ORGANIZATION_SLUG",
+  "SUPABASE_URL",
+  "NEXT_PUBLIC_SUPABASE_URL",
+  "SUPABASE_PUBLISHABLE_KEY",
+  "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
+  "SUPABASE_SERVICE_ROLE_KEY",
+  "SUPABASE_STORAGE_BUCKET",
+  "MOBILE_ALLOWED_ORIGINS",
 ] as const;
 
 const arg = process.argv[2] ?? ".env.local";

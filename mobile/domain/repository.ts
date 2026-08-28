@@ -37,6 +37,7 @@ import type {
   ShiftCoverageRequestInput,
   Vehicle,
   VehicleInput,
+  VehicleThumbnailSource,
 } from "./types";
 
 export interface HydrationResult {
@@ -59,7 +60,11 @@ export interface OperationsRepository {
     shipmentId: EntityId,
     response: "accepted" | "declined",
   ): Promise<Shipment>;
-  assignShipment(shipmentId: EntityId, driverId: EntityId): Promise<Shipment>;
+  assignShipment(
+    shipmentId: EntityId,
+    driverId: EntityId,
+    offerPriceCents?: number,
+  ): Promise<Shipment>;
   /** Adds a local sample load; production repositories intentionally reject it. */
   addDemoUnassignedLoad(): Promise<Shipment>;
   transitionShipment(
@@ -114,6 +119,15 @@ export interface OperationsRepository {
   /** Fleet, shop, and compliance. Admin only. */
   upsertVehicle(input: VehicleInput): Promise<Vehicle>;
   assignVehicle(vehicleId: EntityId, driverId: EntityId | null): Promise<Vehicle>;
+  transferVehicle(
+    vehicleId: EntityId,
+    targetDriverId: EntityId,
+    note: string,
+  ): Promise<Vehicle>;
+  updateVehicleThumbnail(
+    vehicleId: EntityId,
+    source: VehicleThumbnailSource,
+  ): Promise<Vehicle>;
   createMaintenanceOrder(input: MaintenanceOrderInput): Promise<MaintenanceOrder>;
   updateMaintenanceOrder(
     orderId: EntityId,

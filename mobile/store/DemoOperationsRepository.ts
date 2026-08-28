@@ -65,6 +65,7 @@ import type {
   ShiftCoverageRequestInput,
   Vehicle,
   VehicleInput,
+  VehicleThumbnailSource,
 } from "../domain/types";
 import { PayoutMethodStore } from "./payoutMethodStore";
 import { AsyncStoragePersistenceAdapter, type PersistenceAdapter } from "./persistence";
@@ -281,7 +282,11 @@ export class DemoOperationsRepository implements OperationsRepository {
     });
   }
 
-  assignShipment(shipmentId: EntityId, driverId: EntityId): Promise<Shipment> {
+  assignShipment(
+    shipmentId: EntityId,
+    driverId: EntityId,
+    offerPriceCents?: number,
+  ): Promise<Shipment> {
     return this.commit((state, occurredAt) => {
       const context = getSessionContext(state);
       requireRole(context, "admin", "Only an admin can assign a shipment.");
@@ -297,6 +302,9 @@ export class DemoOperationsRepository implements OperationsRepository {
       const assignedShipment: Shipment = {
         ...shipment,
         assignedDriverId: driverId,
+        charges: offerPriceCents === undefined
+          ? shipment.charges
+          : { ...shipment.charges, linehaulCents: offerPriceCents },
         updatedAt: occurredAt,
       };
       const nextState: DemoOperationsState = replaceShipment(state, assignedShipment, occurredAt);
@@ -364,7 +372,10 @@ export class DemoOperationsRepository implements OperationsRepository {
           "Use the exception report action to place a load in exception status.",
         );
       }
-      if ((nextStatus === "dispatched" || nextStatus === "cancelled") && context.effectiveRole !== "admin") {
+      const driverAcceptingAssignment = nextStatus === "dispatched"
+        && context.effectiveRole === "driver"
+        && shipment.assignedDriverId === context.driverId;
+      if ((nextStatus === "dispatched" || nextStatus === "cancelled") && context.effectiveRole !== "admin" && !driverAcceptingAssignment) {
         throw new OperationsDomainError(
           "UNAUTHORIZED",
           "Only an admin can dispatch or cancel a load.",
@@ -1292,6 +1303,7 @@ export class DemoOperationsRepository implements OperationsRepository {
         plateNumber: input.plateNumber,
         plateState: input.plateState,
         status: input.status,
+        thumbnailUrl: input.thumbnailUrl ?? existing?.thumbnailUrl ?? null,
         type: input.type,
         unitNumber,
         updatedAt: occurredAt,
@@ -1338,6 +1350,60 @@ export class DemoOperationsRepository implements OperationsRepository {
           ...state,
           updatedAt: occurredAt,
           vehicles: state.vehicles.map((candidate) => candidate.id === updated.id ? updated : candidate),
+        },
+      };
+    });
+  }
+
+  transferVehicle(vehicleId: EntityId, targetDriverId: EntityId, note: string): Promise<Vehicle> {
+    return this.commit((state, occurredAt) => {
+      requireRole(
+        getSessionContext(state),
+        "admin",
+        "An Admin role is required to transfer a vehicle.",
+      );
+      if (note.trim().length > 1_000) {
+        throw new OperationsDomainError("VALIDATION_FAILED", "Transfer notes are too long.");
+      }
+      const vehicle = findVehicle(state, vehicleId);
+      if (vehicle.status !== "active") {
+        throw new OperationsDomainError("VALIDATION_FAILED", "Only an active vehicle can be transferred.");
+      }
+      if (vehicle.assignedDriverId === targetDriverId) {
+        throw new OperationsDomainError("VALIDATION_FAILED", "Choose a different driver for the transfer.");
+      }
+      findDriver(state, targetDriverId);
+      const updated: Vehicle = {
+        ...vehicle,
+        assignedDriverId: targetDriverId,
+        updatedAt: occurredAt,
+      };
+      return {
+        result: updated,
+        state: {
+          ...state,
+          updatedAt: occurredAt,
+          vehicles: state.vehicles.map((candidate) => candidate.id === vehicleId ? updated : candidate),
+        },
+      };
+    });
+  }
+
+  updateVehicleThumbnail(vehicleId: EntityId, source: VehicleThumbnailSource): Promise<Vehicle> {
+    return this.commit((state, occurredAt) => {
+      requireRole(
+        getSessionContext(state),
+        "admin",
+        "An Admin role is required to manage vehicle thumbnails.",
+      );
+      const vehicle = findVehicle(state, vehicleId);
+      const updated: Vehicle = { ...vehicle, thumbnailUrl: source.uri, updatedAt: occurredAt };
+      return {
+        result: updated,
+        state: {
+          ...state,
+          updatedAt: occurredAt,
+          vehicles: state.vehicles.map((candidate) => candidate.id === vehicleId ? updated : candidate),
         },
       };
     });

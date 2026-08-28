@@ -143,6 +143,11 @@ export class SupabaseAuthService {
     return data.session?.access_token ?? null;
   }
 
+  /** Shares the authenticated client with realtime and push registration layers. */
+  getClient(): SupabaseClient {
+    return this.client;
+  }
+
   async getMfaState(): Promise<MfaState> {
     return loadMfaState(this.client);
   }

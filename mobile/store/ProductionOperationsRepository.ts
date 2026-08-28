@@ -45,6 +45,7 @@ import type {
   ShiftCoverageRequestInput,
   Vehicle,
   VehicleInput,
+  VehicleThumbnailSource,
 } from "../domain/types";
 import { DEMO_STATE_VERSION } from "../domain/types";
 import { normalizePayoutHandle } from "./payoutMethodStore";
@@ -106,6 +107,16 @@ interface ExtendedCollections {
 }
 
 type ExtendedRefresh = "all" | "cached" | readonly (keyof ExtendedCollections)[];
+
+interface VehicleThumbnailUploadIntent {
+  readonly path: string;
+  readonly upload: {
+    readonly contentType: string;
+    readonly expiresAt: string;
+    readonly token: string;
+    readonly url: string;
+  };
+}
 
 const EMPTY_EXTENDED: ExtendedCollections = {
   availabilityBlocks: [],
@@ -204,10 +215,14 @@ export class ProductionOperationsRepository implements OperationsRepository {
     return this.requireShipment(shipmentId);
   }
 
-  async assignShipment(shipmentId: EntityId, driverId: EntityId): Promise<Shipment> {
+  async assignShipment(
+    shipmentId: EntityId,
+    driverId: EntityId,
+    offerPriceCents?: number,
+  ): Promise<Shipment> {
     await this.performMutation<{ readonly driverId: string }>(
       `v1/shipments/${encodeId(shipmentId)}/assignment`,
-      { driverId },
+      { driverId, offerPriceCents },
     );
     return this.requireShipment(shipmentId);
   }
@@ -641,6 +656,49 @@ export class ProductionOperationsRepository implements OperationsRepository {
       ["vehicles"],
     );
     return this.requireVehicle(vehicleId);
+  }
+
+  async transferVehicle(
+    vehicleId: EntityId,
+    targetDriverId: EntityId,
+    note: string,
+  ): Promise<Vehicle> {
+    await this.performMutation<{ readonly id: string }>(
+      `v1/vehicles/${encodeId(vehicleId)}/transfer`,
+      { note: note.trim(), targetDriverId },
+      ["vehicles"],
+    );
+    return this.requireVehicle(vehicleId);
+  }
+
+  async updateVehicleThumbnail(
+    vehicleId: EntityId,
+    source: VehicleThumbnailSource,
+  ): Promise<Vehicle> {
+    this.requireIdentity();
+    const uploadBody = await readUploadBody({ uri: source.uri }, this.fetchImplementation);
+    const intent = await this.apiClient.requestJson<VehicleThumbnailUploadIntent>(
+      `v1/vehicles/${encodeId(vehicleId)}/thumbnail-upload-intent`,
+      {
+        body: {
+          byteSize: uploadBody.byteSize,
+          contentType: source.contentType,
+          fileName: source.fileName,
+        },
+        idempotencyKey: this.idFactory(),
+        method: "POST",
+      },
+    );
+    await uploadToSignedUrl(intent.upload, uploadBody, {
+      baseUrl: this.uploadBaseUrl,
+      fetchImplementation: this.fetchImplementation,
+    });
+    const saved = await this.performMutation<{ readonly id: string }>(
+      `v1/vehicles/${encodeId(vehicleId)}/thumbnail`,
+      { path: intent.path },
+      ["vehicles"],
+    );
+    return this.requireVehicle(saved.id);
   }
 
   async createMaintenanceOrder(input: MaintenanceOrderInput): Promise<MaintenanceOrder> {

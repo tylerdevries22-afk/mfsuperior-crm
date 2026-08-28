@@ -1,4 +1,5 @@
 import Feather from "@expo/vector-icons/Feather";
+import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
@@ -9,7 +10,6 @@ import {
   Card,
   EmptyState,
   Header,
-  ListRow,
   Screen,
   SegmentedControl,
 } from "@/components/ui";
@@ -106,11 +106,10 @@ export function FleetScreen({ isTab = false }: FleetScreenProps = {}) {
             title="Nothing here"
           />
         ) : (
-          <Card padding="none">
-            {visible.map((entry, index) => (
-              <FleetRow
+          <View style={styles.cardGrid}>
+            {visible.map((entry) => (
+              <FleetCard
                 entry={entry}
-                isLast={index === visible.length - 1}
                 key={entry.vehicle.id}
                 onPress={() => router.push({
                   params: { id: entry.vehicle.id },
@@ -118,7 +117,7 @@ export function FleetScreen({ isTab = false }: FleetScreenProps = {}) {
                 })}
               />
             ))}
-          </Card>
+          </View>
         )}
       </Screen>
     </View>
@@ -127,44 +126,58 @@ export function FleetScreen({ isTab = false }: FleetScreenProps = {}) {
 
 export default FleetScreen;
 
-function FleetRow({
+function FleetCard({
   entry,
-  isLast,
   onPress,
 }: {
   readonly entry: FleetEntry;
-  readonly isLast: boolean;
   readonly onPress: () => void;
 }) {
   const theme = useTheme();
   const { driver, expiringDocuments, openOrders, vehicle } = entry;
 
   return (
-    <ListRow
-      isLast={isLast}
-      leading={
-        <View style={[styles.unitWell, { backgroundColor: theme.surfaceElevated }]}>
-          <Feather
-            color={theme.primaryLight}
-            name={vehicle.type === "tractor" ? "truck" : "box"}
-            size={ICON.md}
+    <Card accessibilityLabel={`Open Unit ${vehicle.unitNumber}`} onPress={onPress} padding="none">
+      <View style={styles.imageFrame}>
+        {vehicle.thumbnailUrl ? (
+          <Image
+            accessibilityLabel={`${describeVehicle(vehicle)} thumbnail`}
+            contentFit="cover"
+            source={{ uri: vehicle.thumbnailUrl }}
+            style={styles.vehicleImage}
           />
-        </View>
-      }
-      onPress={onPress}
-      rich
-      subtitle={`${describeVehicle(vehicle)} · ${formatOdometer(vehicle.odometerMiles)}`}
-      title={`Unit ${vehicle.unitNumber}`}
-      trailing={
-        <View style={styles.trailing}>
+        ) : (
+          <View style={[styles.imageFallback, { backgroundColor: theme.surfaceElevated }]}>
+            <Feather
+              color={theme.primaryLight}
+              name={vehicle.type === "tractor" ? "truck" : "box"}
+              size={ICON.xl}
+            />
+            <Text style={[styles.imageFallbackLabel, { color: theme.textMuted }]}>Add photo</Text>
+          </View>
+        )}
+        <View style={styles.imageBadge}>
           <Badge
             label={VEHICLE_STATUS_LABELS[vehicle.status]}
             size="sm"
             tone={statusBadgeTone(vehicle.status)}
           />
+        </View>
+      </View>
+      <View style={styles.cardBody}>
+        <View style={styles.cardTitleRow}>
+          <View style={styles.grow}>
+            <Text style={[styles.cardTitle, { color: theme.text }]}>Unit {vehicle.unitNumber}</Text>
+            <Text style={[styles.cardSubtitle, { color: theme.textSecondary }]}>
+              {describeVehicle(vehicle)} · {formatOdometer(vehicle.odometerMiles)}
+            </Text>
+          </View>
+          <Feather color={theme.textMuted} name="chevron-right" size={ICON.md} />
+        </View>
+        <View style={styles.cardFooter}>
           {driver ? (
             <View style={styles.driverRow}>
-              <DriverAvatar driver={driver} ring={false} size={20} />
+              <DriverAvatar driver={driver} ring={false} size={24} />
               <Text numberOfLines={1} style={[styles.driverName, { color: theme.textMuted }]}>
                 {driverFullName(driver)}
               </Text>
@@ -174,25 +187,13 @@ function FleetRow({
           )}
           {openOrders.length > 0 || expiringDocuments.length > 0 ? (
             <View style={styles.flagRow}>
-              {openOrders.length > 0 ? (
-                <Flag
-                  icon="tool"
-                  label={`${openOrders.length} open`}
-                  tone={theme.warning}
-                />
-              ) : null}
-              {expiringDocuments.length > 0 ? (
-                <Flag
-                  icon="file-text"
-                  label={`${expiringDocuments.length} expiring`}
-                  tone={theme.danger}
-                />
-              ) : null}
+              {openOrders.length > 0 ? <Flag icon="tool" label={`${openOrders.length} open`} tone={theme.warning} /> : null}
+              {expiringDocuments.length > 0 ? <Flag icon="file-text" label={`${expiringDocuments.length} expiring`} tone={theme.danger} /> : null}
             </View>
           ) : null}
         </View>
-      }
-    />
+      </View>
+    </Card>
   );
 }
 
@@ -247,13 +248,24 @@ function statusBadgeTone(status: VehicleStatus) {
 }
 
 const styles = StyleSheet.create({
+  cardBody: { gap: SPACE.sm, padding: SPACE.md },
+  cardFooter: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", minHeight: 28 },
+  cardGrid: { gap: SPACE.md },
+  cardSubtitle: { ...TYPO.caption, marginTop: 3 },
+  cardTitle: { ...TYPO.cardTitle },
+  cardTitleRow: { alignItems: "center", flexDirection: "row", gap: SPACE.sm },
   content: { gap: SPACE.md, paddingBottom: SPACE.xxl },
-  driverName: { ...TYPO.subtitle, maxWidth: 96 },
+  driverName: { ...TYPO.subtitle, maxWidth: 150 },
   driverRow: { alignItems: "center", flexDirection: "row", gap: SPACE.xxs },
   fill: { flex: 1 },
   flag: { alignItems: "center", flexDirection: "row", gap: 2 },
   flagLabel: { ...TYPO.subtitle, fontSize: 10 },
   flagRow: { alignItems: "center", flexDirection: "row", gap: SPACE.xs },
+  grow: { flex: 1, minWidth: 0 },
+  imageBadge: { bottom: SPACE.sm, left: SPACE.sm, position: "absolute" },
+  imageFallback: { alignItems: "center", flex: 1, gap: SPACE.xs, justifyContent: "center" },
+  imageFallbackLabel: { ...TYPO.subtitle },
+  imageFrame: { height: 156, overflow: "hidden", position: "relative" },
   total: {
     alignItems: "center",
     borderRadius: RADIUS.md,
@@ -265,6 +277,5 @@ const styles = StyleSheet.create({
   totalLabel: { ...TYPO.metricLabel },
   totalValue: { ...TYPO.metric },
   totalsRow: { flexDirection: "row", gap: SPACE.sm },
-  trailing: { alignItems: "flex-end", gap: SPACE.xxs, maxWidth: 132 },
-  unitWell: { alignItems: "center", borderRadius: 12, height: 40, justifyContent: "center", width: 40 },
+  vehicleImage: { height: "100%", width: "100%" },
 });

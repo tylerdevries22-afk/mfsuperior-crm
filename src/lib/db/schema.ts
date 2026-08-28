@@ -16,9 +16,11 @@ import {
   varchar,
 } from "drizzle-orm/pg-core";
 import {
+  carriers,
   drivers,
   organizations,
   shipments,
+  vehicles,
 } from "./target-carrier-schema";
 
 /* ───── Enums ─────────────────────────────────────────────────── */
@@ -1137,6 +1139,86 @@ export const operationsMessageReads = pgTable(
   (table) => [
     primaryKey({ columns: [table.messageId, table.userId] }),
     index("operations_message_reads_user_idx").on(table.userId),
+  ],
+);
+
+/** Immutable carrier-scoped event delivered to the driver receiving a unit. */
+export const vehicleTransferEvents = pgTable(
+  "vehicle_transfer_events",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    carrierId: uuid("carrier_id")
+      .notNull()
+      .references(() => carriers.id, { onDelete: "cascade" }),
+    vehicleId: uuid("vehicle_id")
+      .notNull()
+      .references(() => vehicles.id, { onDelete: "cascade" }),
+    fromDriverId: uuid("from_driver_id").references(() => drivers.id, {
+      onDelete: "set null",
+    }),
+    targetDriverId: uuid("target_driver_id")
+      .notNull()
+      .references(() => drivers.id, { onDelete: "cascade" }),
+    /** Supabase Auth subject used only by Realtime RLS for recipient filtering. */
+    targetAuthSubject: text("target_auth_subject").notNull(),
+    requestedByUserId: uuid("requested_by_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    vehicleUnitNumber: varchar("vehicle_unit_number", { length: 40 }).notNull(),
+    fromDriverName: varchar("from_driver_name", { length: 200 }),
+    targetDriverName: varchar("target_driver_name", { length: 200 }).notNull(),
+    note: varchar("note", { length: 1_000 }).notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("vehicle_transfer_events_target_created_idx").on(
+      table.targetDriverId,
+      table.createdAt,
+    ),
+    index("vehicle_transfer_events_org_created_idx").on(
+      table.organizationId,
+      table.createdAt,
+    ),
+  ],
+);
+
+/** Expo push tokens registered by a signed-in device. */
+export const mobilePushTokens = pgTable(
+  "mobile_push_tokens",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    expoPushToken: varchar("expo_push_token", { length: 255 }).notNull(),
+    platform: varchar("platform", { length: 20 }).notNull(),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    check(
+      "mobile_push_tokens_platform_check",
+      sql`${table.platform} in ('ios', 'android')`,
+    ),
+    uniqueIndex("mobile_push_tokens_user_token_unique").on(
+      table.organizationId,
+      table.userId,
+      table.expoPushToken,
+    ),
+    index("mobile_push_tokens_user_idx").on(table.organizationId, table.userId),
   ],
 );
 

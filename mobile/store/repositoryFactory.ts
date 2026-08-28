@@ -111,7 +111,9 @@ function createUnconfiguredRepository(missing: readonly string[]): OperationsRep
     switchDemoRole: fail,
     transitionDutyStatus: fail,
     transitionShipment: fail,
+    transferVehicle: fail,
     updateMaintenanceOrder: fail,
+    updateVehicleThumbnail: fail,
     upsertComplianceDocument: fail,
     upsertVehicle: fail,
   };

@@ -35,6 +35,12 @@
       "expo-router",
       "expo-font",
       [
+        "expo-notifications",
+        {
+          "enableBackgroundRemoteNotifications": false
+        }
+      ],
+      [
         "expo-image-picker",
         {
           "photosPermission": "Allow MF Superior Products to attach freight photos.",
