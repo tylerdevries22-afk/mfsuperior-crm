@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { FONTS, makeStyles, SPACING, useTheme } from "../../theme";
 import { AnimatedPressable } from "./AnimatedPressable";
+import { NotificationButton } from "../notifications";
 
 export type HeaderProps = {
   title?: string;
@@ -150,7 +151,7 @@ export function Header({
           </View>
         ) : null}
 
-        {rightAction ? <View style={styles.right}>{rightAction}</View> : centered && showBack ? <View style={placeholder} /> : null}
+        <View style={styles.right}>{rightAction}<NotificationButton /></View>
       </View>
       <View style={styles.border} />
     </View>
@@ -179,5 +180,3 @@ function TitleBlock({
     </View>
   );
 }
-
-const placeholder: ViewStyle = { width: 32 };

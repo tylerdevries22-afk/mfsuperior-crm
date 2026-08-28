@@ -21,6 +21,8 @@ export interface FreightRecord {
   readonly tone?: FreightTone;
   readonly icon?: FreightIconName;
   readonly route?: string;
+  /** Optional segment used by collection screens for functional tab filtering. */
+  readonly segment?: string;
 }
 
 export interface FreightAction {

@@ -364,7 +364,10 @@ export class DemoOperationsRepository implements OperationsRepository {
           "Use the exception report action to place a load in exception status.",
         );
       }
-      if ((nextStatus === "dispatched" || nextStatus === "cancelled") && context.effectiveRole !== "admin") {
+      const driverAcceptingAssignment = nextStatus === "dispatched"
+        && context.effectiveRole === "driver"
+        && shipment.assignedDriverId === context.driverId;
+      if ((nextStatus === "dispatched" || nextStatus === "cancelled") && context.effectiveRole !== "admin" && !driverAcceptingAssignment) {
         throw new OperationsDomainError(
           "UNAUTHORIZED",
           "Only an admin can dispatch or cancel a load.",

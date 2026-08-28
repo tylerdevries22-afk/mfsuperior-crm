@@ -412,3 +412,8 @@ export function useOperations(): OperationsContextValue {
   }
   return value;
 }
+
+/** For shared chrome that can also render in isolated previews and tests. */
+export function useOptionalOperations(): OperationsContextValue | null {
+  return useContext(OperationsContext);
+}
