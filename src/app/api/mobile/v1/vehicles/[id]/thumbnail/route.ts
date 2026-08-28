@@ -13,7 +13,10 @@ import {
 import { executeIdempotentMutation } from "@/lib/mobile-api/idempotency";
 import { parseRouteId } from "@/lib/mobile-api/shipment-mutations";
 import { toVehicle } from "@/lib/mobile-api/route-serializers";
-import { vehicleThumbnailPathBelongsTo } from "@/lib/mobile-api/upload-signer";
+import {
+  signVehicleThumbnailReads,
+  vehicleThumbnailPathBelongsTo,
+} from "@/lib/mobile-api/upload-signer";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -62,8 +65,13 @@ export async function POST(request: Request, context: RouteContext) {
         return { status: 200, data: { id: updated.id, vehicle: toVehicle(updated) } };
       },
     );
+    const thumbnailUrls = await signVehicleThumbnailReads([body.data.path]);
     return mergeResponseHeaders(
-      apiSuccess(result.data.vehicle, requestId, { meta: { idempotencyReplayed: result.replayed } }),
+      apiSuccess(
+        { ...result.data.vehicle, thumbnailUrl: thumbnailUrls.get(body.data.path) ?? null },
+        requestId,
+        { meta: { idempotencyReplayed: result.replayed } },
+      ),
       authorization.responseHeaders,
     );
   } catch (error) {

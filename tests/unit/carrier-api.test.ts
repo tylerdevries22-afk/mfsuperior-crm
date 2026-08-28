@@ -593,6 +593,19 @@ describe("resilience and idempotency", () => {
     });
     expect(response.status).toBe(200);
     expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    const cancellation = new Error("request cancelled");
+    const controller = new AbortController();
+    controller.abort(cancellation);
+    const abortedFetch = vi.fn<typeof fetch>(async (_input, init) => {
+      if (init?.signal?.aborted) throw init.signal.reason;
+      return Response.json({ ok: true });
+    });
+    vi.stubGlobal("fetch", abortedFetch);
+    await expect(fetchWithRetry("https://example.com", {
+      signal: controller.signal,
+    })).rejects.toBe(cancellation);
+    expect(abortedFetch).toHaveBeenCalledTimes(1);
   });
 
   it("hashes canonical request content for idempotency conflict detection", () => {

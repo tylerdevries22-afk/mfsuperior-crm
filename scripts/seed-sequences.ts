@@ -207,7 +207,7 @@ async function main() {
   console.log(`Test lead:     ${testEmail} (id: ${testLeadId})`);
   console.log(`\nRun tick to send Day 0 email:`);
   console.log(`  curl -s http://localhost:3000/api/cron/tick-sequences -X POST \\`);
-  console.log(`    -H "Authorization: Bearer be99ca1751c1e30052793107fa913541f9db24a7" | python3 -m json.tool`);
+  console.log('    -H "Authorization: Bearer $CRON_SECRET" | python3 -m json.tool');
 
   process.exit(0);
 }

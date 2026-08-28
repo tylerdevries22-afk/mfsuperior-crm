@@ -4,6 +4,8 @@ import { fetchWithRetry } from "./external-fetch";
 import { MobileApiError } from "./http";
 
 export const VEHICLE_THUMBNAIL_BUCKET = "vehicle-thumbnails";
+const SIGNED_UPLOAD_LIFETIME_SECONDS = 2 * 60 * 60;
+const VEHICLE_THUMBNAIL_READ_LIFETIME_SECONDS = 60 * 60;
 
 export type SignedUpload = {
   bucket: string;
@@ -51,15 +53,6 @@ export function vehicleThumbnailPathBelongsTo(
   return path.startsWith(prefix) && path.slice(prefix.length).length > 0 && !path.includes("..");
 }
 
-export function vehicleThumbnailPublicUrl(path: string): string | null {
-  const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
-  if (!url) return null;
-  return `${url.replace(/\/$/, "")}/storage/v1/object/public/${VEHICLE_THUMBNAIL_BUCKET}/${path
-    .split("/")
-    .map((segment) => encodeURIComponent(segment))
-    .join("/")}`;
-}
-
 /** Creates a short-lived Supabase Storage upload token using server-only keys. */
 export async function signDocumentUpload(path: string): Promise<SignedUpload> {
   const { bucket, client } = storageAdminClient(process.env.SUPABASE_STORAGE_BUCKET);
@@ -78,11 +71,11 @@ export async function signDocumentUpload(path: string): Promise<SignedUpload> {
     path,
     signedUrl: data.signedUrl,
     token: data.token,
-    expiresInSeconds: 120,
+    expiresInSeconds: SIGNED_UPLOAD_LIFETIME_SECONDS,
   };
 }
 
-/** Creates a short-lived upload token for the migrated public thumbnail bucket. */
+/** Creates a short-lived upload token for the private thumbnail bucket. */
 export async function signVehicleThumbnailUpload(path: string): Promise<SignedUpload> {
   const { client } = storageAdminClient(VEHICLE_THUMBNAIL_BUCKET);
   const { data, error } = await client.storage
@@ -100,8 +93,36 @@ export async function signVehicleThumbnailUpload(path: string): Promise<SignedUp
     path,
     signedUrl: data.signedUrl,
     token: data.token,
-    expiresInSeconds: 120,
+    expiresInSeconds: SIGNED_UPLOAD_LIFETIME_SECONDS,
   };
+}
+
+/** Creates private, time-limited read URLs without exposing the storage bucket. */
+export async function signVehicleThumbnailReads(
+  paths: readonly string[],
+): Promise<ReadonlyMap<string, string>> {
+  const uniquePaths = [...new Set(paths.filter(Boolean))];
+  if (uniquePaths.length === 0) return new Map();
+
+  const { client } = storageAdminClient(VEHICLE_THUMBNAIL_BUCKET);
+  const { data, error } = await client.storage
+    .from(VEHICLE_THUMBNAIL_BUCKET)
+    .createSignedUrls(uniquePaths, VEHICLE_THUMBNAIL_READ_LIFETIME_SECONDS);
+  if (error || !data) {
+    throw new MobileApiError(
+      503,
+      "DEPENDENCY_UNAVAILABLE",
+      "Secure vehicle image URLs could not be created.",
+    );
+  }
+
+  const signedUrls = new Map<string, string>();
+  for (const result of data) {
+    if (result.path && result.signedUrl && !result.error) {
+      signedUrls.set(result.path, result.signedUrl);
+    }
+  }
+  return signedUrls;
 }
 
 export function vehicleThumbnailUploadResponse(signed: SignedUpload) {

@@ -7,12 +7,14 @@ import {
   suppressionList,
   unsubscribes,
 } from "@/lib/db/schema";
+import { PersistentRateLimiter } from "@/lib/mobile-api/rate-limit";
 import { verifyUnsubscribeToken } from "@/lib/tracking/unsubscribe";
 
 const HTML_HEADERS = {
   "Content-Type": "text/html; charset=utf-8",
   "Cache-Control": "no-store",
 };
+const unsubscribeLimiter = new PersistentRateLimiter();
 
 function page({
   title,
@@ -62,6 +64,22 @@ async function processUnsubscribe(token: string, source: "link" | "post") {
         ok: false,
       }),
       { status: 404, headers: HTML_HEADERS },
+    );
+  }
+
+  const rateLimit = await unsubscribeLimiter.consume({
+    key: `unsubscribe:${lead.id}`,
+    limit: 5,
+    windowMs: 24 * 60 * 60 * 1_000,
+  });
+  if (!rateLimit.allowed) {
+    return new Response(
+      page({
+        title: "You've been unsubscribed",
+        message: "This address is already removed from our outreach.",
+        ok: true,
+      }),
+      { status: 200, headers: HTML_HEADERS },
     );
   }
 

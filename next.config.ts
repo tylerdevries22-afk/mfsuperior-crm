@@ -15,9 +15,6 @@ const nextConfig: NextConfig = {
         "mfsuperior-crm.vercel.app",
         "mfsuperior-crm-tylerdevries22s-projects.vercel.app",
         "mfsuperior-crm-git-main-tylerdevries22s-projects.vercel.app",
-        // PR preview aliases follow a pattern; wildcards are supported
-        // since Next 14.2 in this option.
-        "*.vercel.app",
       ],
     },
   },
@@ -29,6 +26,16 @@ const nextConfig: NextConfig = {
   },
   async headers() {
     return [
+      {
+        source: "/(.*)",
+        headers: [
+          { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+        ],
+      },
       // Long-cache static video + poster assets. These are content-stable
       // (re-encodes change file names if needed), so the browser can keep
       // them forever and skip revalidation on repeat visits.

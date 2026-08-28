@@ -41,6 +41,7 @@ export function NotificationButton() {
     if (!operations) return messageItems;
 
     const operationalItems: ActivityNotification[] = [];
+    const operationsUpdatedAt = new Date(operations.state.updatedAt).getTime();
     for (const shipment of operations.shipments) {
       const isMine = currentAccount?.role !== "driver"
         || shipment.assignedDriverId === currentAccount.driverId;
@@ -50,7 +51,7 @@ export function NotificationButton() {
         id: `shipment-${shipment.id}-${latest.id}`,
         body: `${shipment.loadNumber}: ${latest.description}`,
         sentAt: latest.occurredAt,
-        unread: Date.now() - new Date(latest.occurredAt).getTime() < 86_400_000,
+        unread: operationsUpdatedAt - new Date(latest.occurredAt).getTime() < 86_400_000,
         route: { pathname: "/load/[id]", params: { id: shipment.id } },
       });
       if (currentAccount?.role === "driver" && shipment.status === "accepted") {

@@ -25,7 +25,11 @@ beforeEach(() => {
 
 describe("link rewriting", () => {
   it("rewrites external <a href> URLs through /api/track/click", async () => {
-    const { rewriteLinks } = await import("@/lib/tracking/links");
+    const {
+      clickTargetSignatureIsValid,
+      fromB64url,
+      rewriteLinks,
+    } = await import("@/lib/tracking/links");
     const html = `<p>Hello <a href="https://example.com/foo?x=1">visit</a> us.</p>`;
     const result = rewriteLinks(
       html,
@@ -35,6 +39,20 @@ describe("link rewriting", () => {
     expect(result.skippedCount).toBe(0);
     expect(result.html).toContain("/api/track/click/11111111-2222-3333-4444-555555555555");
     expect(result.html).not.toContain("https://example.com/foo");
+    const tracked = new URL(result.html.match(/href="([^"]+)"/)?.[1].replace(/&amp;/g, "&") ?? "");
+    const target = fromB64url(tracked.searchParams.get("u") ?? "");
+    const signature = tracked.searchParams.get("s") ?? "";
+    expect(target).toBe("https://example.com/foo?x=1");
+    expect(clickTargetSignatureIsValid(
+      "11111111-2222-3333-4444-555555555555",
+      target,
+      signature,
+    )).toBe(true);
+    expect(clickTargetSignatureIsValid(
+      "aaaaaaaa-2222-3333-4444-555555555555",
+      target,
+      signature,
+    )).toBe(false);
   });
 
   it("skips mailto: tel: hash and same-origin app links", async () => {

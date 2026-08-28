@@ -304,6 +304,7 @@ export function UnifiedScheduleScreen({ mode }: UnifiedScheduleScreenProps) {
 
       <ShiftDetailSheet
         isAdmin={currentMode === "admin"}
+        now={Date.parse(state.updatedAt)}
         onClose={() => setDetailShift(null)}
         onDelete={async (shiftId) => {
           await runAction(() => actions.removeDriverShift(shiftId));
@@ -490,6 +491,7 @@ function TimeRange({ onChange, valueEnd, valueStart }: { readonly onChange: (sta
 
 function ShiftDetailSheet({
   isAdmin,
+  now,
   onClose,
   onDelete,
   onEdit,
@@ -500,6 +502,7 @@ function ShiftDetailSheet({
   theme,
 }: {
   readonly isAdmin: boolean;
+  readonly now: number;
   readonly onClose: () => void;
   readonly onDelete: (shiftId: string) => void;
   readonly onEdit: (shift: DriverShift) => void;
@@ -512,7 +515,7 @@ function ShiftDetailSheet({
   const [showSyncDetails, setShowSyncDetails] = useState(false);
   useEffect(() => setShowSyncDetails(false), [shift?.id]);
   if (!shift) return null;
-  const future = Date.parse(shift.startsAt) > Date.now();
+  const future = Date.parse(shift.startsAt) > now;
   return <Sheet onClose={onClose} title="Shift details" visible><ScrollView contentContainerStyle={styles.sheetContent} showsVerticalScrollIndicator={false}><View style={styles.detailTitleRow}><View><Text style={[styles.detailTitle, { color: theme.text }]}>{formatSheetDate(formatDateKey(new Date(shift.startsAt)))}</Text><Text style={[styles.detailTime, { color: theme.primaryLight }]}>{formatTime(shift.startsAt)} – {formatTime(shift.endsAt)} · {getDuration(shift.startsAt, shift.endsAt)}</Text></View><SyncBadge onPress={() => setShowSyncDetails((current) => !current)} status={sync?.status ?? "pending"} theme={theme} /></View><DetailRow label="Status" value={shift.status.replace("_", " ")} theme={theme} /><DetailRow label="Notes" value={shift.note ?? "No notes"} theme={theme} /><View style={[styles.detailCallout, { backgroundColor: theme.tint.primary.soft, borderColor: theme.tint.primary.medium }]}><Feather color={theme.primaryLight} name="link" size={16} /><Text style={[styles.detailCalloutText, { color: theme.textSecondary }]}>Coverage transfers this shift occurrence only. Linked loads stay with their original driver.</Text></View>{showSyncDetails ? <View style={[styles.syncDetails, { backgroundColor: theme.surfaceElevated, borderColor: theme.border }]}><Text style={[styles.detailRowLabel, { color: theme.textMuted }]}>TARGET SYNC AUDIT</Text><Text style={[styles.syncCopy, { color: theme.textSecondary }]}>{sync?.status === "pending" ? "Waiting for Target credentials or the next integration retry." : sync?.lastError ?? "Target accepted this schedule change."}</Text><Text style={[styles.syncCopy, { color: theme.textMuted }]}>Attempts: {sync?.attempts ?? 0}{sync?.lastAttemptAt ? ` · Last attempt ${formatTime(sync.lastAttemptAt)}` : ""}</Text>{isAdmin ? <Button onPress={() => onRetrySync(shift.id)} size="sm" title="Retry Target sync" variant="outline" /> : null}</View> : null}<View style={styles.sheetActions}>{future ? <Button fullWidth icon={<Feather color={theme.primaryForeground} name="users" size={16} />} onPress={() => onFindCoverage(shift)} title="Find coverage" /> : null}{isAdmin ? <Button fullWidth onPress={() => onEdit(shift)} title="Edit shift" variant="secondary" /> : null}{isAdmin ? <Button fullWidth onPress={() => onDelete(shift.id)} title="Remove shift" variant="danger" /> : null}</View></ScrollView></Sheet>;
 }
 

@@ -16,53 +16,7 @@
 import { config as loadDotenv } from "dotenv";
 import fs from "node:fs";
 import path from "node:path";
-import { z } from "zod";
-
-// Mirror of src/lib/env.ts. Kept in sync manually — if you change the schema
-// there, update this list of expected keys too.
-const schema = z.object({
-  DATABASE_URL: z.string().url(),
-  AUTH_SECRET: z.string().min(32),
-  AUTH_GOOGLE_ID: z.string().min(1),
-  AUTH_GOOGLE_SECRET: z.string().min(1),
-  APP_URL: z.string().url(),
-  CRON_SECRET: z.string().min(16),
-  ENCRYPTION_KEY: z.string().min(32),
-
-  RESEND_API_KEY: z.string().min(1).optional(),
-  RESEND_WEBHOOK_SECRET: z.string().min(1).optional(),
-
-  GMAIL_USER: z.string().email().optional(),
-  DRIVE_FOLDER_ID: z.string().optional(),
-
-  GOOGLE_MAPS_API_KEY: z.string().min(1).optional(),
-  HUNTER_API_KEY: z.string().min(1).optional(),
-
-  BUSINESS_NAME: z.string().min(1),
-  BUSINESS_ADDRESS: z.string().min(1),
-  BUSINESS_MC: z.string().optional(),
-  BUSINESS_USDOT: z.string().optional(),
-
-  DAILY_SEND_CAP: z.coerce.number().int().positive().default(20),
-  WARMUP_DAYS: z.coerce.number().int().min(0).default(7),
-  WARMUP_DAILY_CAP: z.coerce.number().int().positive().default(5),
-
-  CARRIER_DEMO_MODE: z.enum(["true", "false"]).optional(),
-  CUSTOMER_SELF_REGISTRATION_ORGANIZATION_SLUG: z
-    .string()
-    .regex(/^[a-z0-9](?:[a-z0-9-]{0,78}[a-z0-9])?$/)
-    .optional(),
-
-  SUPABASE_URL: z.string().url().optional(),
-  NEXT_PUBLIC_SUPABASE_URL: z.string().url().optional(),
-  SUPABASE_PUBLISHABLE_KEY: z.string().min(20).optional(),
-  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: z.string().min(20).optional(),
-  SUPABASE_SERVICE_ROLE_KEY: z.string().min(20).optional(),
-  SUPABASE_STORAGE_BUCKET: z.string().min(1).optional(),
-  MOBILE_ALLOWED_ORIGINS: z.string().optional(),
-
-  NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
-});
+import { environmentSchema } from "../src/lib/env";
 
 const REQUIRED = [
   "DATABASE_URL",
@@ -89,6 +43,7 @@ const OPTIONAL = [
   "GOOGLE_MAPS_API_KEY",
   "HUNTER_API_KEY",
   "CARRIER_DEMO_MODE",
+  "WEB_ADMIN_ORGANIZATION_SLUG",
   "CUSTOMER_SELF_REGISTRATION_ORGANIZATION_SLUG",
   "SUPABASE_URL",
   "NEXT_PUBLIC_SUPABASE_URL",
@@ -133,7 +88,7 @@ for (const key of [...REQUIRED, ...OPTIONAL] as readonly string[]) {
   if (process.env[key] !== undefined) merged[key] = process.env[key];
 }
 
-const result = schema.safeParse(merged);
+const result = environmentSchema.safeParse(merged);
 
 const allKeys = [...REQUIRED, ...OPTIONAL] as readonly string[];
 const issuesByKey = new Map<string, string>();
@@ -176,7 +131,10 @@ for (const key of OPTIONAL) {
 
 // Drift: keys in the file that aren't in the schema.
 const known = new Set(allKeys);
-const extras = Object.keys(fileVars).filter((k) => !known.has(k) && k !== "NODE_ENV");
+const platformManagedKeys = new Set(["NODE_ENV", "VERCEL_OIDC_TOKEN"]);
+const extras = Object.keys(fileVars).filter(
+  (key) => !known.has(key) && !platformManagedKeys.has(key),
+);
 if (extras.length > 0) {
   console.log("\n" + bold("Unrecognized keys in file (drift):"));
   for (const key of extras) {

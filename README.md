@@ -59,12 +59,18 @@ deploy" bugs.
 
 `RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET`, `GMAIL_USER`, `DRIVE_FOLDER_ID`,
 `BUSINESS_MC`, `BUSINESS_USDOT`, `DAILY_SEND_CAP` (default 20), `WARMUP_DAYS`
-(default 7), `WARMUP_DAILY_CAP` (default 5), and `CARRIER_DEMO_MODE`.
+(default 7), `WARMUP_DAILY_CAP` (default 5), `CARRIER_DEMO_MODE`,
+`WEB_ADMIN_ORGANIZATION_SLUG`, and the Supabase/mobile variables documented in
+`.env.example`.
 
 Carrier routes resolve a verified Supabase subject to an active organization
 membership and fail closed when no scoped membership exists.
 `CARRIER_DEMO_MODE=true` labels synthetic EDI/GPS/geofence records as demo
 data; it never enables a live partner connection.
+The web CRM is deployment-scoped: in production, Google sign-in is accepted
+only for active admins of `WEB_ADMIN_ORGANIZATION_SLUG` (default
+`mf-superior`). Set a distinct slug and database for each franchise deployment
+so leads and outreach data cannot cross franchise boundaries.
 
 ### Validate locally
 
@@ -153,8 +159,9 @@ Drive folder: open `drive.google.com`, create a folder for the CRM (e.g. "MFS CR
 ## Supabase Docker workflow
 
 The Supabase CLI runs the local database and storage services in Docker. The
-fleet thumbnail, vehicle-transfer, and mobile push-token migration is tracked
-in `supabase/migrations/20260827215437_vehicle_thumbnails_transfers_notifications.sql`.
+fleet schema is tracked in `supabase/migrations/`, including the forward
+security migration that makes vehicle images private, locks direct tenant
+table access behind RLS, and gives each physical push token one current owner.
 Run it locally first, then link the hosted project and promote the same
 migration:
 

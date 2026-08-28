@@ -14,8 +14,10 @@
  */
 
 import { eq, sql, and } from "drizzle-orm";
+import { z } from "zod";
 import { env } from "@/lib/env";
 import { db } from "@/lib/db/client";
+import { readBoundedBody } from "@/lib/http/read-bounded-body";
 import {
   emailEvents,
   leadSequenceEnrollments,
@@ -23,35 +25,42 @@ import {
   leads,
 } from "@/lib/db/schema";
 
-type ResendWebhookEvent = {
-  type:
-    | "email.sent"
-    | "email.delivered"
-    | "email.delivery_delayed"
-    | "email.bounced"
-    | "email.complained"
-    | "email.opened"
-    | "email.clicked";
-  created_at: string;
-  data: {
-    email_id: string;  // maps to providerMessageId in emailEvents
-    from?: string;
-    to?: string[];
-    subject?: string;
-    [key: string]: unknown;
-  };
-};
+const MAXIMUM_WEBHOOK_BODY_BYTES = 256 * 1024;
+const resendWebhookEventSchema = z.object({
+  type: z.enum([
+    "email.sent",
+    "email.delivered",
+    "email.delivery_delayed",
+    "email.bounced",
+    "email.complained",
+    "email.opened",
+    "email.clicked",
+  ]),
+  created_at: z.iso.datetime({ offset: true }),
+  data: z.object({
+    email_id: z.string().min(1).max(200),
+    from: z.string().max(320).optional(),
+    to: z.array(z.string().email().max(320)).max(50).optional(),
+    subject: z.string().max(1_000).optional(),
+  }).passthrough(),
+}).passthrough();
 
-async function verifySignature(req: Request): Promise<{ ok: true; body: string } | { ok: false }> {
+async function verifySignature(
+  req: Request,
+): Promise<{ ok: true; body: string } | { ok: false; status: 401 | 413 }> {
+  const requestBody = await readBoundedBody(req, MAXIMUM_WEBHOOK_BODY_BYTES);
+  if (!requestBody.success) return { ok: false, status: 413 };
   const secret = env().RESEND_WEBHOOK_SECRET;
   if (!secret) {
     // In dev without the secret, skip verification so manual tests work
     if (env().NODE_ENV !== "production") {
-      const body = await req.text();
-      return { ok: true, body };
+      return { ok: true, body: requestBody.text };
     }
-    console.error("[resend-webhook] RESEND_WEBHOOK_SECRET not set in production");
-    return { ok: false };
+    console.error(JSON.stringify({
+      severity: "error",
+      event: "resend_webhook_secret_missing",
+    }));
+    return { ok: false, status: 401 };
   }
 
   // Resend uses Svix for webhook delivery; headers we need:
@@ -60,15 +69,15 @@ async function verifySignature(req: Request): Promise<{ ok: true; body: string }
   const msgSig = req.headers.get("svix-signature");
 
   if (!msgId || !msgTs || !msgSig) {
-    return { ok: false };
+    return { ok: false, status: 401 };
   }
 
-  const body = await req.text();
+  const body = requestBody.text;
 
   // Replay protection: reject messages older than 5 minutes
   const tsMs = Number(msgTs) * 1000;
   if (Math.abs(Date.now() - tsMs) > 5 * 60 * 1000) {
-    return { ok: false };
+    return { ok: false, status: 401 };
   }
 
   // Verify HMAC-SHA256
@@ -92,21 +101,29 @@ async function verifySignature(req: Request): Promise<{ ok: true; body: string }
     return matched || equal;
   }, false);
 
-  return valid ? { ok: true, body } : { ok: false };
+  return valid ? { ok: true, body } : { ok: false, status: 401 };
 }
 
 export async function POST(req: Request) {
   const verified = await verifySignature(req);
   if (!verified.ok) {
-    return new Response("Unauthorized", { status: 401 });
+    return new Response(
+      verified.status === 413 ? "Payload Too Large" : "Unauthorized",
+      { status: verified.status },
+    );
   }
 
-  let event: ResendWebhookEvent;
+  let eventBody: unknown;
   try {
-    event = JSON.parse(verified.body) as ResendWebhookEvent;
+    eventBody = JSON.parse(verified.body);
   } catch {
     return new Response("Bad JSON", { status: 400 });
   }
+  const parsedEvent = resendWebhookEventSchema.safeParse(eventBody);
+  if (!parsedEvent.success) {
+    return new Response("Bad JSON", { status: 400 });
+  }
+  const event = parsedEvent.data;
 
   const emailId = event.data?.email_id;
   if (!emailId) {

@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import {
   drivers,
@@ -22,6 +22,7 @@ import { executeIdempotentMutation } from "@/lib/mobile-api/idempotency";
 import { parseRouteId } from "@/lib/mobile-api/shipment-mutations";
 import { sendExpoPushNotification } from "@/lib/mobile-api/push";
 import { toVehicle } from "@/lib/mobile-api/route-serializers";
+import { signVehicleThumbnailReads } from "@/lib/mobile-api/upload-signer";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -138,6 +139,7 @@ export async function POST(request: Request, context: RouteContext) {
           data: {
             eventId: event.id,
             targetUserId: target.userId,
+            thumbnailPath: updated.thumbnailPath,
             vehicle: toVehicle(updated),
           },
         };
@@ -145,17 +147,41 @@ export async function POST(request: Request, context: RouteContext) {
     );
 
     if (!result.replayed) {
-      await notifyTargetDriver(
-        principal.organizationId,
-        result.data.targetUserId,
-        result.data.eventId,
-        result.data.vehicle.id,
-        result.data.vehicle.unitNumber,
-        body.data.note,
-      );
+      try {
+        await notifyTargetDriver(
+          principal.organizationId,
+          result.data.targetUserId,
+          result.data.eventId,
+          result.data.vehicle.id,
+          result.data.vehicle.unitNumber,
+          body.data.note,
+        );
+      } catch (error) {
+        // The transfer is already committed and persisted for Realtime. A
+        // transient push-token failure must not turn that success into an
+        // ambiguous 5xx response that operators may repeat.
+        console.error(JSON.stringify({
+          severity: "error",
+          event: "vehicle_transfer_push_failed",
+          errorName: error instanceof Error ? error.name : "unknown",
+          transferEventId: result.data.eventId,
+        }));
+      }
     }
+    const thumbnailUrls = await signVehicleThumbnailReads(
+      result.data.thumbnailPath ? [result.data.thumbnailPath] : [],
+    );
     return mergeResponseHeaders(
-      apiSuccess(result.data.vehicle, requestId, { meta: { idempotencyReplayed: result.replayed } }),
+      apiSuccess(
+        {
+          ...result.data.vehicle,
+          thumbnailUrl: result.data.thumbnailPath
+            ? thumbnailUrls.get(result.data.thumbnailPath) ?? null
+            : null,
+        },
+        requestId,
+        { meta: { idempotencyReplayed: result.replayed } },
+      ),
       authorization.responseHeaders,
     );
   } catch (error) {
@@ -178,12 +204,25 @@ async function notifyTargetDriver(
       eq(mobilePushTokens.organizationId, organizationId),
       eq(mobilePushTokens.userId, targetUserId),
       eq(mobilePushTokens.isActive, true),
-    ));
+    ))
+    .limit(20);
   const body = note ? `Unit ${unitNumber} is now assigned to you. ${note}` : `Unit ${unitNumber} is now assigned to you.`;
-  await Promise.all(tokens.map(({ token }) => sendExpoPushNotification({
-    body,
-    data: { eventId, vehicleId },
-    title: "Vehicle transferred",
-    to: token,
+  const results = await Promise.all(tokens.map(async ({ token }) => ({
+    result: await sendExpoPushNotification({
+      body,
+      data: { eventId, vehicleId },
+      title: "Vehicle transferred",
+      to: token,
+    }),
+    token,
   })));
+  const invalidTokens = results
+    .filter(({ result }) => result.permanentlyRejected)
+    .map(({ token }) => token);
+  if (invalidTokens.length > 0) {
+    await db
+      .update(mobilePushTokens)
+      .set({ isActive: false, updatedAt: new Date() })
+      .where(inArray(mobilePushTokens.expoPushToken, invalidTokens));
+  }
 }

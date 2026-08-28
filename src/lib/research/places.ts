@@ -6,6 +6,7 @@
  * Field mask is mandatory — we request only what the scorer + writer need.
  */
 
+import { fetchWithRetry } from "@/lib/mobile-api/external-fetch";
 import type { Industry } from "./score";
 
 export type Place = {
@@ -119,7 +120,7 @@ async function searchOnce(args: {
   if (args.includedType) body.includedType = args.includedType;
   if (args.pageToken) body.pageToken = args.pageToken;
 
-  const res = await fetch("https://places.googleapis.com/v1/places:searchText", {
+  const res = await fetchWithRetry("https://places.googleapis.com/v1/places:searchText", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -127,6 +128,10 @@ async function searchOnce(args: {
       "X-Goog-FieldMask": FIELD_MASK,
     },
     body: JSON.stringify(body),
+  }, {
+    maxAttempts: 2,
+    retryUnsafe: true,
+    timeoutMs: 8_000,
   });
   if (!res.ok) {
     const text = await res.text();

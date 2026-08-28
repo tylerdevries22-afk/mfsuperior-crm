@@ -1,6 +1,6 @@
 # MF Superior Products Mobile
 
-Expo SDK 54 app for the Customer, Driver, and Admin workspaces. The visual parity baseline is the Appliance Diagnostic mobile app at commit `480991b7eb0036e4e85c37d3784b2de2ca97d10d` with MF lime branding and freight-specific content and artwork.
+Expo SDK 54 app for the Customer, Driver, and Admin workspaces. SDK 54 is an intentional release constraint and must not be upgraded without the owner's explicit approval. The visual parity baseline is the Appliance Diagnostic mobile app at commit `480991b7eb0036e4e85c37d3784b2de2ca97d10d` with MF lime branding and freight-specific content and artwork.
 
 ## Local development
 

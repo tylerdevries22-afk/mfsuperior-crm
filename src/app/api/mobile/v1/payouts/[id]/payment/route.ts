@@ -28,6 +28,7 @@ export async function POST(request: Request, context: RouteContext) {
   const authorization = await authorizeMobileRequest(request, {
     roles: ["admin"],
     requireCarrier: true,
+    requireMfa: true,
     rateLimit: { scope: "mobile.payouts.payment", limit: 30, windowMs: 60_000 },
   });
   if (!authorization.authorized) return authorization.response;

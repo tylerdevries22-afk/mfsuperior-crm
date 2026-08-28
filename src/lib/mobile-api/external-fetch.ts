@@ -24,7 +24,11 @@ function combinedAbortSignal(
 ): { signal: AbortSignal; dispose: () => void } {
   const controller = new AbortController();
   const abort = () => controller.abort(callerSignal?.reason);
-  callerSignal?.addEventListener("abort", abort, { once: true });
+  if (callerSignal?.aborted) {
+    abort();
+  } else {
+    callerSignal?.addEventListener("abort", abort, { once: true });
+  }
   const timeout = setTimeout(() => controller.abort(new Error("Request timeout")), timeoutMs);
   return {
     signal: controller.signal,

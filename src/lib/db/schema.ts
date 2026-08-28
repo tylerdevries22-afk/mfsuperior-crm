@@ -1213,11 +1213,7 @@ export const mobilePushTokens = pgTable(
       "mobile_push_tokens_platform_check",
       sql`${table.platform} in ('ios', 'android')`,
     ),
-    uniqueIndex("mobile_push_tokens_user_token_unique").on(
-      table.organizationId,
-      table.userId,
-      table.expoPushToken,
-    ),
+    uniqueIndex("mobile_push_tokens_token_unique").on(table.expoPushToken),
     index("mobile_push_tokens_user_idx").on(table.organizationId, table.userId),
   ],
 );

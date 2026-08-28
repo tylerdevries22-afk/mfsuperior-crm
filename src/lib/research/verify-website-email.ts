@@ -15,6 +15,7 @@
  */
 
 import * as cheerio from "cheerio";
+import { fetchWithRetry } from "@/lib/mobile-api/external-fetch";
 import { validateEmail, type MxValidation } from "./mx-validate";
 
 const PATHS = [
@@ -47,13 +48,16 @@ async function fetchHtml(
       signal,
       AbortSignal.timeout(PER_FETCH_MS),
     ]);
-    const res = await fetch(url, {
+    const res = await fetchWithRetry(url, {
       headers: {
         "User-Agent": USER_AGENT,
         Accept: "text/html,application/xhtml+xml",
       },
       signal: fetchSignal,
       redirect: "follow",
+    }, {
+      maxAttempts: 2,
+      timeoutMs: PER_FETCH_MS,
     });
     if (!res.ok) return null;
     const ct = res.headers.get("content-type") ?? "";

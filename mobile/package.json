@@ -65,8 +65,14 @@
     "eas:build:demo": "npx eas-cli@latest build --profile demo --platform ios",
     "eas:build:demo:testflight": "npx eas-cli@latest build --profile demo --platform ios --auto-submit-with-profile production",
     "eas:build:production": "npx eas-cli@latest build --profile production --platform ios",
-    "eas:update:demo": "EXPO_PUBLIC_DEMO_AUTH_ENABLED=true npx eas-cli@latest update --channel demo --message \"Demo update\"",
-    "eas:update:production": "npx eas-cli@latest update --channel production --message \"Production update\""
+    "eas:update:demo": "EXPO_PUBLIC_DEMO_AUTH_ENABLED=true npx eas-cli@latest update --channel demo --environment preview --message \"Demo update\"",
+    "eas:update:production": "npx eas-cli@latest update --channel production --environment production --message \"Production update\""
+  },
+  "overrides": {
+    "metro": "0.83.8",
+    "metro-config": "0.83.8",
+    "metro-transform-worker": "0.83.8",
+    "postcss": "8.5.23"
   },
   "private": true,
   "jest": {

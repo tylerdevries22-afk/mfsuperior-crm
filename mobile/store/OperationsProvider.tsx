@@ -58,6 +58,7 @@ import {
   registerDeviceForNotifications,
   showVehicleTransferNotification,
   subscribeToVehicleTransfers,
+  unregisterDeviceForNotifications,
 } from "../lib/notifications/service";
 
 export interface OperationsActions {
@@ -237,7 +238,12 @@ export function OperationsProvider({
     return {
       signIn: (email, pin) => runMutation(() => repository.signIn(email, pin)),
       restoreSession: () => runMutation(() => repository.hydrate()),
-      signOut: () => runMutation(() => repository.signOut()),
+      signOut: () => runMutation(async () => {
+        if (repository.mode === "production") {
+          await unregisterDeviceForNotifications().catch(() => undefined);
+        }
+        await repository.signOut();
+      }),
       switchDemoRole: (role) => runMutation(() => repository.switchDemoRole(role)),
       resetDemo: () => runMutation(() => repository.resetDemo()),
       respondToTender: (shipmentId, response) => runMutation(

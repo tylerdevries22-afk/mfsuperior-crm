@@ -1,6 +1,8 @@
 import { eq, sql } from "drizzle-orm";
+import { after } from "next/server";
 import { db } from "@/lib/db/client";
 import { emailEvents } from "@/lib/db/schema";
+import { PersistentRateLimiter } from "@/lib/mobile-api/rate-limit";
 
 /** 1×1 transparent PNG, base64-encoded. 70 bytes on the wire. */
 const TRANSPARENT_PIXEL = Buffer.from(
@@ -16,6 +18,7 @@ const PIXEL_HEADERS = {
 };
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const trackingLimiter = new PersistentRateLimiter();
 
 export async function GET(
   request: Request,
@@ -25,9 +28,10 @@ export async function GET(
   // Strip the .png extension we use in the URL so apps don't load it as a doc.
   const id = raw.endsWith(".png") ? raw.slice(0, -4) : raw;
 
-  // Fire-and-forget: never block the pixel response on the DB write.
+  // Keep the pixel response fast while letting the platform track the
+  // background write through the function's supported request lifecycle.
   if (UUID_RE.test(id)) {
-    void recordOpen(id);
+    after(() => recordOpen(id));
   }
 
   return new Response(TRANSPARENT_PIXEL, { status: 200, headers: PIXEL_HEADERS });
@@ -35,6 +39,12 @@ export async function GET(
 
 async function recordOpen(eventId: string) {
   try {
+    const rateLimit = await trackingLimiter.consume({
+      key: `tracking:open:${eventId}`,
+      limit: 20,
+      windowMs: 24 * 60 * 60 * 1_000,
+    });
+    if (!rateLimit.allowed) return;
     // Pull the FULL context of the originating send so the open event
     // is correlatable: lead, enrollment, sequence step, and template.
     // Previously we only copied leadId, which orphaned opens from the
@@ -51,10 +61,11 @@ async function recordOpen(eventId: string) {
       .where(eq(emailEvents.id, eventId))
       .limit(1);
     if (!parent) {
-      console.warn(
-        "[track/open] no parent event for pixel hit",
-        eventId.slice(0, 8),
-      );
+      console.warn(JSON.stringify({
+        severity: "warn",
+        event: "tracking_open_parent_missing",
+        eventIdPrefix: eventId.slice(0, 8),
+      }));
       return;
     }
 
@@ -74,10 +85,11 @@ async function recordOpen(eventId: string) {
   } catch (err) {
     // Tracking must never throw to the client, but log so we can
     // diagnose silent drops in /admin Health.
-    console.error(
-      "[track/open] recordOpen failed for",
-      eventId.slice(0, 8),
-      (err as Error).message?.slice(0, 120),
-    );
+    console.error(JSON.stringify({
+      severity: "error",
+      event: "tracking_open_record_failed",
+      errorName: err instanceof Error ? err.name : "unknown",
+      eventIdPrefix: eventId.slice(0, 8),
+    }));
   }
 }

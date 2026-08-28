@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { db } from "@/lib/db/client";
 import { auditLog, emailEvents, leads, notifications } from "@/lib/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { env } from "@/lib/env";
+import { readBoundedBody } from "@/lib/http/read-bounded-body";
+import { fetchWithRetry } from "@/lib/mobile-api/external-fetch";
 import { PersistentRateLimiter } from "@/lib/mobile-api/rate-limit";
 
 const FROM_ADDRESS = "MF Superior Products <info@mfsuperiorproducts.com>";
@@ -33,6 +36,7 @@ const rateLimiter = new PersistentRateLimiter();
 const PER_ADDRESS_HOURLY_LIMIT = 5;
 const PER_EMAIL_HOURLY_LIMIT = 3;
 const HOUR_MS = 60 * 60 * 1000;
+const MAXIMUM_CONTACT_BODY_BYTES = 64 * 1024;
 
 /**
  * Trusts the left-most `x-forwarded-for` entry, which on Vercel is the client
@@ -62,29 +66,45 @@ async function sendEmail(
   subject: string,
   html: string,
   text: string,
+  idempotencyKey: string,
 ): Promise<SendResult> {
   const apiKey = env().RESEND_API_KEY;
   if (!apiKey) {
-    console.warn("[contact/route] RESEND_API_KEY not set; skipping email send.");
+    console.warn(JSON.stringify({
+      severity: "warn",
+      event: "contact_email_skipped",
+      reason: "RESEND_API_KEY_missing",
+    }));
     return { ok: false, reason: "RESEND_API_KEY_missing" };
   }
   try {
-    const res = await fetch("https://api.resend.com/emails", {
+    const res = await fetchWithRetry("https://api.resend.com/emails", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
+        "Idempotency-Key": idempotencyKey,
       },
       body: JSON.stringify({ from: FROM_ADDRESS, to: [to], subject, html, text }),
+    }, {
+      maxAttempts: 2,
+      timeoutMs: 8_000,
     });
     if (!res.ok) {
-      const body = await res.text();
-      console.error("[contact/route] Resend error:", res.status, body);
+      console.error(JSON.stringify({
+        severity: "error",
+        event: "contact_email_provider_failure",
+        status: res.status,
+      }));
       return { ok: false, reason: `resend_${res.status}` };
     }
     return { ok: true };
   } catch (err) {
-    console.error("[contact/route] Resend fetch threw:", (err as Error).message);
+    console.error(JSON.stringify({
+      severity: "error",
+      event: "contact_email_transport_failure",
+      errorName: err instanceof Error ? err.name : "unknown",
+    }));
     return { ok: false, reason: "resend_threw" };
   }
 }
@@ -99,7 +119,16 @@ export async function OPTIONS(): Promise<NextResponse> {
 export async function POST(req: NextRequest) {
   const APP_URL = env().APP_URL;
 
-  const raw: unknown = await req.json().catch(() => undefined);
+  const body = await readBoundedBody(req, MAXIMUM_CONTACT_BODY_BYTES);
+  if (!body.success) {
+    return NextResponse.json({ error: "The quote request is too large." }, { status: 413 });
+  }
+  let raw: unknown;
+  try {
+    raw = body.text ? JSON.parse(body.text) : undefined;
+  } catch {
+    raw = undefined;
+  }
   if (raw === undefined) {
     return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
   }
@@ -186,7 +215,11 @@ export async function POST(req: NextRequest) {
       leadId = inserted.id;
     }
   } catch (err) {
-    console.error("[contact/route] DB upsert error:", err);
+    console.error(JSON.stringify({
+      severity: "error",
+      event: "contact_lead_upsert_failed",
+      errorName: err instanceof Error ? err.name : "unknown",
+    }));
     return NextResponse.json(
       { error: "Failed to save your request. Please try again." },
       { status: 500 },
@@ -203,7 +236,12 @@ export async function POST(req: NextRequest) {
     });
   } catch (err) {
     // Non-fatal
-    console.error("[contact/route] Notification insert error:", err);
+    console.error(JSON.stringify({
+      severity: "error",
+      event: "contact_notification_insert_failed",
+      errorName: err instanceof Error ? err.name : "unknown",
+      leadId,
+    }));
   }
 
   // ── Confirmation email to submitter ──────────────────────────────────────
@@ -302,18 +340,21 @@ export async function POST(req: NextRequest) {
   const notifyText = `New quote request from ${name.trim()}${company.trim() ? ` (${company.trim()})` : ""}\n\nEmail: ${emailLower}\nPhone: ${phone.trim() || "—"}\nService: ${serviceType || "—"}\n\nMessage:\n${message.trim() || "—"}\n\nView in CRM: ${crmLink}`;
 
   // Fire emails concurrently — non-blocking on failure
+  const submissionId = randomUUID();
   const [confirmSettled, notifySettled] = await Promise.allSettled([
     sendEmail(
       emailLower,
       "We received your quote request — MF Superior Products",
       confirmHtml,
       confirmText,
+      `contact-confirmation/${leadId}/${submissionId}`,
     ),
     sendEmail(
       NOTIFY_ADDRESS,
       `New lead: ${name.trim()}${company.trim() ? ` — ${company.trim()}` : ""}`,
       notifyHtml,
       notifyText,
+      `contact-notification/${leadId}/${submissionId}`,
     ),
   ]);
 
@@ -362,7 +403,12 @@ export async function POST(req: NextRequest) {
       },
     ]);
   } catch (err) {
-    console.error("[contact/route] emailEvents insert error:", err);
+    console.error(JSON.stringify({
+      severity: "error",
+      event: "contact_email_audit_insert_failed",
+      errorName: err instanceof Error ? err.name : "unknown",
+      leadId,
+    }));
   }
 
   try {
@@ -382,15 +428,15 @@ export async function POST(req: NextRequest) {
       occurredAt: sql`now()`,
     });
   } catch (err) {
-    console.error("[contact/route] auditLog insert error:", err);
+    console.error(JSON.stringify({
+      severity: "error",
+      event: "contact_audit_log_insert_failed",
+      errorName: err instanceof Error ? err.name : "unknown",
+      leadId,
+    }));
   }
 
-  return NextResponse.json({
-    success: true,
-    leadId,
-    emails: {
-      confirmation: confirmResult,
-      notification: notifyResult,
-    },
-  });
+  // Provider and internal record details remain in the audit trail. Returning
+  // them from this anonymous endpoint would disclose operational state.
+  return NextResponse.json({ success: true });
 }

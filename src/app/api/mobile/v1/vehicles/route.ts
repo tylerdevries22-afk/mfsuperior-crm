@@ -13,6 +13,7 @@ import {
   parseStrictQuery,
 } from "@/lib/mobile-api/http";
 import { toVehicle } from "@/lib/mobile-api/route-serializers";
+import { signVehicleThumbnailReads } from "@/lib/mobile-api/upload-signer";
 
 /** The fleet register. Carrier-scoped and admin-only. */
 export async function GET(request: Request) {
@@ -36,9 +37,18 @@ export async function GET(request: Request) {
       .where(and(...filters))
       .orderBy(asc(vehicles.unitNumber))
       .limit(query.data.limit);
+    const thumbnailUrls = await signVehicleThumbnailReads(
+      rows.flatMap((row) => row.thumbnailPath ? [row.thumbnailPath] : []),
+    );
 
     return mergeResponseHeaders(
-      apiSuccess(rows.map(toVehicle), requestId),
+      apiSuccess(
+        rows.map((row) => toVehicle(
+          row,
+          row.thumbnailPath ? thumbnailUrls.get(row.thumbnailPath) ?? null : null,
+        )),
+        requestId,
+      ),
       authorization.responseHeaders,
     );
   } catch (error) {

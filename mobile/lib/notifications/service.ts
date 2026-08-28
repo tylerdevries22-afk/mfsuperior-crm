@@ -59,15 +59,41 @@ export async function registerDeviceForNotifications(): Promise<void> {
 
   const projectId = Constants.expoConfig?.extra?.eas?.projectId;
   if (!projectId) return;
-  const token = await Notifications.getExpoPushTokenAsync({ projectId });
+  const token = await expoPushToken(projectId);
+  if (!token) return;
   const apiClient = new ApiClient({
     baseUrl: runtime.config.apiBaseUrl,
     getAccessToken: () => service.getAccessToken(),
   });
   await apiClient.requestJson("v1/notification-tokens", {
-    body: { platform: Platform.OS, token: token.data },
+    body: { platform: Platform.OS, token },
     idempotencyKey: randomUUID(),
     method: "POST",
+  });
+}
+
+/** Best-effort server-side token removal that runs before local sign-out. */
+export async function unregisterDeviceForNotifications(): Promise<void> {
+  if (Platform.OS === "web") return;
+  const service = getProductionAuthService();
+  const runtime = resolveAuthRuntimeConfig();
+  if (!service || runtime.mode !== "production") return;
+
+  const permissions = await Notifications.getPermissionsAsync();
+  const hasPermission = permissions.granted ||
+    permissions.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL;
+  const projectId = Constants.expoConfig?.extra?.eas?.projectId;
+  if (!hasPermission || !projectId) return;
+
+  const token = await expoPushToken(projectId);
+  if (!token) return;
+  const apiClient = new ApiClient({
+    baseUrl: runtime.config.apiBaseUrl,
+    getAccessToken: () => service.getAccessToken(),
+  });
+  await apiClient.requestJson("v1/notification-tokens", {
+    body: { platform: Platform.OS, token },
+    method: "DELETE",
   });
 }
 
@@ -159,4 +185,33 @@ function nullableStringValue(value: unknown): string | null {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+async function expoPushToken(projectId: string): Promise<string | null> {
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    try {
+      const result = await withTimeout(
+        Notifications.getExpoPushTokenAsync({ projectId }),
+        8_000,
+      );
+      return result.data;
+    } catch {
+      if (attempt === 2) return null;
+    }
+  }
+  return null;
+}
+
+async function withTimeout<T>(operation: Promise<T>, timeoutMs: number): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      operation,
+      new Promise<never>((_, reject) => {
+        timeout = setTimeout(() => reject(new Error("Notification token request timed out.")), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
 }

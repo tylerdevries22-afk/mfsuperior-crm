@@ -1,11 +1,12 @@
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { env } from "@/lib/env";
 
 /**
  * Click-tracking link rewrite.
  *
  * Every <a href="..."> in an outbound email body is rewritten to point at
- * `/api/track/click/[eventId]?u=base64url(originalUrl)`. The route logs the
- * click and 302-redirects to the original URL.
+ * `/api/track/click/[eventId]?u=base64url(originalUrl)&s=signature`. The route
+ * verifies the event-bound HMAC, logs the click, and redirects to the target.
  *
  * Skipped:
  *   - mailto: / tel: links
@@ -37,11 +38,28 @@ function b64url(s: string): string {
 }
 
 export function fromB64url(s: string): string {
+  if (!s || s.length > 16_384 || !/^[A-Za-z0-9_-]+$/.test(s)) {
+    throw new Error("Invalid base64url value.");
+  }
   const pad = s.length % 4 === 0 ? "" : "=".repeat(4 - (s.length % 4));
   return Buffer.from(
     s.replace(/-/g, "+").replace(/_/g, "/") + pad,
     "base64",
   ).toString("utf8");
+}
+
+/** Verifies that a click target was emitted for this exact email event. */
+export function clickTargetSignatureIsValid(
+  eventId: string,
+  target: string,
+  signature: string,
+): boolean {
+  if (!/^[A-Za-z0-9_-]{43}$/.test(signature)) return false;
+  const expected = clickTargetSignature(eventId, target);
+  const actualBytes = Buffer.from(signature, "utf8");
+  const expectedBytes = Buffer.from(expected, "utf8");
+  return actualBytes.length === expectedBytes.length
+    && timingSafeEqual(actualBytes, expectedBytes);
 }
 
 export type LinkRewriteResult = {
@@ -62,7 +80,7 @@ export function rewriteLinks(html: string, eventId: string): LinkRewriteResult {
         skippedCount++;
         return `<a${beforeHref}href=${quote}${href}${quote}${afterHref}>`;
       }
-      const tracked = `${appUrl}/api/track/click/${encodeURIComponent(eventId)}?u=${b64url(href)}`;
+      const tracked = trackedClickUrl(appUrl, eventId, href).replace(/&/g, "&amp;");
       rewrittenCount++;
       return `<a${beforeHref}href=${quote}${tracked}${quote}${afterHref}>`;
     },
@@ -72,5 +90,19 @@ export function rewriteLinks(html: string, eventId: string): LinkRewriteResult {
 }
 
 export function clickRedirectUrl(eventId: string, target: string): string {
-  return `${env().APP_URL}/api/track/click/${encodeURIComponent(eventId)}?u=${b64url(target)}`;
+  return trackedClickUrl(env().APP_URL.replace(/\/+$/, ""), eventId, target);
+}
+
+function trackedClickUrl(appUrl: string, eventId: string, target: string): string {
+  const encodedTarget = b64url(target);
+  const signature = clickTargetSignature(eventId, target);
+  return `${appUrl}/api/track/click/${encodeURIComponent(eventId)}?u=${encodedTarget}&s=${signature}`;
+}
+
+function clickTargetSignature(eventId: string, target: string): string {
+  return createHmac("sha256", env().ENCRYPTION_KEY)
+    .update(eventId)
+    .update("\0")
+    .update(target)
+    .digest("base64url");
 }

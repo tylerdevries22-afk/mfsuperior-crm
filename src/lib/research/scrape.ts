@@ -9,6 +9,7 @@
  */
 
 import * as cheerio from "cheerio";
+import { fetchWithRetry } from "@/lib/mobile-api/external-fetch";
 
 export type ScrapedContact = {
   email: string;
@@ -37,9 +38,11 @@ export async function scrapeDomainForContacts(
     const url = `${root}${p}`;
     let html: string;
     try {
-      const res = await fetch(url, {
+      const res = await fetchWithRetry(url, {
         headers: { "User-Agent": "MF-Superior-Lead-Research/1.0 (+https://mfsuperiorproducts.com)" },
-        signal: AbortSignal.timeout(8_000),
+      }, {
+        maxAttempts: 2,
+        timeoutMs: 8_000,
       });
       if (!res.ok) continue;
       html = await res.text();

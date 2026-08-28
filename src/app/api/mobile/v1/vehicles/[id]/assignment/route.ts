@@ -13,6 +13,7 @@ import {
 } from "@/lib/mobile-api/http";
 import { parseRouteId, requireCarrierDriver } from "@/lib/mobile-api/shipment-mutations";
 import { toVehicle } from "@/lib/mobile-api/route-serializers";
+import { signVehicleThumbnailReads } from "@/lib/mobile-api/upload-signer";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -64,8 +65,14 @@ export async function POST(request: Request, context: RouteContext) {
       return row;
     });
 
+    const thumbnailUrls = await signVehicleThumbnailReads(
+      updated.thumbnailPath ? [updated.thumbnailPath] : [],
+    );
     return mergeResponseHeaders(
-      apiSuccess(toVehicle(updated), requestId),
+      apiSuccess(toVehicle(
+        updated,
+        updated.thumbnailPath ? thumbnailUrls.get(updated.thumbnailPath) ?? null : null,
+      ), requestId),
       authorization.responseHeaders,
     );
   } catch (error) {

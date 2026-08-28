@@ -10,6 +10,8 @@
  * calls so we don't 429 on fast enough hardware.
  */
 
+import { fetchWithRetry } from "@/lib/mobile-api/external-fetch";
+
 export type HunterEmail = {
   value: string;
   type?: string; // "personal" | "generic"
@@ -77,7 +79,10 @@ export class HunterClient {
 
     try {
       await this.throttle();
-      const res = await fetch(url);
+      const res = await fetchWithRetry(url, undefined, {
+        maxAttempts: 2,
+        timeoutMs: 8_000,
+      });
       if (!res.ok) {
         const text = await res.text();
         this.log(`  ! Hunter domain-search ${res.status} for ${domain}: ${text.slice(0, 200)}`);
@@ -105,7 +110,10 @@ export class HunterClient {
 
     try {
       await this.throttle();
-      const res = await fetch(url);
+      const res = await fetchWithRetry(url, undefined, {
+        maxAttempts: 2,
+        timeoutMs: 8_000,
+      });
       if (!res.ok) {
         const text = await res.text();
         this.log(`  ! Hunter verifier ${res.status} for ${email}: ${text.slice(0, 200)}`);

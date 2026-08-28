@@ -2,11 +2,16 @@ import { redirect } from "next/navigation";
 import { eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import { emailClicks, emailEvents } from "@/lib/db/schema";
-import { fromB64url } from "@/lib/tracking/links";
+import { PersistentRateLimiter } from "@/lib/mobile-api/rate-limit";
+import {
+  clickTargetSignatureIsValid,
+  fromB64url,
+} from "@/lib/tracking/links";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const SAFE_PROTOCOLS = new Set(["http:", "https:"]);
+const trackingLimiter = new PersistentRateLimiter();
 
 export async function GET(
   request: Request,
@@ -15,27 +20,39 @@ export async function GET(
   const { id } = await params;
   const url = new URL(request.url);
   const encoded = url.searchParams.get("u") ?? "";
+  const signature = url.searchParams.get("s") ?? "";
+
+  if (!UUID_RE.test(id)) {
+    return new Response("Bad tracking link", { status: 400 });
+  }
 
   let target: string;
   try {
     target = fromB64url(encoded);
     const parsed = new URL(target);
-    if (!SAFE_PROTOCOLS.has(parsed.protocol)) {
+    if (
+      !SAFE_PROTOCOLS.has(parsed.protocol)
+      || !clickTargetSignatureIsValid(id, target, signature)
+    ) {
       return new Response("Bad target protocol", { status: 400 });
     }
   } catch {
     return new Response("Bad target", { status: 400 });
   }
 
-  if (UUID_RE.test(id)) {
-    await recordClick(id, target);
-  }
+  await recordClick(id, target);
 
   redirect(target);
 }
 
 async function recordClick(eventId: string, target: string) {
   try {
+    const rateLimit = await trackingLimiter.consume({
+      key: `tracking:click:${eventId}`,
+      limit: 20,
+      windowMs: 24 * 60 * 60 * 1_000,
+    });
+    if (!rateLimit.allowed) return;
     // Same propagation rationale as the open pixel: copy the full
     // context (enrollment / step / template) from the originating
     // send so clicks remain joinable to the sequence step they came
@@ -52,10 +69,11 @@ async function recordClick(eventId: string, target: string) {
       .where(eq(emailEvents.id, eventId))
       .limit(1);
     if (!parent) {
-      console.warn(
-        "[track/click] no parent event for click",
-        eventId.slice(0, 8),
-      );
+      console.warn(JSON.stringify({
+        severity: "warn",
+        event: "tracking_click_parent_missing",
+        eventIdPrefix: eventId.slice(0, 8),
+      }));
       return;
     }
 
@@ -79,10 +97,11 @@ async function recordClick(eventId: string, target: string) {
       trackingId: eventId,
     });
   } catch (err) {
-    console.error(
-      "[track/click] recordClick failed for",
-      eventId.slice(0, 8),
-      (err as Error).message?.slice(0, 120),
-    );
+    console.error(JSON.stringify({
+      severity: "error",
+      event: "tracking_click_record_failed",
+      errorName: err instanceof Error ? err.name : "unknown",
+      eventIdPrefix: eventId.slice(0, 8),
+    }));
   }
 }
