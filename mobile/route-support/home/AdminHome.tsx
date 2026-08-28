@@ -42,6 +42,8 @@ export function AdminHome() {
     () => Object.fromEntries(state.customers.map((c) => [c.id, c])),
     [state.customers],
   );
+  const driversById = useMemo(() => Object.fromEntries(state.drivers.map((driver) => [driver.id, driver])), [state.drivers]);
+  const vehicleForDriver = useCallback((driverId?: string) => state.vehicles.find((vehicle) => vehicle.assignedDriverId === driverId), [state.vehicles]);
 
   const active = useMemo(
     () => shipments.filter((shipment) => !CLOSED.has(shipment.status)),
@@ -77,6 +79,7 @@ export function AdminHome() {
   const openExceptions = state.exceptions.filter((item) => item.status !== "resolved");
   const tenders = shipments.filter((shipment) => shipment.status === "tendered");
   const unassigned = active.filter((shipment) => !shipment.assignedDriverId);
+  const firstUnassignedId = unassigned[0]?.id;
 
   const attention = useMemo(
     () =>
@@ -97,7 +100,7 @@ export function AdminHome() {
           key: "unassigned",
           title: `${unassigned.length} load${unassigned.length === 1 ? "" : "s"} without a driver`,
           hint: "Assign capacity to keep the lane on schedule",
-          onPress: () => router.push("/jobs"),
+          onPress: () => firstUnassignedId && router.push({ pathname: "/job-assignment/[id]", params: { id: firstUnassignedId } }),
         },
       ].filter(Boolean) as readonly {
         key: string;
@@ -105,7 +108,7 @@ export function AdminHome() {
         hint: string;
         onPress: () => void;
       }[],
-    [openExceptions.length, router, tenders.length, unassigned.length],
+    [firstUnassignedId, openExceptions.length, router, tenders.length, unassigned.length],
   );
 
   const nextLoad: Shipment | undefined = useMemo(
@@ -233,9 +236,11 @@ export function AdminHome() {
             <Text style={s.sectionLabel}>NEXT LOAD</Text>
             <LoadHeroCard
               customer={customersById[nextLoad.customerId]}
+              driver={nextLoad.assignedDriverId ? driversById[nextLoad.assignedDriverId] : undefined}
               onPress={() => openLoad(nextLoad.id)}
               shipment={nextLoad}
               style={{ marginBottom: SPACING.lg }}
+              vehicle={vehicleForDriver(nextLoad.assignedDriverId)}
             />
           </FadeInView>
         ) : null}
@@ -258,9 +263,11 @@ export function AdminHome() {
               renderItem={({ item }) => (
                 <LoadHeroCard
                   customer={customersById[item.customerId]}
+                  driver={item.assignedDriverId ? driversById[item.assignedDriverId] : undefined}
                   onPress={() => openLoad(item.id)}
                   shipment={item}
                   style={{ width: screenWidth * 0.82, marginRight: SPACING.md }}
+                  vehicle={vehicleForDriver(item.assignedDriverId)}
                 />
               )}
               showsHorizontalScrollIndicator={false}
