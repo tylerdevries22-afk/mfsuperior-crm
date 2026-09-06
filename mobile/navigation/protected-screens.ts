@@ -39,6 +39,7 @@ export const protectedScreens = [
   { name: "tags/index" },
   { name: "integration-events/index" },
   { name: "integration-events/[id]" },
+  { name: "integrations" },
   { name: "suppliers/index" },
   { name: "suppliers/[id]" },
   { name: "messages" },

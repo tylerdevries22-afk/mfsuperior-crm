@@ -14,6 +14,7 @@ const CONSOLES = [
   { icon: "credit-card", route: "/payouts", subtitle: "Settlements and payment records", title: "Payouts & payments" },
   { icon: "tool", route: "/maintenance", subtitle: "Work orders and preventive service", title: "Repairs & maintenance", badge: "maintenance", countLabel: "open orders" },
   { icon: "file-text", route: "/licensing", subtitle: "Registration, inspections, and CDLs", title: "Licensing & registration", badge: "licensing", countLabel: "expired or due within 30 days" },
+  { icon: "link", route: "/integrations", subtitle: "Carrier portals and EDI onboarding", title: "Integrations" },
 ] as const;
 
 export function AdminConsoleSection() {
