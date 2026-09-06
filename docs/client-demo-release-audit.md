@@ -8,8 +8,8 @@ SDK 57 upgrade explicitly authorized by the owner. Audit covers the Expo client,
 
 - Embed public auth variables using Expo's supported static references; verify demo, production and unconfigured device environments after Babel transformation.
 - Register authenticated routes directly with Expo Router. Add a home anchor for deep links and browser reloads.
-- Align Expo, React Native, React, native tabs, animations and TypeScript with SDK 57. Enable iPad support.
-- Render the fleet map in a sandboxed browser iframe and retain native WebView rendering. Show fleet markers before tile downloads finish, retry slow tiles once, and explain slow loading. Validate message sources and selected marker IDs.
+- Align Expo, React Native, React, native tabs, animations and TypeScript with SDK 57. Enable iPad support. Use a browser bottom tab bar so all five Admin destinations fit on small phones.
+- Render the fleet map in a sandboxed browser iframe and retain native WebView rendering. Bundle the MapLibre renderer/styles with their license so map startup does not require a CDN script download. Show fleet markers before tile downloads finish, retry slow tiles once, and explain slow loading. Validate message sources and selected marker IDs.
 - Support temporary synthetic payout handles on the web; retain native secure storage and refuse production browser handles.
 - Keep occupied schedule cells clickable. Preserve failed edits for correction. Reset draft forms when their record changes.
 - Split affected large components into focused modules, each at most 200 lines.
@@ -20,7 +20,7 @@ SDK 57 upgrade explicitly authorized by the owner. Audit covers the Expo client,
 Self-review by the active agent. Local checks run against dirty implementation work as required by the workspace's offload exception. Mission Control's initial baseline admission was unconfirmed and has not been duplicated.
 
 - TypeScript passes. ESLint passes with zero warnings.
-- Jest: 39 suites / 317 tests passed, plus 3 focused map readiness/retry tests, including route registration, payout platform boundaries, and occupied schedule cell navigation.
+- Jest: 40 suites, 320 tests passed, including route registration, payout platform boundaries, and occupied schedule cell navigation.
 - Expo Doctor: 21/21 checks; Expo dependency alignment passes.
 - Full SDK 57 export and native payout-asset verification pass for iOS/Android; browser entry is present.
 - Browser journeys: sample Admin, Driver and Customer sign-in; role-specific tabs; fleet map with truck markers; synthetic Venmo handle save; customer quote request creation; driver pickup, intermediate stop, final delivery and receiver acknowledgment; completed delivery survives reload; sign-out returns to the demo login page.
