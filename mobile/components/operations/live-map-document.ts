@@ -1,4 +1,5 @@
 import { THEME } from "@/theme";
+import { MAPLIBRE_CSS, MAPLIBRE_SCRIPT } from "./vendor/maplibre-runtime";
 
 /** Free OpenStreetMap vector tiles, no key, no request limit. */
 const STYLE_URL = "https://tiles.openfreemap.org/styles/liberty";
@@ -40,8 +41,8 @@ export function buildMapHtml(bottomInsetRatio: number, glideMs: number): string 
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-<link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
-<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<style>${MAPLIBRE_CSS}</style>
+<script>${MAPLIBRE_SCRIPT}</script>
 <style>
   html, body, #map { margin:0; padding:0; height:100%; width:100%; background:${THEME.background}; }
   .maplibregl-ctrl-attrib { font-size: 9px; }

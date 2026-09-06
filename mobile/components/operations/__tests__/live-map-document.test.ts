@@ -12,7 +12,7 @@ function mountMapDocument() {
     on: (event: string, callback: () => void) => events.set(event, callback),
   };
   const html = buildMapHtml(0.3, 900);
-  const script = html.match(/<script>([\s\S]*?)<\/script>/)?.[1];
+  const script = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].at(-1)?.[1];
   if (!script) throw new Error("Map initialization script is missing");
   runInNewContext(script, {
     document: { getElementById: () => status },
