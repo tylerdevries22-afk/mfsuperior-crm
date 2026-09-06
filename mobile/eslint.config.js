@@ -3,7 +3,7 @@ const expoConfig = require("eslint-config-expo/flat");
 const typescriptPlugin = require("@typescript-eslint/eslint-plugin");
 
 module.exports = defineConfig([
-  globalIgnores(["dist/**", ".expo/**", "node_modules/**"]),
+  globalIgnores(["dist/**", "dist-*/**", ".expo/**", "node_modules/**"]),
   expoConfig,
   {
     plugins: {

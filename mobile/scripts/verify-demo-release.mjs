@@ -16,7 +16,7 @@ const easJson = readJson("eas.json");
 const projectId = appJson.extra?.eas?.projectId;
 const updateUrl = `https://u.expo.dev/${projectId}`;
 
-assert(/^~54\./.test(packageJson.dependencies?.expo ?? ""), "Expo must remain on SDK 54.");
+assert(/^~57\./.test(packageJson.dependencies?.expo ?? ""), "Expo must remain on SDK 57.");
 assert(Boolean(projectId), "EAS project ID is missing from app.json.");
 assert(appJson.runtimeVersion?.policy === "sdkVersion", "Expo Go publishing must use the SDK runtime policy.");
 assert(appJson.updates?.url === updateUrl, "app.json updates.url must match the EAS project ID.");
