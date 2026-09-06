@@ -24,6 +24,9 @@ Self-review by the active agent. Local checks run against dirty implementation w
 - Expo Doctor: 21/21 checks; Expo dependency alignment passes.
 - Full SDK 57 export and native payout-asset verification pass for iOS/Android; browser entry is present.
 - Browser journeys: sample Admin, Driver and Customer sign-in; role-specific tabs; fleet map with truck markers; synthetic Venmo handle save; customer quote request creation; driver pickup, intermediate stop, final delivery and receiver acknowledgment; completed delivery survives reload; sign-out returns to the demo login page.
+- Published EAS update opened in Expo Go 57.0.9 on an iPhone 16 Pro simulator running iOS 18.6. Verified sample Driver sign-in, Home, Schedule, HQ with five trucks and basemap, Profile, Trip history, payment logos, and the payout editor with its keyboard open. Force-quitting Expo Go and reopening the release link restored the signed-in session. Simulator captures are retained locally under `.adaptive-context/verification/`.
+
+Native payout saving was not verified: text input through the browser simulator mirror did not reach the field. The editor was closed without a saved change. Native Customer/Admin journeys remain unverified; their browser journeys passed. Simulator Expo Go has different login requirements and does not establish unrestricted access on physical devices.
 
 Physical iOS/Android devices have not been exercised in this environment. The native export is build evidence, not proof of physical-device compatibility. Camera/location and external-app handoffs depend on permissions and platform support.
 
@@ -63,16 +66,18 @@ PR #71's driver home, job-assignment workflow, notifications, and freight improv
 
 ## Distribution boundary
 
-Expo Go loads EAS-published projects only for an owner or organization member ([Expo policy](https://expo.dev/changelog/expo-go-loading-changes-may-2026)). SDK 57 iOS development sessions also require Expo login ([Expo announcement](https://expo.dev/changelog/expo-go-57-login)). Therefore a native Go link cannot promise anonymous access on any device. The public browser deployment supplies access without Expo membership. No tunnel or local development server is part of the final hosted deployment.
+Expo Go loads EAS-published projects only for an owner or organization member ([Expo policy](https://expo.dev/changelog/expo-go-loading-changes-may-2026)). SDK 57 iOS development sessions also require Expo login; simulator versions are exempt from that development-login rule ([Expo announcement](https://expo.dev/changelog/expo-go-57-login)). Therefore the published EAS Go link cannot promise anonymous access on any device. The policy separately permits plain JavaScript for self-hosted updates; no self-hosted distribution or physical-device compatibility for that path has been established here. The public browser deployment supplies access without Expo membership. No tunnel or local development server is part of the final hosted deployment.
 
 PR #71 was squash merged into `dev` as `edcb65aefae30ff34ee16b53a9fac8bf3c074205`. The reconciliation merge commits have exactly the audited release tree; they add no reverted historical source. The final map-readiness correction follows that squash.
 
 ## Published artifacts
 
 - Public browser: https://mfsuperior-demo.expo.app (anonymous login page and sample Driver sign-in verified).
-- Initial verified SDK 57 native update group: `e6b3cd3a-e337-49bf-86c8-c7fab97253f0`, both iOS and Android, runtime `exposdk:57.0.0`.
-- EAS Hosting deployment: `gvfg2hvizv`, promoted to the public production alias.
-- Native source revision: `b935d84`; subsequent documentation-only commits do not change its bundles. Main's publish workflow produces the next equivalent verified update.
+- Verified SDK 57 native update group: `69606164-e9db-40df-91b9-ba3f67f2d065`, both iOS and Android, runtime `exposdk:57.0.0`.
+- EAS Hosting deployment: `y3mnq5bmun`, promoted to the public production alias.
+- Release source revision: `cf94cb4fec303d8dec89606d366fc4c0add96bf5`, squash merged from dev in PR #72. [Main CI run 34007984748](https://github.com/tylerdevries22-afk/mfsuperior-crm/actions/runs/34007984748) passed all gates and published both artifacts. Subsequent audit-documentation commits do not change these bundles.
+- Expo Go: `exp://u.expo.dev/b28781fa-dd92-41cd-9363-e0860729a811?runtime-version=exposdk%3A57.0.0&channel-name=demo`.
+- One worktree, no stashes, no unpushed local branches, and identical dev/main source trees were verified after release promotion. Historical branch tips remain preserved.
 
 ## Dependency audit
 
