@@ -45,6 +45,9 @@ export function buildMapHtml(bottomInsetRatio: number, glideMs: number): string 
 <style>
   html, body, #map { margin:0; padding:0; height:100%; width:100%; background:${THEME.background}; }
   .maplibregl-ctrl-attrib { font-size: 9px; }
+  #map-status { position:fixed; top:12px; left:12px; right:56px; z-index:10;
+    padding:8px 10px; border-radius:8px; background:#171812; color:#f3f3ed;
+    font:12px system-ui; pointer-events:none; }
   /*
     44x44 hit area around a smaller glyph, per the touch-target minimum.
     The absolute positioning is not decoration: MapLibre places markers with
@@ -69,6 +72,7 @@ export function buildMapHtml(bottomInsetRatio: number, glideMs: number): string 
 </head>
 <body>
 <div id="map"></div>
+<div id="map-status" role="status">Loading map tiles… Fleet positions remain available.</div>
 <script>
   var post = function (msg) {
     if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(JSON.stringify(msg));
@@ -156,11 +160,22 @@ export function buildMapHtml(bottomInsetRatio: number, glideMs: number): string 
     map.fitBounds(HOME, { padding: framePadding(), duration: 600 });
   };
 
-  // The home view is framed here rather than in the constructor: at construction
-  // the container has not been laid out, so window.innerHeight is still zero and
-  // the padding meant to clear the sheet would be computed from nothing — which
-  // is what left the map zoomed in past the corners of the state.
+  // Position markers once the frame is laid out; slow tiles must not delay them.
+  requestAnimationFrame(function () {
+    map.resize();
+    map.fitBounds(HOME, { padding: framePadding(), duration: 0 });
+    post({ type: 'ready' });
+  });
+  var loaded = false;
+  var retry = setTimeout(function () { if (!loaded) map.setStyle('${STYLE_URL}'); }, 15000);
+  var timeout = setTimeout(function () {
+    if (!loaded) document.getElementById('map-status').textContent = 'Map tiles are slow to load. Select a driver below to locate their truck.';
+  }, 30000);
   map.on('load', function () {
+    loaded = true;
+    clearTimeout(retry);
+    clearTimeout(timeout);
+    document.getElementById('map-status').hidden = true;
     map.resize();
     map.fitBounds(HOME, { padding: framePadding(), duration: 0 });
     post({ type: 'ready' });
