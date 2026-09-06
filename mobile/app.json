@@ -9,7 +9,7 @@
     "userInterfaceStyle": "dark",
     "backgroundColor": "#0E0F0C",
     "ios": {
-      "supportsTablet": false,
+      "supportsTablet": true,
       "bundleIdentifier": "com.mfsuperior.products",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false

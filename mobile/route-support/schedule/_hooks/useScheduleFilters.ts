@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 
 /**
  * Ported from the Appliance Diagnostic Systems `useScheduleFilters` at
@@ -10,9 +10,11 @@ export function useScheduleFilters(driverIdParam?: string) {
     driverIdParam ? [driverIdParam] : [],
   );
 
-  useEffect(() => {
+  const [previousDriver, setPreviousDriver] = useState(driverIdParam);
+  if (previousDriver !== driverIdParam) {
+    setPreviousDriver(driverIdParam);
     setSelectedDriverIds(driverIdParam ? [driverIdParam] : []);
-  }, [driverIdParam]);
+  }
 
   const toggleDriver = useCallback((driverId: string) => {
     if (!driverId) {

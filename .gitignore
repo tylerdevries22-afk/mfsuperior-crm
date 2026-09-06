@@ -49,3 +49,8 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .env*.local
+
+# Local agent configuration and recovery state
+/.codex/
+/.adaptive-context/
+/.claude-flow/

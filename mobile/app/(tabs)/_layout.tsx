@@ -1,5 +1,5 @@
 import { Redirect, useSegments } from "expo-router";
-import { Icon, Label, NativeTabs } from "expo-router/unstable-native-tabs";
+import { NativeTabs } from "expo-router/unstable-native-tabs";
 import type { ColorValue } from "react-native";
 
 import { useOperations } from "@/store";
@@ -37,55 +37,55 @@ export default function TabLayout() {
       tintColor={theme.primaryLight}
     >
       <NativeTabs.Trigger name="index">
-        <Icon
-          drawable="home"
+        <NativeTabs.Trigger.Icon
+          md="home"
           sf={{ default: "house", selected: "house.fill" }}
         />
-        <Label>Home</Label>
+        <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
 
       <NativeTabs.Trigger name="schedule" hidden={!isStaff}>
-        <Icon drawable="calendar_month" sf="calendar" />
-        <Label>Schedule</Label>
+        <NativeTabs.Trigger.Icon md="calendar_month" sf="calendar" />
+        <NativeTabs.Trigger.Label>Schedule</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
 
       <NativeTabs.Trigger name="assistant" hidden>
-        <Icon drawable="assistant" sf="sparkles" />
-        <Label>Assistant</Label>
+        <NativeTabs.Trigger.Icon md="assistant" sf="sparkles" />
+        <NativeTabs.Trigger.Label>Assistant</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
 
       <NativeTabs.Trigger name="fleet" hidden={!isAdmin}>
-        <Icon drawable="local_shipping" sf={{ default: "truck.box", selected: "truck.box.fill" }} />
-        <Label>Fleet</Label>
+        <NativeTabs.Trigger.Icon md="local_shipping" sf={{ default: "truck.box", selected: "truck.box.fill" }} />
+        <NativeTabs.Trigger.Label>Fleet</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
 
       <NativeTabs.Trigger name="hq" hidden={!isStaff}>
-        <Icon
-          drawable="map"
+        <NativeTabs.Trigger.Icon
+          md="map"
           sf={{ default: "map", selected: "map.fill" }}
         />
-        <Label>HQ</Label>
+        <NativeTabs.Trigger.Label>HQ</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
 
       <NativeTabs.Trigger name="shipments" hidden={!isCustomer}>
-        <Icon
-          drawable="local_shipping"
+        <NativeTabs.Trigger.Icon
+          md="local_shipping"
           sf={{ default: "truck.box", selected: "truck.box.fill" }}
         />
-        <Label>Shipments</Label>
+        <NativeTabs.Trigger.Label>Shipments</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
 
       <NativeTabs.Trigger name="requests" hidden={!isCustomer}>
-        <Icon drawable="assignment" sf="doc.text" />
-        <Label>Requests</Label>
+        <NativeTabs.Trigger.Icon md="assignment" sf="doc.text" />
+        <NativeTabs.Trigger.Label>Requests</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
 
       <NativeTabs.Trigger name="profile">
-        <Icon
-          drawable="account_circle"
+        <NativeTabs.Trigger.Icon
+          md="account_circle"
           sf={{ default: "person.crop.circle", selected: "person.crop.circle.fill" }}
         />
-        <Label>Profile</Label>
+        <NativeTabs.Trigger.Label>Profile</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
     </NativeTabs>
   );

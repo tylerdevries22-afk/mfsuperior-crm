@@ -124,7 +124,7 @@ export const st = StyleSheet.create({
 });
 
 export const diagSt = StyleSheet.create({
-  startingOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center", zIndex: 999 },
+  startingOverlay: { ...StyleSheet.absoluteFill, backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center", zIndex: 999 },
   startingCard: {
     backgroundColor: THEME.surface, borderRadius: RADIUS.xl,
     paddingHorizontal: 32, paddingVertical: 28, alignItems: "center", gap: 16, borderWidth: 1, borderColor: THEME.border,

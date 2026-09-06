@@ -1,92 +1,56 @@
 # MF Superior Products Mobile
 
-Expo SDK 54 app for the Customer, Driver, and Admin workspaces. SDK 54 is an intentional release constraint and must not be upgraded without the owner's explicit approval. The visual parity baseline is the Appliance Diagnostic mobile app at commit `480991b7eb0036e4e85c37d3784b2de2ca97d10d` with MF lime branding and freight-specific content and artwork.
+Expo SDK 57 demo with Customer, Driver, and Admin workspaces. The owner authorized the upgrade from SDK 54 on September 5, 2026. Keep aligned React Native and Expo packages on this SDK until another upgrade is authorized.
+
+## Sharing with clients
+
+Share **https://mfsuperior-demo.expo.app** with clients without Expo project access. It runs on a hosted HTTPS origin and does not depend on a developer computer, tunnel, shared Wi-Fi network, or a production backend. The release audit records the verified deployment URL.
+
+The native preview uses the `demo` EAS channel and SDK 57 runtime:
+
+```text
+exp://u.expo.dev/b28781fa-dd92-41cd-9363-e0860729a811?runtime-version=exposdk%3A57.0.0&channel-name=demo
+```
+
+Install a compatible Expo Go version and sign in with an account that owns this EAS project or belongs to its organization. Expo enforces this access rule for EAS updates; a public link cannot grant access to arbitrary Expo accounts. See [Expo's published-project access policy](https://expo.dev/changelog/expo-go-loading-changes-may-2026) and [the SDK 57 iOS login requirement](https://expo.dev/changelog/expo-go-57-login).
+
+The previous SDK 54 update remains available to compatible SDK 54 clients. Native runtime updates require a matching Expo Go version or a new app binary. Close an existing Expo Go session and reopen the link after publishing. For client native installs without Expo account membership, distribute the demo through TestFlight or Google Play testing.
+
+### Demo walkthrough
+
+On the login page, tap **Autofill** for a sample role, then **Sign in**. The credentials are displayed in the app. Demo changes are private to the viewer's device/browser; they do not affect production records. Payment forms accept sample payout handles and move no money. Browser payout handles clear on reload; native handles use device secure storage.
+
+- Customer: review shipments, create a freight request, browse request details and messages.
+- Driver: open the next load, complete pickup and intermediate stops, acknowledge delivery, review trip history, set availability and sample payout details.
+- Admin: review operations, manage jobs and assignments, inspect the fleet map, manage driver schedules and review settlement information.
+
+Location, camera, clipboard, and external payment-app handoffs depend on device permissions and browser/app support. Denied permissions should show a recoverable error. Map tiles require network access. This is a synthetic operations demo, not a connected dispatch service.
 
 ## Local development
 
 ```bash
-npm install
-npx expo start
+npm ci
+EXPO_PUBLIC_DEMO_AUTH_ENABLED=true npm start
 ```
 
-Open the QR code in Expo Go, or press `i` for an iOS Simulator.
+For a local browser preview use `EXPO_PUBLIC_DEMO_AUTH_ENABLED=true npm run web`. `npm run start:tunnel` is temporary development access and ends when the server stops.
 
-The local Expo Go workflow is development-only. It depends on a running
-development server and is not a public deployment.
-
-### Hosted Expo Go preview (SDK 54, best effort)
-
-The demo update is published to EAS and can be opened directly from Expo Go
-without running this project locally. The viewer must be signed in to an Expo
-account that owns the project or belongs to its Expo organization. Send the
-authorized viewer this link:
-
-```text
-exp://u.expo.dev/b28781fa-dd92-41cd-9363-e0860729a811?runtime-version=exposdk%3A54.0.0&channel-name=demo
-```
-
-The viewer installs the SDK 54 Expo Go app, signs in to an authorized Expo
-account, and taps the link on the iPhone. The link uses the `demo` channel, so
-publish future JavaScript and styling changes with `npm run eas:update:demo`
-and keep the runtime version compatible. Demo records remain on the viewer's
-device. Expo Go on iOS is a preview sandbox; it does not reliably follow an
-EAS channel or install runtime-version updates like a release build.
-The published update uses the SDK 54 runtime `exposdk:54.0.0`.
-
-### Share an Expo Go preview
-
-To let someone outside your local network open the current local build:
+## Verified publishing
 
 ```bash
-npm run start:tunnel
-```
-
-Copy the `exp://` URL or share the terminal QR code. The recipient needs Expo
-Go installed and the tunnel must remain running; closing the terminal ends the
-preview. For a reliable client install that works without your computer, use
-the EAS demo build through TestFlight instead.
-
-## Cloud deployment and OTA updates
-
-The app is linked to the EAS project
-`@tylerdevries222/mfsuperior-products`. EAS Update publishes JavaScript,
-styling, and bundled assets to the cloud. The compatible app binary must be
-installed once before it can receive OTA updates.
-
-### Public demo access
-
-The demo profile is self-contained and does not call this repository, a local
-server, or Supabase. Build it once, distribute that build through TestFlight,
-and publish future demo changes with:
-
-```bash
-npm run eas:build:demo:testflight
+npm run verify:demo
+npm run typecheck
+npm run lint
+npm test
 npm run eas:update:demo
+npx eas-cli@latest deploy --prod --export-dir dist-demo
 ```
 
-Demo records stay on each device. The demo channel is intended for showing the
-product, not for shared operations data or real authentication.
+`eas:update:demo` verifies the SDK/configuration and environment-variable inlining, exports iOS, Android and web with demo auth enabled, checks native bundles/assets and the browser entry, then publishes the same verified export. It uses the authenticated EAS project `@tylerdevries222/mfsuperior-products`.
 
-The first iOS build requires Apple Developer/TestFlight credentials in EAS.
-After the binary is installed, `eas:update:demo` publishes compatible changes
-over the air without requiring the Mac or a running development server.
+The GitHub workflow `.github/workflows/mobile-demo-update.yml` runs those gates on `main`, publishes the verified native bundles to the `demo` channel, and deploys the browser app to EAS Hosting. `EXPO_TOKEN` must be configured as a repository secret. The first hosting deployment chooses the project subdomain; future deployments update its stable production alias.
 
-### Automatic demo publishing
-
-The GitHub Actions workflow at `.github/workflows/mobile-demo-update.yml`
-validates the mobile project and publishes the `demo` channel after every
-mobile change merged to `main`. Add an `EXPO_TOKEN` repository secret once;
-the workflow fails clearly if that secret is missing instead of silently
-leaving the phone on an old update. This does not hot-reload an already-open
-Expo Go session: close that session and reopen the hosted link to load the
-newest published update.
-
-To create the reliable client install without running anything locally, run
-the `Build Mobile Demo for TestFlight` workflow from GitHub Actions (or run
-`gh workflow run mobile-demo-testflight.yml`). It builds and submits the
-SDK 54 demo through EAS using the `demo` channel. After the first TestFlight
-install, future JavaScript, styling, and bundled-asset changes are delivered
-by the automatic `main` publish workflow.
+Native demo builds remain available through `npm run eas:build:demo:testflight` and `.github/workflows/mobile-demo-testflight.yml`. They require Apple Developer/TestFlight credentials in EAS.
 
 ### Authenticated production access
 
