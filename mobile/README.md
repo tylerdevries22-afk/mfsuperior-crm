@@ -4,7 +4,7 @@ Expo SDK 57 demo with Customer, Driver, and Admin workspaces. The owner authoriz
 
 ## Sharing with clients
 
-Use the public browser deployment for clients without Expo project access. It runs on a hosted HTTPS origin and does not depend on a developer computer, tunnel, shared Wi-Fi network, or a production backend. The release audit records the verified deployment URL.
+Share **https://mfsuperior-demo.expo.app** with clients without Expo project access. It runs on a hosted HTTPS origin and does not depend on a developer computer, tunnel, shared Wi-Fi network, or a production backend. The release audit records the verified deployment URL.
 
 The native preview uses the `demo` EAS channel and SDK 57 runtime:
 

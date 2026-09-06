@@ -66,3 +66,16 @@ PR #71's driver home, job-assignment workflow, notifications, and freight improv
 Expo Go loads EAS-published projects only for an owner or organization member ([Expo policy](https://expo.dev/changelog/expo-go-loading-changes-may-2026)). SDK 57 iOS development sessions also require Expo login ([Expo announcement](https://expo.dev/changelog/expo-go-57-login)). Therefore a native Go link cannot promise anonymous access on any device. The public browser deployment supplies access without Expo membership. No tunnel or local development server is part of the final hosted deployment.
 
 PR #71 was squash merged into `dev` as `edcb65aefae30ff34ee16b53a9fac8bf3c074205`. The reconciliation merge commits have exactly the audited release tree; they add no reverted historical source. The final map-readiness correction follows that squash.
+
+## Published artifacts
+
+- Public browser: https://mfsuperior-demo.expo.app (anonymous login page and sample Driver sign-in verified).
+- Initial verified SDK 57 native update group: `e6b3cd3a-e337-49bf-86c8-c7fab97253f0`, both iOS and Android, runtime `exposdk:57.0.0`.
+- EAS Hosting deployment: `gvfg2hvizv`, promoted to the public production alias.
+- Native source revision: `b935d84`; subsequent documentation-only commits do not change its bundles. Main's publish workflow produces the next equivalent verified update.
+
+## Dependency audit
+
+`npm audit --omit=dev`: no high or critical findings; 13 transitive moderate findings trace to two advisories. `decode-uri-component` is inherited through Expo Router's CommonJS `query-string` dependency; its patched 0.5 release changes to ESM and cannot be substituted blindly. The `uuid` advisory is inherited through Xcode project-generation tooling, whose inspected call uses v4 rather than the affected buffer-taking functions. These remain recorded limitations; no exploit reproduction was performed. The audit's automatic suggestion downgrades Expo/Router across major versions, conflicting with the approved SDK 57 release contract.
+
+References: [decoder advisory](https://github.com/advisories/GHSA-vcc3-ghjq-m6fr), [UUID advisory](https://github.com/advisories/GHSA-w5hq-g745-h8pq).
