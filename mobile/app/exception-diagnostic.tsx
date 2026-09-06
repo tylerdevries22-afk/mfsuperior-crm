@@ -3,7 +3,7 @@ import { FreightActionWorkspaceScreen, type FreightActionWorkspaceSpec } from "@
 const SPEC = {
   eyebrow: "GUIDED FREIGHT TRIAGE",
   title: "Resolve the exception",
-  description: "Work through shipment, EDI, tractor, trailer, and reefer evidence in a safe, auditable sequence.",
+  description: "Work through shipment, EDI, vehicle, trailer, and reefer evidence in a safe, auditable sequence.",
   icon: "activity",
   tone: "warning",
   showArtwork: true,

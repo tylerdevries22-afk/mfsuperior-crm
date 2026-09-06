@@ -274,7 +274,7 @@ describe("fleet and shop authorization", () => {
       plateNumber: "CO-00001",
       plateState: "CO",
       status: "active",
-      type: "tractor",
+      type: "truck",
       unitNumber: "t-101",
       vin: "1AAAAAAAAAAAAAAAA",
       year: 2024,

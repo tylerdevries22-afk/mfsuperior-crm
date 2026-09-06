@@ -53,7 +53,7 @@ export function DriverRow({
         return (
           <Pressable
             accessibilityLabel={`${driverFullName(driver)} ${dateKey}${hasEvents ? " schedule" : " empty schedule slot"}`}
-            accessibilityRole={hasEvents ? undefined : "button"}
+            role={hasEvents ? "group" : "button"}
             key={`${driver.id}-${dateKey}`}
             delayLongPress={220}
             onLongPress={hasEvents ? undefined : () => onCellPress(dateKey)}
@@ -83,7 +83,8 @@ export function DayHeader({ date, onPress, selected, theme }: { readonly date: D
 }
 
 export function Metric({ label, tone, value }: { readonly label: string; readonly tone: string; readonly value: string }) {
-  return <View style={styles.metric}><Text style={[styles.metricValue, { color: tone }]}>{value}</Text><Text style={styles.metricLabel}>{label}</Text></View>;
+  const theme = useTheme();
+  return <View style={styles.metric}><Text style={[styles.metricValue, { color: tone }]}>{value}</Text><Text style={[styles.metricLabel, { color: theme.textSecondary }]}>{label}</Text></View>;
 }
 
 export function LegendDot({ color, label, theme }: { readonly color: string; readonly label: string; readonly theme: ReturnType<typeof useTheme> }) {

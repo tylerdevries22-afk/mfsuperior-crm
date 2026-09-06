@@ -1,3 +1,4 @@
+import { vehicleTypeForApi } from "../domain/vehicleCompatibility";
 import { randomUUID } from "expo-crypto";
 
 import { OperationsDomainError } from "../domain/errors";
@@ -641,7 +642,7 @@ export class ProductionOperationsRepository implements OperationsRepository {
       plateNumber: input.plateNumber,
       plateState: input.plateState,
       status: input.status,
-      type: input.type,
+      type: vehicleTypeForApi(input.type),
       unitNumber: input.unitNumber,
       vin: input.vin,
       year: input.year,

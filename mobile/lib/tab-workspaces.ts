@@ -104,8 +104,8 @@ export function localAssistantReply(prompt: string, activeLoadId?: string): stri
   if (/load|shipment|stop|route|eta|where/.test(normalized)) {
     return `${loadLabel} is available in Schedule with its stop timeline, route plan, and status history.`;
   }
-  if (/equipment|trailer|tractor|inventory|gear/.test(normalized)) {
-    return "Open Capacity to review assigned tractors, trailers, securement gear, and service resources.";
+  if (/equipment|trailer|truck|inventory|gear/.test(normalized)) {
+    return "Open Capacity to review assigned trucks, trailers, securement gear, and service resources.";
   }
   return "I can help with loads, routes, HOS, exceptions, equipment, and partner onboarding status.";
 }

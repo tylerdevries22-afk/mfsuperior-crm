@@ -1329,7 +1329,7 @@ export class DemoOperationsRepository implements OperationsRepository {
       const vehicle = findVehicle(state, vehicleId);
       if (driverId) {
         findDriver(state, driverId);
-        // A tractor in the shop cannot be handed to a driver who would then be
+        // A truck in the shop cannot be handed to a driver who would then be
         // dispatched on it.
         if (vehicle.status === "in_shop" || vehicle.status === "out_of_service") {
           throw new OperationsDomainError(

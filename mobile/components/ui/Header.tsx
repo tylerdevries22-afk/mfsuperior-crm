@@ -2,7 +2,6 @@ import type { ComponentProps, ReactNode } from "react";
 import Feather from "@expo/vector-icons/Feather";
 import {
   Image,
-  Platform,
   StyleSheet,
   Text,
   View,
@@ -39,14 +38,14 @@ const useStyles = makeStyles((theme) => ({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: SPACING.xl,
-    paddingVertical: SPACING.md,
+    paddingVertical: SPACING.sm,
     minHeight: 56,
   },
-  left: { flexDirection: "row", alignItems: "center", flex: 1 },
+  left: { flexDirection: "row", alignItems: "center", flex: 1, minWidth: 0 },
   right: { flexDirection: "row", alignItems: "center" },
-  back: { marginRight: SPACING.sm, padding: SPACING.xs },
+  back: { marginRight: SPACING.sm, minWidth: 44, minHeight: 44, alignItems: "center", justifyContent: "center" },
   leftAction: { marginRight: SPACING.sm },
-  logoRow: { flexDirection: "row", alignItems: "center", gap: SPACING.md },
+  logoRow: { flexDirection: "row", alignItems: "center", gap: SPACING.sm, flex: 1, minWidth: 0 },
   logo: { width: 40, height: 40, borderRadius: 10 },
   brandName: {
     fontFamily: FONTS.bold,
@@ -61,7 +60,7 @@ const useStyles = makeStyles((theme) => ({
     letterSpacing: 0.3,
   },
   titleRow: { flexDirection: "row", alignItems: "center", gap: SPACING.sm },
-  titleBlock: { flexShrink: 1 },
+  titleBlock: { flexShrink: 1, minWidth: 0 },
   subtitle: {
     marginTop: 2,
     fontFamily: FONTS.regular,
@@ -89,9 +88,8 @@ const useStyles = makeStyles((theme) => ({
 }));
 
 /**
- * Reference header ported from Appliance Diagnostic Systems commit
- * 480991b7eb0036e4e85c37d3784b2de2ca97d10d. Safe-area, 56pt inner geometry,
- * 40pt logo, typography, icon well, and divider are intentionally unchanged.
+ * Shared compact header. Actual safe-area insets protect notches and landscape
+ * cutouts without reserving an extra status-bar spacer in mobile browsers.
  */
 export function Header({
   title,
@@ -111,13 +109,12 @@ export function Header({
   const styles = useStyles();
   const theme = useTheme();
   const displaysLogo = showLogo || showBrand;
-  const topPadding = Platform.OS === "web" ? 50 : Math.max(insets.top, 44);
+  const topPadding = insets.top;
 
   const backButton = showBack ? (
     <AnimatedPressable
       accessibilityLabel="Back"
       disabled={!onBack}
-      ensureMinTarget={false}
       hitSlop={8}
       onPress={onBack}
       style={styles.back}
@@ -128,7 +125,7 @@ export function Header({
 
   return (
     <View style={[styles.container, { paddingTop: topPadding }, style]}>
-      <View style={styles.inner}>
+      <View style={[styles.inner, { paddingLeft: Math.max(insets.left, SPACING.xl), paddingRight: Math.max(insets.right, SPACING.xl) }]}>
         {centered ? backButton : (
           <View style={styles.left}>
             {leftAction ? <View style={styles.leftAction}>{leftAction}</View> : null}
@@ -136,7 +133,7 @@ export function Header({
             {displaysLogo ? (
               <View style={styles.logoRow}>
                 <Image resizeMode="cover" source={require("../../assets/brand/mf-logo-mark.png")} style={styles.logo} />
-                <View>
+                <View style={styles.titleBlock}>
                   <Text accessibilityRole="header" style={styles.brandName}>MF Superior Products</Text>
                   <Text style={styles.brandSub}>{brandTagline}</Text>
                 </View>

@@ -37,6 +37,27 @@ function Wrapper({ children }: PropsWithChildren) {
 }
 
 describe("pinned-reference primitives", () => {
+  it("preserves checked and busy states through the native pressable", () => {
+    const view = render(
+      <AnimatedPressable accessibilityLabel="Available" accessibilityRole="radio" accessibilityState={{ checked: true, busy: true }}>
+        <Text>Available</Text>
+      </AnimatedPressable>,
+      { wrapper: Wrapper },
+    );
+    expect(view.getByLabelText("Available")).toHaveProp("accessibilityState", expect.objectContaining({ checked: true, busy: true }));
+    view.rerender(<AnimatedPressable accessibilityLabel="Available" accessibilityRole="radio" accessibilityState={{ checked: false }}><Text>Available</Text></AnimatedPressable>);
+    expect(view.getByLabelText("Available")).toHaveProp("accessibilityState", expect.objectContaining({ checked: false }));
+  });
+
+  it("keeps compact controls touchable without shrinking larger controls", () => {
+    const view = render(<>
+      <AnimatedPressable accessibilityLabel="Compact" style={{ minHeight: 32, minWidth: 32 }}><Text>Compact</Text></AnimatedPressable>
+      <AnimatedPressable accessibilityLabel="Large" style={{ minHeight: 70, minWidth: 90 }}><Text>Large</Text></AnimatedPressable>
+    </>, { wrapper: Wrapper });
+    expect(view.getByLabelText("Compact")).toHaveStyle({ minHeight: 44, minWidth: 44 });
+    expect(view.getByLabelText("Large")).toHaveStyle({ minHeight: 70, minWidth: 90 });
+  });
+
   it("exports separate implementations rather than component aliases", () => {
     expect(AnimatedButton).not.toBe(Button);
     expect(AnimatedCard).not.toBe(Card);
