@@ -1,114 +1,11 @@
-import * as SecureStore from "expo-secure-store";
-
 import { OperationsDomainError } from "../domain/errors";
-import {
-  PAYOUT_RAILS,
-  type EntityId,
-  type PayoutMethod,
-  type PayoutMethodInput,
-  type PayoutRail,
-} from "../domain/types";
-import {
-  ChunkedSecureStoreAdapter,
-  type AuthSessionStorage,
-} from "../lib/auth/secureStore";
+import { PAYOUT_RAILS, type EntityId, type PayoutMethod, type PayoutMethodInput } from "../domain/types";
+import type { AuthSessionStorage } from "../lib/auth/secureStore";
+import { normalizePayoutHandle } from "./payoutHandleRules";
+import { createPayoutSecureStorage } from "./payoutStorage";
+export { maskPayoutHandle, normalizePayoutHandle, PAYOUT_RAIL_RULES } from "./payoutHandleRules";
 
-/**
- * Payout handles live in the device keychain, not in the AsyncStorage
- * operations blob.
- *
- * A handle is an account identifier a driver publishes anyway — a Venmo
- * username, a Cash App cashtag, the phone or email behind Zelle or Apple Cash.
- * It is still personally identifying, and it is the one field in this app that
- * would let someone else be paid in a driver's place, so it is kept out of the
- * state that every screen reads and out of anything an admin can select.
- */
 const PAYOUT_METHOD_KEY = "payout-methods";
-const PAYOUT_METHOD_NAMESPACE = "mfsp.payout.v1";
-
-/** What each rail accepts, and how a driver is told what it wants. */
-export const PAYOUT_RAIL_RULES: Record<
-  PayoutRail,
-  { readonly label: string; readonly hint: string; readonly placeholder: string }
-> = {
-  apple_cash: {
-    label: "Apple Cash",
-    hint: "The phone number your Apple Cash is registered to.",
-    placeholder: "+1 555 555 0100",
-  },
-  cash_app: {
-    label: "Cash App",
-    hint: "Your $cashtag, including the dollar sign.",
-    placeholder: "$yourcashtag",
-  },
-  venmo: {
-    label: "Venmo",
-    hint: "Your @username, including the at sign.",
-    placeholder: "@your-username",
-  },
-  zelle: {
-    label: "Zelle",
-    hint: "The phone number or email your bank has enrolled in Zelle.",
-    placeholder: "you@example.com",
-  },
-};
-
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-const PHONE_PATTERN = /^\+?[0-9][0-9\s().-]{6,17}[0-9]$/;
-const VENMO_PATTERN = /^@[A-Za-z0-9_-]{3,30}$/;
-const CASHTAG_PATTERN = /^\$[A-Za-z][A-Za-z0-9_]{1,19}$/;
-
-/**
- * Rejects anything that is not a handle for the chosen rail. This is a
- * correctness guard, not a security boundary: it exists so a driver cannot
- * quietly save a handle that will never receive their settlement, and so a
- * card or account number typed into the wrong box is refused outright.
- */
-export function normalizePayoutHandle(rail: PayoutRail, rawHandle: string): string {
-  const handle = rawHandle.trim();
-  if (handle.length === 0) {
-    throw new OperationsDomainError("VALIDATION_FAILED", "Enter a handle before saving.");
-  }
-
-  if (looksLikeAccountNumber(handle)) {
-    throw new OperationsDomainError(
-      "VALIDATION_FAILED",
-      "That looks like a card or account number. Enter the handle for the app instead — MF Superior never stores account numbers.",
-    );
-  }
-
-  if (rail === "venmo") {
-    const candidate = handle.startsWith("@") ? handle : `@${handle}`;
-    return assertMatches(candidate, VENMO_PATTERN, "Venmo usernames look like @your-username.");
-  }
-
-  if (rail === "cash_app") {
-    const candidate = handle.startsWith("$") ? handle : `$${handle}`;
-    return assertMatches(candidate, CASHTAG_PATTERN, "Cashtags look like $yourcashtag.");
-  }
-
-  if (rail === "apple_cash") {
-    return assertMatches(handle, PHONE_PATTERN, "Enter the phone number your Apple Cash uses.");
-  }
-
-  if (EMAIL_PATTERN.test(handle) || PHONE_PATTERN.test(handle)) {
-    return handle;
-  }
-  throw new OperationsDomainError(
-    "VALIDATION_FAILED",
-    "Enter the phone number or email enrolled in Zelle.",
-  );
-}
-
-/**
- * What an admin is allowed to see. Payouts name the rail a driver was paid on
- * so a settlement can be reconciled, but never the handle itself.
- */
-export function maskPayoutHandle(handle: string): string {
-  const visible = handle.slice(-4);
-  const lead = handle.startsWith("@") || handle.startsWith("$") ? handle[0] : "";
-  return `${lead}••••${visible}`;
-}
 
 export interface PayoutMethodStoreOptions {
   readonly storage?: AuthSessionStorage;
@@ -230,22 +127,6 @@ function applyDefault(
     : method);
 }
 
-function assertMatches(handle: string, pattern: RegExp, safeMessage: string): string {
-  if (!pattern.test(handle)) {
-    throw new OperationsDomainError("VALIDATION_FAILED", safeMessage);
-  }
-  return handle;
-}
-
-/**
- * A run of 12 or more digits is a card or bank account, never a handle. Zelle
- * phone numbers top out well below that once separators are removed.
- */
-function looksLikeAccountNumber(handle: string): boolean {
-  const digits = handle.replace(/\D/g, "");
-  return digits.length >= 12 && !handle.includes("@");
-}
-
 function isPayoutMethod(value: unknown): value is PayoutMethod {
   if (typeof value !== "object" || value === null) {
     return false;
@@ -258,16 +139,5 @@ function isPayoutMethod(value: unknown): value is PayoutMethod {
     typeof candidate.isDefault === "boolean" &&
     typeof candidate.rail === "string" &&
     (PAYOUT_RAILS as readonly string[]).includes(candidate.rail)
-  );
-}
-
-function createPayoutSecureStorage(): AuthSessionStorage {
-  return new ChunkedSecureStoreAdapter(
-    {
-      deleteItemAsync: (key) => SecureStore.deleteItemAsync(key),
-      getItemAsync: (key) => SecureStore.getItemAsync(key),
-      setItemAsync: (key, value) => SecureStore.setItemAsync(key, value),
-    },
-    { namespace: PAYOUT_METHOD_NAMESPACE },
   );
 }

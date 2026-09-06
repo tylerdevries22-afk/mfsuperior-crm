@@ -18,32 +18,29 @@ assert(existsSync(metadataPath), `Expo export metadata is missing: ${outputDirec
 
 if (failures.length === 0) {
   const metadata = JSON.parse(readFileSync(metadataPath, "utf8"));
-  const iosMetadata = metadata.fileMetadata?.ios;
-  const bundlePath = resolve(outputRoot, iosMetadata?.bundle ?? "");
-
-  assert(Boolean(iosMetadata?.bundle), "The iOS bundle is missing from Expo export metadata.");
-  assert(existsSync(bundlePath) && statSync(bundlePath).size > 0, "The generated iOS bundle is missing or empty.");
-
-  if (existsSync(bundlePath)) {
-    const bundle = readFileSync(bundlePath);
-    for (const marker of ["Quick demo login", "Autofill"]) {
-      assert(bundle.includes(Buffer.from(marker)), `Generated iOS bundle is missing: ${marker}`);
+  for (const platform of ["ios", "android"]) {
+    const platformMetadata = metadata.fileMetadata?.[platform];
+    const bundlePath = resolve(outputRoot, platformMetadata?.bundle ?? "");
+    assert(Boolean(platformMetadata?.bundle), `The ${platform} bundle is missing from Expo export metadata.`);
+    const bundleExists = existsSync(bundlePath) && statSync(bundlePath).isFile() && statSync(bundlePath).size > 0;
+    assert(bundleExists, `The generated ${platform} bundle is missing or empty.`);
+    if (bundleExists) {
+      const bundle = readFileSync(bundlePath);
+      for (const marker of ["Quick demo login", "Autofill"]) {
+        assert(bundle.includes(Buffer.from(marker)), `Generated ${platform} bundle is missing: ${marker}`);
+      }
+    }
+    const exportedAssets = new Set((platformMetadata?.assets ?? []).map(({ path }) => path));
+    for (const asset of ["apple-cash", "cash-app", "venmo", "zelle"]) {
+      const sourcePath = resolve(projectRoot, `assets/payouts/${asset}.png`);
+      const hash = createHash("md5").update(readFileSync(sourcePath)).digest("hex");
+      const exportedPath = resolve(outputRoot, "assets", hash);
+      assert(exportedAssets.has(`assets/${hash}`), `${platform} metadata is missing payout asset: ${asset}`);
+      assert(existsSync(exportedPath) && statSync(exportedPath).size > 0, `Missing payout asset: ${asset}`);
     }
   }
+  assert(existsSync(resolve(outputRoot, "index.html")), "The browser entry page is missing.");
 
-  const exportedAssets = new Set((iosMetadata?.assets ?? []).map(({ path }) => path));
-  for (const asset of [
-    "assets/payouts/apple-cash.png",
-    "assets/payouts/cash-app.png",
-    "assets/payouts/venmo.png",
-    "assets/payouts/zelle.png",
-  ]) {
-    const sourcePath = resolve(projectRoot, asset);
-    const hash = createHash("md5").update(readFileSync(sourcePath)).digest("hex");
-    const exportedPath = resolve(outputRoot, "assets", hash);
-    assert(exportedAssets.has(`assets/${hash}`), `Expo export metadata is missing payout asset: ${asset}`);
-    assert(existsSync(exportedPath) && statSync(exportedPath).size > 0, `Expo export is missing payout asset: ${asset}`);
-  }
 }
 
 if (failures.length > 0) {

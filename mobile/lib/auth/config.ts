@@ -24,7 +24,14 @@ const REQUIRED_PRODUCTION_KEYS = [
 ] as const;
 
 export function resolveAuthRuntimeConfig(
-  environment: PublicEnvironment = process.env,
+  environment: PublicEnvironment = {
+    // Expo only embeds statically referenced public variables in device bundles.
+    EXPO_PUBLIC_DEMO_AUTH_ENABLED: process.env.EXPO_PUBLIC_DEMO_AUTH_ENABLED,
+    EXPO_PUBLIC_API_BASE_URL: process.env.EXPO_PUBLIC_API_BASE_URL,
+    EXPO_PUBLIC_MOBILE_PARITY_V2: process.env.EXPO_PUBLIC_MOBILE_PARITY_V2,
+    EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+    EXPO_PUBLIC_SUPABASE_URL: process.env.EXPO_PUBLIC_SUPABASE_URL,
+  },
 ): AuthRuntimeConfig {
   if (environment.EXPO_PUBLIC_DEMO_AUTH_ENABLED === "true") {
     return { mode: "demo" };

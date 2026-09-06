@@ -1,6 +1,6 @@
 import Feather from "@expo/vector-icons/Feather";
-import { useEffect, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { useState } from "react";
+import { StyleSheet, Platform, Text, View } from "react-native";
 
 import { AnimatedButton, Sheet, SwitchRow, TextField } from "@/components/ui";
 import type { PayoutMethod, PayoutMethodInput, PayoutRail } from "@/domain/types";
@@ -29,13 +29,15 @@ export function PayoutMethodSheet({
   rail,
 }: PayoutMethodSheetProps) {
   const theme = useTheme();
-  const [handle, setHandle] = useState("");
-  const [makeDefault, setMakeDefault] = useState(false);
+  const [handle, setHandle] = useState(existing?.handle ?? "");
+  const [makeDefault, setMakeDefault] = useState(existing?.isDefault ?? false);
 
-  useEffect(() => {
+  const [previous, setPrevious] = useState({ existing, rail });
+  if (previous.existing !== existing || previous.rail !== rail) {
+    setPrevious({ existing, rail });
     setHandle(existing?.handle ?? "");
     setMakeDefault(existing?.isDefault ?? false);
-  }, [existing, rail]);
+  }
 
   if (!rail) {
     return null;
@@ -100,8 +102,9 @@ export function PayoutMethodSheet({
         >
           <Feather color={theme.info} name="shield" size={ICON.sm} />
           <Text style={[styles.noticeText, { color: theme.textSecondary }]}>
-            Handles are kept in this device&apos;s keychain and are never shown to dispatch — a
-            settlement records only which rail it went out on. MF Superior never asks for a card or
+            {Platform.OS === "web"
+              ? "Use a sample handle for this demo. It clears when you reload the page."
+              : "Handles stay in this device’s keychain and are never shown to dispatch."} MF Superior never asks for a card or
             bank account number, and this app moves no money.
           </Text>
         </View>

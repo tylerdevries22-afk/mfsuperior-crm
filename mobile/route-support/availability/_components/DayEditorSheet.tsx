@@ -1,7 +1,3 @@
-import Feather from "@expo/vector-icons/Feather";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
-
 import {
   AnimatedButton,
   AnimatedPressable,
@@ -9,55 +5,19 @@ import {
   SwitchRow,
 } from "@/components/ui";
 import type {
-  AvailabilityBlock,
-  AvailabilityBlockInput,
-  AvailabilityKind,
-  AvailabilityRuleInput,
-  Shipment,
+  AvailabilityKind
 } from "@/domain/types";
-import { FONTS, ICON, RADIUS, RADIUS_DENSE, SPACE, TYPO, useTheme } from "@/theme";
-
 import {
-  MINUTES_PER_DAY,
   formatMinuteRange,
   isoToMinutes,
-  loadRouteLabel,
-  localDayStart,
-  minutesToIso,
-} from "../utils";
+  loadRouteLabel
+} from "@/route-support/availability/utils";
+import { ICON } from "@/theme";
+import Feather from "@expo/vector-icons/Feather";
+import { ScrollView, Text, View } from "react-native";
 import { TimeRangeTrack } from "./TimeRangeTrack";
-
-const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-
-const QUICK_ACTIONS: readonly {
-  readonly kind: AvailabilityKind;
-  readonly label: string;
-  readonly icon: keyof typeof Feather.glyphMap;
-}[] = [
-  { icon: "check-circle", kind: "available", label: "Available all day" },
-  { icon: "slash", kind: "unavailable", label: "Unavailable all day" },
-  { icon: "sun", kind: "time_off", label: "Time off" },
-];
-
-const KIND_LABELS: Record<AvailabilityKind, string> = {
-  available: "Available",
-  preferred: "Preferred",
-  time_off: "Time off",
-  unavailable: "Unavailable",
-};
-
-export interface DayEditorSheetProps {
-  readonly dateKey: string | null;
-  readonly blocks: readonly AvailabilityBlock[];
-  readonly conflicts: readonly Shipment[];
-  readonly busy: boolean;
-  readonly onClose: () => void;
-  readonly onSaveBlock: (input: AvailabilityBlockInput) => void;
-  readonly onSaveRule: (input: AvailabilityRuleInput) => void;
-  readonly onRemoveBlock: (blockId: string) => void;
-  /** Called as the drag settles, so the screen owns the haptic policy. */
-  readonly onDragSettle?: () => void;
-}
+import { DayEditorSheetProps, KIND_LABELS, QUICK_ACTIONS, styles, WEEKDAY_LABELS } from "./dayEditorParts";
+import { useDayEditorSheet } from "./useDayEditorSheet";
 
 export function DayEditorSheet({
   blocks,
@@ -70,74 +30,10 @@ export function DayEditorSheet({
   onSaveBlock,
   onSaveRule,
 }: DayEditorSheetProps) {
-  const theme = useTheme();
-  const [kind, setKind] = useState<AvailabilityKind>("unavailable");
-  const [startMinute, setStartMinute] = useState(480);
-  const [endMinute, setEndMinute] = useState(1_020);
-  const [repeatWeekly, setRepeatWeekly] = useState(false);
-
-  // Reopening on a different day starts from a clean default rather than the
-  // range left behind by the day before it.
-  useEffect(() => {
-    if (!dateKey) {
-      return;
-    }
-    setKind("unavailable");
-    setStartMinute(480);
-    setEndMinute(1_020);
-    setRepeatWeekly(false);
-  }, [dateKey]);
-
-  const weekday = useMemo(
-    () => (dateKey ? localDayStart(dateKey).getDay() : 0),
-    [dateKey],
-  );
-
-  const onRangeChange = useCallback((nextStart: number, nextEnd: number) => {
-    setStartMinute(nextStart);
-    setEndMinute(nextEnd);
-  }, []);
-
+  const { theme, kind, setKind, weekday, startMinute, endMinute, repeatWeekly, setRepeatWeekly, onRangeChange, heading, applyQuickAction, saveRange } = useDayEditorSheet({ blocks, busy, conflicts, dateKey, onClose, onDragSettle, onRemoveBlock, onSaveBlock, onSaveRule });
   if (!dateKey) {
     return null;
   }
-
-  const heading = new Date(`${dateKey}T12:00:00Z`).toLocaleDateString("en-US", {
-    day: "numeric",
-    month: "long",
-    timeZone: "UTC",
-    weekday: "long",
-  });
-
-  const applyQuickAction = (quickKind: AvailabilityKind) => {
-    setKind(quickKind);
-    setStartMinute(0);
-    setEndMinute(MINUTES_PER_DAY);
-    onSaveBlock({
-      endsAt: minutesToIso(dateKey, MINUTES_PER_DAY),
-      kind: quickKind,
-      startsAt: minutesToIso(dateKey, 0),
-    });
-  };
-
-  const saveRange = () => {
-    if (repeatWeekly) {
-      onSaveRule({
-        effectiveFrom: minutesToIso(dateKey, 0),
-        endMinute,
-        kind,
-        startMinute,
-        weekday: weekday as AvailabilityRuleInput["weekday"],
-      });
-      return;
-    }
-    onSaveBlock({
-      endsAt: minutesToIso(dateKey, endMinute),
-      kind,
-      startsAt: minutesToIso(dateKey, startMinute),
-    });
-  };
-
   return (
     <Sheet
       footer={
@@ -294,53 +190,3 @@ export function DayEditorSheet({
     </Sheet>
   );
 }
-
-const styles = StyleSheet.create({
-  blockList: { borderRadius: RADIUS.md, borderWidth: 1, overflow: "hidden" },
-  blockMeta: { ...TYPO.caption, marginTop: 2 },
-  blockRow: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: SPACE.sm,
-    minHeight: 56,
-    paddingHorizontal: SPACE.md,
-    paddingVertical: SPACE.sm,
-  },
-  blockTitle: { ...TYPO.rowTitle },
-  conflict: {
-    alignItems: "flex-start",
-    borderRadius: RADIUS.md,
-    borderWidth: 1,
-    flexDirection: "row",
-    gap: SPACE.sm,
-    padding: SPACE.md,
-  },
-  conflictBody: { ...TYPO.caption, marginTop: 2 },
-  conflictTitle: { ...TYPO.captionStrong },
-  content: { gap: SPACE.md, paddingBottom: SPACE.md },
-  grow: { flex: 1, minWidth: 0 },
-  kindChip: {
-    borderRadius: RADIUS.pill,
-    borderWidth: 1,
-    paddingHorizontal: SPACE.md,
-    paddingVertical: SPACE.xs,
-  },
-  kindLabel: { ...TYPO.caption, fontFamily: FONTS.medium },
-  kindRow: { flexDirection: "row", flexWrap: "wrap", gap: SPACE.xs },
-  label: { ...TYPO.label },
-  quickChip: {
-    alignItems: "center",
-    borderRadius: RADIUS_DENSE.lg,
-    borderWidth: 1,
-    flexBasis: "31%",
-    flexGrow: 1,
-    gap: SPACE.xs,
-    justifyContent: "center",
-    minHeight: 76,
-    paddingHorizontal: SPACE.xs,
-    paddingVertical: SPACE.sm,
-  },
-  quickLabel: { ...TYPO.subtitle, textAlign: "center" },
-  quickRow: { flexDirection: "row", flexWrap: "wrap", gap: SPACE.xs },
-  removeButton: { alignItems: "center", height: 44, justifyContent: "center", width: 44 },
-});

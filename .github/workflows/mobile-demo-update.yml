@@ -53,14 +53,18 @@ jobs:
         run: npm test -- --runInBand
         working-directory: mobile
 
-      - name: Export demo iOS bundle
-        run: EXPO_PUBLIC_DEMO_AUTH_ENABLED=true npx expo export --platform ios --output-dir dist-demo-verify
+      - name: Export demo for iOS, Android, and web
+        run: npm run build:demo
         working-directory: mobile
 
-      - name: Verify demo iOS bundle
-        run: npm run verify:demo:bundle -- dist-demo-verify
+      - name: Verify native demo bundles and browser entry
+        run: npm run verify:demo:bundle -- dist-demo
         working-directory: mobile
 
       - name: Publish Expo demo update
-        run: npm run eas:update:demo
+        run: EXPO_PUBLIC_DEMO_AUTH_ENABLED=true npx eas-cli@latest update --channel demo --environment preview --input-dir dist-demo --skip-bundler --message "Client demo ${{ github.sha }}" --non-interactive
+        working-directory: mobile
+
+      - name: Publish public browser demo
+        run: npx eas-cli@latest deploy --prod --export-dir dist-demo --non-interactive
         working-directory: mobile

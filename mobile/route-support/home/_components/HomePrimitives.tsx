@@ -1,5 +1,5 @@
 import { Feather } from "@expo/vector-icons";
-import { useEffect, useRef } from "react";
+import { useEffect, useState } from "react";
 import { Animated, Easing, Text, View } from "react-native";
 
 import { AnimatedPressable } from "@/components/ui";
@@ -22,7 +22,7 @@ import { s } from "../homeStyles";
  * the orb at rest.
  */
 export function PulseOrb({ color, delay = 0 }: { readonly color: string; readonly delay?: number }) {
-  const progress = useRef(new Animated.Value(0)).current;
+  const [progress] = useState(() => new Animated.Value(0));
   const reduceMotion = useReducedMotion();
 
   useEffect(() => {
