@@ -422,7 +422,7 @@ export interface AvailabilityRule {
   readonly updatedAt: IsoDateTime;
 }
 
-export const VEHICLE_TYPES = ["tractor", "trailer"] as const;
+export const VEHICLE_TYPES = ["truck", "trailer"] as const;
 
 export type VehicleType = (typeof VEHICLE_TYPES)[number];
 

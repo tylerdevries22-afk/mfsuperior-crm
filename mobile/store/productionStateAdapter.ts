@@ -1,3 +1,4 @@
+import { normalizeVehicle } from "../domain/vehicleCompatibility";
 import type {
   AppRole,
   AvailabilityBlock,
@@ -208,7 +209,7 @@ export function buildProductionOperationsState(
     session: { accessState: "active", accountId: account.id, effectiveRole: account.role },
     shipments: input.shipments.map((shipment) => toShipment(shipment, customerId)),
     updatedAt: now,
-    vehicles: input.vehicles ?? [],
+    vehicles: (input.vehicles ?? []).map(normalizeVehicle),
     version: DEMO_STATE_VERSION,
   };
 }

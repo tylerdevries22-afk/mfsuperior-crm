@@ -21,7 +21,7 @@ function vehicle(overrides: Partial<Vehicle> = {}): Vehicle {
     plateNumber: "CO-00000",
     plateState: "CO",
     status: "active",
-    type: "tractor",
+    type: "truck",
     unitNumber: "T-999",
     updatedAt: "2026-01-01T12:00:00.000Z",
     vin: "1FUJGLDR8CLBP0000",
