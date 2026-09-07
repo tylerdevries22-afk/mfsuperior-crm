@@ -27,7 +27,7 @@ export const styles = StyleSheet.create({
   },
   metalShadow: {
     elevation: 10,
-    shadowColor: "#DCE9AD",
+    shadowColor: "#000000",
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.45,
     shadowRadius: 2,

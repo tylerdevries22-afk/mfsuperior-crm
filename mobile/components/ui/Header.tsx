@@ -42,10 +42,16 @@ const useStyles = makeStyles((theme) => ({
   logo: { width: 36, height: 36, borderRadius: RADIUS.sm },
   brandName: { ...TYPO.heading, color: theme.text },
   brandSub: { ...TYPO.caption, color: theme.textSecondary },
-  titleRow: { flexDirection: "row", alignItems: "center", gap: SPACE.xs },
+  titleRow: { flexDirection: "row", alignItems: "center", gap: SPACE.xs, minWidth: 0 },
   titleBlock: { flexShrink: 1, minWidth: 0 },
   subtitle: { ...TYPO.caption, marginTop: 1, color: theme.textSecondary },
-  centeredBlock: { alignItems: "center", flex: 1 },
+  centeredBlock: { alignItems: "center", flex: 1, minWidth: 0 },
+  /**
+   * A centred title sizes to its content, which would let a long one spill out
+   * of the block and slide under the trailing actions. Stretching it to the
+   * block's own width keeps the truncation inside the space that is actually free.
+   */
+  centeredTitleBlock: { alignSelf: "stretch", minWidth: 0 },
   centeredTitle: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: SPACE.xs },
   centeredSubtitle: { textAlign: "center" },
   titleIcon: {
@@ -57,7 +63,7 @@ const useStyles = makeStyles((theme) => ({
     justifyContent: "center",
   },
   /** iOS inline navigation-bar titles are Headline (17pt semibold), not display type. */
-  title: { ...TYPO.cardTitle, color: theme.text },
+  title: { ...TYPO.cardTitle, color: theme.text, flexShrink: 1, minWidth: 0 },
   border: { height: HAIRLINE, backgroundColor: theme.separator },
 }));
 
@@ -138,16 +144,16 @@ function TitleBlock({
   const styles = useStyles();
   const theme = useTheme();
   return (
-    <View style={styles.titleBlock}>
+    <View style={[styles.titleBlock, centered && styles.centeredTitleBlock]}>
       <View style={[styles.titleRow, centered && styles.centeredTitle]}>
         {icon ? (
           <View style={styles.titleIcon}>
             <Feather color={theme.primaryLight} name={icon} size={18} />
           </View>
         ) : null}
-        <Text accessibilityRole="header" style={styles.title}>{title}</Text>
+        <Text accessibilityRole="header" numberOfLines={1} style={styles.title}>{title}</Text>
       </View>
-      {subtitle ? <Text style={[styles.subtitle, centered && styles.centeredSubtitle]}>{subtitle}</Text> : null}
+      {subtitle ? <Text numberOfLines={1} style={[styles.subtitle, centered && styles.centeredSubtitle]}>{subtitle}</Text> : null}
     </View>
   );
 }

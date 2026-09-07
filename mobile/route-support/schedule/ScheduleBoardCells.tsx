@@ -73,7 +73,7 @@ export function DriverRow({
 }
 
 export function EventChip({ label, onPress, tone, theme }: { readonly label: string; readonly onPress: () => void; readonly tone: "shift" | "load" | "blocked"; readonly theme: ReturnType<typeof useTheme> }) {
-  const toneColor = tone === "shift" ? theme.primary : tone === "load" ? "#7DD3FC" : theme.danger;
+  const toneColor = tone === "shift" ? theme.primary : tone === "load" ? "#32ADE6" : theme.danger;
   return <Pressable accessibilityLabel={label} accessibilityRole="button" onPress={onPress} style={[styles.eventChip, { backgroundColor: `${toneColor}22`, borderColor: `${toneColor}70` }]}><View style={[styles.eventDot, { backgroundColor: toneColor }]} /><Text numberOfLines={1} style={[styles.eventText, { color: theme.text }]}>{label}</Text></Pressable>;
 }
 

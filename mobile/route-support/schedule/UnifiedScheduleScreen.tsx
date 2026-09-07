@@ -113,7 +113,7 @@ export function UnifiedScheduleScreen({ mode }: UnifiedScheduleScreenProps) {
         </ScrollView>
         <View style={styles.legendRow}>
           <LegendDot color={theme.primary} label="Shift" theme={theme} />
-          <LegendDot color="#7DD3FC" label="Load" theme={theme} />
+          <LegendDot color="#32ADE6" label="Load" theme={theme} />
           <LegendDot color={theme.danger} label="Blocked" theme={theme} />
           <Text style={[styles.legendHint, { color: theme.textMuted }]}>Tap an empty cell to add</Text>
         </View>

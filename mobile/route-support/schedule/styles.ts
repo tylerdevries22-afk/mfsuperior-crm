@@ -277,7 +277,7 @@ export const styles = StyleSheet.create({
     position: "absolute",
     top: 6,
     left: 6,
-    backgroundColor: "#EF4444",
+    backgroundColor: "#FF3B30",
     borderRadius: 10,
     width: 18,
     height: 18,
@@ -366,13 +366,13 @@ export const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: "#EF4444",
+    backgroundColor: "#FF3B30",
     marginLeft: -4,
   },
   nowLineBar: {
     flex: 1,
     height: 2,
-    backgroundColor: "#EF4444",
+    backgroundColor: "#FF3B30",
   },
   dayViewBlock: {
     position: "absolute",
@@ -572,7 +572,7 @@ export const styles = StyleSheet.create({
   newJobErrorText: {
     fontFamily: FONTS.medium,
     fontSize: 13,
-    color: "#EF4444",
+    color: "#FF3B30",
   },
   newJobCard: {
     marginHorizontal: SPACING.lg,

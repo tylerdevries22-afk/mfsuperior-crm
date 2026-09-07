@@ -39,7 +39,7 @@ export const homeActivityStyles = StyleSheet.create({
     textTransform: "capitalize",
   },
   partOrderBadge: {
-    backgroundColor: "#EF4444",
+    backgroundColor: "#FF3B30",
     borderRadius: 10,
     width: 18,
     height: 18,

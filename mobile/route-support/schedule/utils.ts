@@ -26,7 +26,7 @@ export const EQUIPMENT_IMAGES: Record<string, ImageSourcePropType> = {
 export const DAYS = ["S", "M", "T", "W", "T", "F", "S"];
 export const HOUR_HEIGHT = 60;
 export const HOURS = Array.from({ length: 16 }, (_, i) => i + 6);
-export const FALLBACK_COLOR = "#6B7280";
+export const FALLBACK_COLOR = "#8E8E93"; // systemGray
 
 /**
  * The reference resolves a tenant timezone. Freight operations run against the
@@ -125,13 +125,13 @@ export function getInitials(first?: string | null, last?: string | null): string
  * hashed from the driver id and therefore stable across sessions and devices.
  */
 const DRIVER_COLORS = [
-  "#6366F1",
-  "#0EA5E9",
-  "#10B981",
-  "#F59E0B",
-  "#EF4444",
-  "#8B5CF6",
-  "#EC4899",
+  "#5856D6", // systemIndigo
+  "#32ADE6", // systemCyan
+  "#34C759", // systemGreen
+  "#FF9500", // systemOrange
+  "#FF3B30", // systemRed
+  "#AF52DE", // systemPurple
+  "#FF2D55", // systemPink
 ];
 
 export function hashColor(seed: string, palette: readonly string[] = DRIVER_COLORS): string {

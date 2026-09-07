@@ -30,7 +30,7 @@ const QUICK_ACTIONS: readonly {
   { key: "hos", icon: "clock", label: "Duty Status", color: THEME.primary, route: "/hours-of-service" },
   { key: "toolbox", icon: "tool", label: "Toolbox", color: THEME.success, route: "/driver-toolbox" },
   { key: "exception", icon: "alert-triangle", label: "Report Issue", color: THEME.orange, route: "/exception-diagnostic" },
-  { key: "location", icon: "map-pin", label: "Location", color: "#A78BFA", route: "/location-tracker" },
+  { key: "location", icon: "map-pin", label: "Location", color: "#AF52DE", route: "/location-tracker" },
   { key: "messages", icon: "message-square", label: "Messages", color: THEME.primaryLight, route: "/messages" },
   { key: "history", icon: "clock", label: "History", color: THEME.textMuted, route: "/history" },
 ];
@@ -154,7 +154,7 @@ export function DriverHome() {
               value={formatCurrency(payCents)}
             />
             <StatPill
-              color="#A78BFA"
+              color="#AF52DE"
               icon="check-circle"
               label="Done"
               value={`${completedToday}/${todayLoads.length}`}
