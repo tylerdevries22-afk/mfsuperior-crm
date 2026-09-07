@@ -1,6 +1,6 @@
 import { StyleSheet } from "react-native";
 
-import { CARD_SHADOW, CARD_SHADOW_SM, FONTS, RADIUS_LEGACY as RADIUS, SPACING, THEME } from "@/theme";
+import { CARD_SHADOW, CARD_SHADOW_SM, FONTS, RADIUS, SPACING, THEME } from "@/theme";
 
 export const homeLoadStyles = StyleSheet.create({
   sectionLabel: {
@@ -24,7 +24,7 @@ export const homeLoadStyles = StyleSheet.create({
     color: THEME.primaryLight,
   },
   nextJobCard: {
-    borderRadius: RADIUS.xl,
+    borderRadius: RADIUS.lg,
     overflow: "hidden",
     borderWidth: 1,
     borderColor: `${THEME.primary}25`,
@@ -46,7 +46,7 @@ export const homeLoadStyles = StyleSheet.create({
     backgroundColor: `${THEME.primary}18`,
     paddingHorizontal: SPACING.sm,
     paddingVertical: 4,
-    borderRadius: RADIUS.full,
+    borderRadius: RADIUS.pill,
   },
   nextJobTimeText: {
     fontFamily: FONTS.semibold,
@@ -83,7 +83,7 @@ export const homeLoadStyles = StyleSheet.create({
     backgroundColor: `${THEME.primary}15`,
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.sm,
-    borderRadius: RADIUS.full,
+    borderRadius: RADIUS.pill,
   },
   nextJobBtnText: {
     fontFamily: FONTS.semibold,
@@ -98,7 +98,7 @@ export const homeLoadStyles = StyleSheet.create({
   },
   actionCard: {
     backgroundColor: THEME.surface,
-    borderRadius: RADIUS.lg,
+    borderRadius: RADIUS.md,
     borderWidth: 1,
     borderColor: THEME.border,
     paddingVertical: SPACING.lg,
@@ -109,7 +109,7 @@ export const homeLoadStyles = StyleSheet.create({
   actionIconBg: {
     width: 44,
     height: 44,
-    borderRadius: RADIUS.md,
+    borderRadius: RADIUS.sm,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -120,7 +120,7 @@ export const homeLoadStyles = StyleSheet.create({
   },
   activityList: {
     backgroundColor: THEME.surface,
-    borderRadius: RADIUS.xl,
+    borderRadius: RADIUS.lg,
     borderWidth: 1,
     borderColor: THEME.border,
     overflow: "hidden",

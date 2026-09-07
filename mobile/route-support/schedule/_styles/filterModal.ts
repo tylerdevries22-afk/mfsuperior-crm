@@ -1,6 +1,6 @@
 import { StyleSheet } from "react-native";
 
-import { FONTS, RADIUS_LEGACY as RADIUS, SPACING, THEME } from "@/theme";
+import { FONTS, RADIUS, SPACING, THEME } from "@/theme";
 
 /** The filter sheet, its checkbox rows, and the pull-to-refresh update banner. */
 export const filterModalStyles = StyleSheet.create({
@@ -72,7 +72,7 @@ export const filterModalStyles = StyleSheet.create({
     marginTop: SPACING.xl,
     backgroundColor: THEME.primary,
     paddingVertical: SPACING.md,
-    borderRadius: RADIUS.md,
+    borderRadius: RADIUS.sm,
     alignItems: "center",
   },
   modalDoneBtnText: {

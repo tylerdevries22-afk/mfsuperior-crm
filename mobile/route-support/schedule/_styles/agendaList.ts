@@ -1,6 +1,6 @@
 import { StyleSheet } from "react-native";
 
-import { FONTS, RADIUS_LEGACY as RADIUS, SPACING, THEME } from "@/theme";
+import { FONTS, RADIUS, SPACING, THEME } from "@/theme";
 
 /** The scrolling agenda: date sections and the appointment cards inside them. */
 export const agendaListStyles = StyleSheet.create({
@@ -49,7 +49,7 @@ export const agendaListStyles = StyleSheet.create({
   appointmentCard: {
     flexDirection: "row",
     backgroundColor: THEME.surface,
-    borderRadius: RADIUS.lg,
+    borderRadius: RADIUS.md,
     padding: SPACING.md,
     marginBottom: SPACING.sm,
     borderWidth: 1,

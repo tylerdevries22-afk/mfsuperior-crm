@@ -1,4 +1,4 @@
-import { FONTS, RADIUS_LEGACY as RADIUS, SPACING, THEME } from "@/theme";
+import { FONTS, RADIUS, SPACING, THEME } from "@/theme";
 import {
   StyleSheet
 } from "react-native";
@@ -52,7 +52,7 @@ export const st = StyleSheet.create({
     gap: 2,
     paddingVertical: 2,
     paddingHorizontal: 2,
-    borderRadius: RADIUS.md,
+    borderRadius: RADIUS.sm,
     borderWidth: 2,
     borderColor: "transparent",
     width: NODE_WIDTH,

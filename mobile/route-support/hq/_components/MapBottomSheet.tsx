@@ -1,4 +1,4 @@
-import { RADIUS_LEGACY as RADIUS, useReducedMotion } from "@/theme";
+import { RADIUS, useReducedMotion } from "@/theme";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   Animated,

@@ -1,6 +1,6 @@
 import { StyleSheet } from "react-native";
 
-import { FONTS, RADIUS_LEGACY as RADIUS, SPACING, THEME } from "@/theme";
+import { FONTS, RADIUS, SPACING, THEME } from "@/theme";
 
 /**
  * Ported verbatim from the Appliance Diagnostic Systems assistant at
@@ -31,7 +31,7 @@ export const st = StyleSheet.create({
   quickActions: { paddingBottom: 8 },
   quickScroll: { paddingHorizontal: 16, gap: 10 },
   quickCard: {
-    backgroundColor: THEME.surface, borderRadius: RADIUS.lg, borderWidth: 1,
+    backgroundColor: THEME.surface, borderRadius: RADIUS.md, borderWidth: 1,
     borderColor: THEME.border, paddingHorizontal: 16, paddingVertical: 14, width: 140,
   },
   quickCardActive: { backgroundColor: `${THEME.primary}12`, borderColor: `${THEME.primary}60` },
@@ -39,7 +39,7 @@ export const st = StyleSheet.create({
   quickLabelActive: { color: THEME.primary },
   subActionsPanel: {
     marginHorizontal: 16, marginTop: 10, backgroundColor: THEME.surface,
-    borderRadius: RADIUS.lg, borderWidth: 1, borderColor: `${THEME.primary}30`,
+    borderRadius: RADIUS.md, borderWidth: 1, borderColor: `${THEME.primary}30`,
     overflow: "hidden", maxHeight: 240,
   },
   subActionsHeader: {
@@ -53,7 +53,7 @@ export const st = StyleSheet.create({
   subActionsScrollV: { flex: 1 },
   subActionsGrid: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 10, paddingVertical: 10, gap: 6 },
   subActionCell: {
-    width: "30.5%", backgroundColor: THEME.surfaceElevated, borderRadius: RADIUS.md,
+    width: "30.5%", backgroundColor: THEME.surfaceElevated, borderRadius: RADIUS.sm,
     borderWidth: 1, borderColor: THEME.border, paddingHorizontal: 8, paddingVertical: 8,
     alignItems: "center", gap: 4,
   },
@@ -64,13 +64,13 @@ export const st = StyleSheet.create({
   subActionCellTextActive: { color: THEME.primary },
   diagCarouselContent: { paddingHorizontal: 12, paddingVertical: 10, gap: 10, alignItems: "center" },
   diagApplianceCard: {
-    width: 90, alignItems: "center", backgroundColor: THEME.surfaceElevated, borderRadius: RADIUS.lg,
+    width: 90, alignItems: "center", backgroundColor: THEME.surfaceElevated, borderRadius: RADIUS.md,
     borderWidth: 1, borderColor: THEME.border, paddingVertical: 12, paddingHorizontal: 8, gap: 8,
   },
   diagApplianceImage: { width: 56, height: 56 },
   diagApplianceLabel: { fontFamily: FONTS.medium, fontSize: 11, color: THEME.text, textAlign: "center", lineHeight: 14 },
   diagBrandCard: {
-    width: 80, alignItems: "center", backgroundColor: THEME.surfaceElevated, borderRadius: RADIUS.lg,
+    width: 80, alignItems: "center", backgroundColor: THEME.surfaceElevated, borderRadius: RADIUS.md,
     borderWidth: 1, borderColor: THEME.border, paddingVertical: 12, paddingHorizontal: 8, gap: 6,
   },
   diagBrandLabel: { fontFamily: FONTS.medium, fontSize: 10, color: THEME.textSecondary, textAlign: "center" },
@@ -94,7 +94,7 @@ export const st = StyleSheet.create({
   imagePreviewLabel: { flex: 1, fontFamily: FONTS.regular, fontSize: 13, color: THEME.textSecondary },
   inputRow: {
     flexDirection: "row", alignItems: "flex-end", backgroundColor: THEME.surface,
-    borderRadius: RADIUS.xxl, borderWidth: 1, borderColor: THEME.border, paddingHorizontal: 6, paddingVertical: 6, gap: 2,
+    borderRadius: RADIUS.lg, borderWidth: 1, borderColor: THEME.border, paddingHorizontal: 6, paddingVertical: 6, gap: 2,
   },
   inputIconBtn: { padding: 6, alignSelf: "flex-end" },
   textInput: { flex: 1, fontFamily: FONTS.regular, fontSize: 15, color: THEME.text, maxHeight: 120, paddingHorizontal: 6, paddingVertical: 4, lineHeight: 20 },
@@ -126,7 +126,7 @@ export const st = StyleSheet.create({
 export const diagSt = StyleSheet.create({
   startingOverlay: { ...StyleSheet.absoluteFill, backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center", zIndex: 999 },
   startingCard: {
-    backgroundColor: THEME.surface, borderRadius: RADIUS.xl,
+    backgroundColor: THEME.surface, borderRadius: RADIUS.lg,
     paddingHorizontal: 32, paddingVertical: 28, alignItems: "center", gap: 16, borderWidth: 1, borderColor: THEME.border,
   },
   startingText: { fontFamily: FONTS.semibold, fontSize: 15, color: THEME.text },
@@ -139,14 +139,14 @@ export const jcSt = StyleSheet.create({
   handle: { width: 36, height: 4, backgroundColor: THEME.border, borderRadius: 2, alignSelf: "center", marginBottom: 20 },
   sheetTitle: { fontFamily: FONTS.bold, fontSize: 19, color: THEME.text, marginBottom: 4 },
   sheetSub: { fontFamily: FONTS.regular, fontSize: 13, color: THEME.textSecondary, marginBottom: 20 },
-  contextCard: { flexDirection: "row", alignItems: "center", backgroundColor: THEME.background, borderRadius: RADIUS.lg, borderWidth: 1, borderColor: THEME.primary + "55", padding: 14, marginBottom: 10, gap: 12 },
+  contextCard: { flexDirection: "row", alignItems: "center", backgroundColor: THEME.background, borderRadius: RADIUS.md, borderWidth: 1, borderColor: THEME.primary + "55", padding: 14, marginBottom: 10, gap: 12 },
   contextCardOff: { borderColor: THEME.border, opacity: 0.7 },
   contextCardCheck: { width: 22 },
   contextCardBody: { flex: 1 },
   contextCardLabel: { fontFamily: FONTS.semibold, fontSize: 11, color: THEME.textSecondary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 },
   contextCardValue: { fontFamily: FONTS.regular, fontSize: 14, color: THEME.text },
   requiredBadge: { fontFamily: FONTS.semibold, fontSize: 10, color: THEME.primary, backgroundColor: THEME.primary + "18", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20, overflow: "hidden" },
-  startBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: THEME.primary, borderRadius: RADIUS.xl, paddingVertical: 14, gap: 8, marginTop: 16 },
+  startBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: THEME.primary, borderRadius: RADIUS.lg, paddingVertical: 14, gap: 8, marginTop: 16 },
   startBtnText: { fontFamily: FONTS.semibold, fontSize: 16, color: "#FFF" },
   voiceBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: 13, gap: 6, marginTop: 6 },
   voiceBtnText: { fontFamily: FONTS.regular, fontSize: 14, color: THEME.primary },
@@ -155,7 +155,7 @@ export const jcSt = StyleSheet.create({
 });
 
 export const spSt = StyleSheet.create({
-  sessionCard: { backgroundColor: THEME.background, borderRadius: RADIUS.lg, borderWidth: 1, borderColor: THEME.border, padding: 14, marginBottom: 10 },
+  sessionCard: { backgroundColor: THEME.background, borderRadius: RADIUS.md, borderWidth: 1, borderColor: THEME.border, padding: 14, marginBottom: 10 },
   sessionCardTop: { flexDirection: "row", alignItems: "flex-start", gap: 10, marginBottom: 8 },
   sessionTitle: { fontFamily: FONTS.semibold, fontSize: 14, color: THEME.text, marginBottom: 2 },
   sessionDate: { fontFamily: FONTS.regular, fontSize: 11, color: THEME.textMuted },
@@ -164,14 +164,14 @@ export const spSt = StyleSheet.create({
   statusInProgress: { backgroundColor: "#FF950018" },
   statusOther: { backgroundColor: THEME.border },
   statusText: { fontFamily: FONTS.semibold, fontSize: 10, color: THEME.primary },
-  rootCauseRow: { flexDirection: "row", alignItems: "flex-start", gap: 6, backgroundColor: THEME.surface, borderRadius: RADIUS.md, padding: 10, marginBottom: 10 },
+  rootCauseRow: { flexDirection: "row", alignItems: "flex-start", gap: 6, backgroundColor: THEME.surface, borderRadius: RADIUS.sm, padding: 10, marginBottom: 10 },
   rootCauseText: { flex: 1, fontFamily: FONTS.regular, fontSize: 12, color: THEME.textSecondary, lineHeight: 17 },
   confidenceBadge: { fontFamily: FONTS.semibold, fontSize: 10, color: THEME.primary, paddingHorizontal: 6, paddingVertical: 2, backgroundColor: THEME.primary + "15", borderRadius: 10, overflow: "hidden", alignSelf: "flex-start", marginLeft: 4 },
   sessionActions: { flexDirection: "row", gap: 8 },
-  viewBtn: { flex: 1, alignItems: "center", paddingVertical: 9, borderRadius: RADIUS.lg, borderWidth: 1, borderColor: THEME.border },
+  viewBtn: { flex: 1, alignItems: "center", paddingVertical: 9, borderRadius: RADIUS.md, borderWidth: 1, borderColor: THEME.border },
   viewBtnText: { fontFamily: FONTS.semibold, fontSize: 13, color: THEME.textSecondary },
-  followUpBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: 9, borderRadius: RADIUS.lg, backgroundColor: THEME.primary, gap: 5 },
+  followUpBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: 9, borderRadius: RADIUS.md, backgroundColor: THEME.primary, gap: 5 },
   followUpBtnText: { fontFamily: FONTS.semibold, fontSize: 13, color: "#FFF" },
-  resumeBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: 9, borderRadius: RADIUS.lg, backgroundColor: THEME.primary, gap: 5 },
+  resumeBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: 9, borderRadius: RADIUS.md, backgroundColor: THEME.primary, gap: 5 },
   resumeBtnText: { fontFamily: FONTS.semibold, fontSize: 13, color: "#FFF" },
 });

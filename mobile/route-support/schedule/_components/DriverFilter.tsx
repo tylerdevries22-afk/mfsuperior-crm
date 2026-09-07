@@ -3,7 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text } from "react-native";
 
 import { DriverAvatar, driverColor } from "@/components/operations";
 import type { Driver } from "@/domain/types";
-import { FONTS, RADIUS_LEGACY as RADIUS, THEME } from "@/theme";
+import { FONTS, RADIUS, THEME } from "@/theme";
 
 
 /**
@@ -76,7 +76,7 @@ const df = StyleSheet.create({
     alignItems: "center",
     backgroundColor: THEME.surfaceElevated,
     borderColor: THEME.border,
-    borderRadius: RADIUS.full,
+    borderRadius: RADIUS.pill,
     borderWidth: 2,
     flexDirection: "row",
     gap: 6,

@@ -1,6 +1,6 @@
 import { StyleSheet } from "react-native";
 
-import { FONTS, RADIUS_LEGACY as RADIUS, SPACING, THEME } from "@/theme";
+import { FONTS, RADIUS, RADIUS_DENSE, SPACING, THEME } from "@/theme";
 
 /** Screen frame, header actions, the horizontal calendar strip and the list/day view toggle. */
 export const chromeStyles = StyleSheet.create({
@@ -114,7 +114,7 @@ export const chromeStyles = StyleSheet.create({
     marginTop: SPACING.xs,
     marginBottom: SPACING.xs,
     backgroundColor: THEME.surface,
-    borderRadius: RADIUS.md,
+    borderRadius: RADIUS.sm,
     padding: 3,
     borderWidth: 1,
     borderColor: THEME.border,
@@ -126,7 +126,7 @@ export const chromeStyles = StyleSheet.create({
     justifyContent: "center",
     gap: 6,
     paddingVertical: 8,
-    borderRadius: RADIUS.sm,
+    borderRadius: RADIUS_DENSE.sm,
   },
   viewToggleBtnActive: {
     backgroundColor: `${THEME.primary}20`,

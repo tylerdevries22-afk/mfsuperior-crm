@@ -1,6 +1,6 @@
 import { StyleSheet } from "react-native";
 
-import { CARD_SHADOW_SM, FONTS, RADIUS as RADII, RADIUS_LEGACY as RADIUS, SPACE, SPACING, THEME, TYPO as TYPE } from "@/theme";
+import { CARD_SHADOW_SM, FONTS, RADIUS, SPACE, SPACING, THEME, TYPO as TYPE } from "@/theme";
 
 export const homeAdminStyles = StyleSheet.create({
   scroll: {
@@ -33,7 +33,7 @@ export const homeAdminStyles = StyleSheet.create({
   attentionButton: {
     minHeight: 40,
     paddingHorizontal: SPACE.md,
-    borderRadius: RADII.pill,
+    borderRadius: RADIUS.pill,
     borderWidth: 1.5,
     borderColor: THEME.text,
     alignItems: "center",
@@ -49,7 +49,7 @@ export const homeAdminStyles = StyleSheet.create({
   statCard: {
     width: "47.5%",
     backgroundColor: THEME.surface,
-    borderRadius: RADIUS.lg,
+    borderRadius: RADIUS.md,
     borderWidth: 1,
     borderColor: THEME.border,
     padding: SPACING.md,
@@ -60,7 +60,7 @@ export const homeAdminStyles = StyleSheet.create({
   statIcon: {
     width: 34,
     height: 34,
-    borderRadius: RADIUS.md,
+    borderRadius: RADIUS.sm,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 2,

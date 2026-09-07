@@ -1,6 +1,6 @@
 import { StyleSheet } from "react-native";
 
-import { FONTS, RADIUS_LEGACY as RADIUS, SPACING, THEME } from "@/theme";
+import { FONTS, RADIUS, SPACING, THEME } from "@/theme";
 
 /** The full-screen new job composer: nav bar, field rows, pills and the customer search. */
 export const newJobFormStyles = StyleSheet.create({
@@ -41,7 +41,7 @@ export const newJobFormStyles = StyleSheet.create({
     marginBottom: SPACING.md,
     padding: SPACING.md,
     backgroundColor: `rgba(239,68,68,0.12)`,
-    borderRadius: RADIUS.md,
+    borderRadius: RADIUS.sm,
     borderWidth: 1,
     borderColor: `rgba(239,68,68,0.3)`,
   },
@@ -54,7 +54,7 @@ export const newJobFormStyles = StyleSheet.create({
     marginHorizontal: SPACING.lg,
     marginBottom: SPACING.md,
     backgroundColor: THEME.surface,
-    borderRadius: RADIUS.lg,
+    borderRadius: RADIUS.md,
     borderWidth: 1,
     borderColor: THEME.border,
     overflow: "hidden",
@@ -88,7 +88,7 @@ export const newJobFormStyles = StyleSheet.create({
   },
   newJobPill: {
     backgroundColor: THEME.surfaceElevated,
-    borderRadius: RADIUS.md,
+    borderRadius: RADIUS.sm,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderWidth: 1,
@@ -114,7 +114,7 @@ export const newJobFormStyles = StyleSheet.create({
     alignItems: "center",
     gap: 4,
     backgroundColor: THEME.surfaceElevated,
-    borderRadius: RADIUS.md,
+    borderRadius: RADIUS.sm,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderWidth: 1,
@@ -159,7 +159,7 @@ export const newJobFormStyles = StyleSheet.create({
     gap: SPACING.sm,
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.sm,
-    borderRadius: RADIUS.md,
+    borderRadius: RADIUS.sm,
   },
   newJobDropdownText: {
     fontFamily: FONTS.medium,
