@@ -19,9 +19,13 @@ import {
   type AssistantQuickAction,
 } from "@/route-support/assistant/_components/AssistantWelcome";
 import { AssistantInputBar } from "@/route-support/assistant/_components/AssistantInputBar";
+import {
+  ChatBubble,
+  type ChatMessage,
+} from "@/route-support/assistant/_components/ChatBubble";
 import { st } from "@/route-support/assistant/styles";
 import { useOperations } from "@/store";
-import { THEME, useTheme } from "@/theme";
+import { THEME } from "@/theme";
 
 /**
  * Ported from the Appliance Diagnostic Systems assistant at
@@ -31,44 +35,7 @@ import { THEME, useTheme } from "@/theme";
  * composer with its suggested-reply rail.
  */
 
-interface ChatMessage {
-  readonly id: string;
-  readonly author: "assistant" | "user";
-  readonly body: string;
-}
-
 const TAB_BAR_HEIGHT = 88;
-
-function ChatBubble({ message }: { readonly message: ChatMessage }) {
-  const theme = useTheme();
-  const fromUser = message.author === "user";
-  return (
-    <View
-      accessibilityLabel={`${fromUser ? "You" : "Operations assistant"}: ${message.body}`}
-      style={{
-        alignSelf: fromUser ? "flex-end" : "flex-start",
-        maxWidth: "86%",
-        marginBottom: 10,
-        paddingHorizontal: 14,
-        paddingVertical: 10,
-        borderRadius: 18,
-        borderWidth: 1,
-        backgroundColor: fromUser ? theme.primary : theme.surface,
-        borderColor: fromUser ? theme.primary : theme.border,
-      }}
-    >
-      <Text
-        style={{
-          color: fromUser ? theme.primaryForeground : theme.text,
-          fontSize: 15,
-          lineHeight: 21,
-        }}
-      >
-        {message.body}
-      </Text>
-    </View>
-  );
-}
 
 export default function AssistantScreen() {
   const insets = useSafeAreaInsets();

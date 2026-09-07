@@ -12,7 +12,7 @@ import {
 import Feather from "@expo/vector-icons/Feather";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { ICON, makeStyles, RADIUS, SPACE, TYPO, useReducedMotion, useTheme } from "../../theme";
+import { HAIRLINE, ICON, makeStyles, RADIUS, SPACE, TYPO, useReducedMotion, useTheme } from "../../theme";
 import { PressableSurface } from "./PressableSurface";
 
 type OverlayCommonProps = {
@@ -45,20 +45,21 @@ const useStyles = makeStyles((theme) => ({
     maxHeight: "88%",
     borderTopLeftRadius: RADIUS.xl,
     borderTopRightRadius: RADIUS.xl,
-    borderWidth: 1,
+    borderWidth: HAIRLINE,
     borderBottomWidth: 0,
-    borderColor: theme.border,
+    borderColor: theme.separator,
     backgroundColor: theme.surface,
-    paddingHorizontal: SPACE.lg,
+    paddingHorizontal: SPACE.md,
   },
+  /** Apple's sheet grabber is a 36x5 translucent pill, not a border-coloured bar. */
   grabber: {
     alignSelf: "center",
-    width: 40,
+    width: 36,
     height: 5,
-    marginTop: SPACE.sm,
-    marginBottom: SPACE.xs,
+    marginTop: SPACE.xs,
+    marginBottom: SPACE.xxs,
     borderRadius: RADIUS.pill,
-    backgroundColor: theme.borderLight,
+    backgroundColor: theme.fill.primary,
   },
   header: { minHeight: 56, flexDirection: "row", alignItems: "center", gap: SPACE.sm },
   title: { ...TYPO.heading, color: theme.text, flex: 1 },
@@ -71,11 +72,11 @@ const useStyles = makeStyles((theme) => ({
     maxWidth: 520,
     maxHeight: "88%",
     borderRadius: RADIUS.lg,
-    borderWidth: 1,
-    borderColor: theme.border,
+    borderWidth: HAIRLINE,
+    borderColor: theme.separator,
     backgroundColor: theme.surface,
-    paddingHorizontal: SPACE.lg,
-    paddingBottom: SPACE.lg,
+    paddingHorizontal: SPACE.md,
+    paddingBottom: SPACE.md,
   },
 }));
 

@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { Text, View, type StyleProp, type ViewStyle } from "react-native";
 
-import { makeStyles, RADIUS, shadowCard, SPACE, TYPO } from "../../theme";
+import { HAIRLINE, makeStyles, RADIUS, shadowCard, SPACE, TYPO } from "../../theme";
 import { PressableSurface } from "./PressableSurface";
 
 export type CardVariant = "default" | "elevated" | "outlined" | "tinted";
@@ -23,17 +23,17 @@ const useStyles = makeStyles((theme) => ({
   card: {
     borderRadius: RADIUS.lg,
     backgroundColor: theme.surface,
-    borderWidth: 1,
-    borderColor: theme.border,
+    borderWidth: HAIRLINE,
+    borderColor: theme.separator,
     gap: SPACE.sm,
     ...shadowCard(theme),
   },
-  elevated: { backgroundColor: theme.surfaceElevated, borderColor: theme.borderLight },
+  elevated: { backgroundColor: theme.surfaceElevated, borderColor: theme.separatorOpaque },
   outlined: { backgroundColor: "transparent", shadowOpacity: 0, elevation: 0 },
   tinted: { backgroundColor: theme.tint.primary.muted, borderColor: theme.tint.primary.medium },
   noPadding: { padding: 0 },
-  compactPadding: { padding: SPACE.md },
-  defaultPadding: { padding: SPACE.lg },
+  compactPadding: { padding: SPACE.sm },
+  defaultPadding: { padding: SPACE.md },
   header: { flexDirection: "row", alignItems: "center", gap: SPACE.sm },
   title: { ...TYPO.cardTitle, color: theme.text, flex: 1, flexShrink: 1 },
   actionPressable: { alignItems: "center", justifyContent: "center", paddingHorizontal: SPACE.xs },

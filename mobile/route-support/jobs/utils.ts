@@ -21,11 +21,27 @@ export const JOB_LANES = ["tendered", "unassigned", "active", "closed"] as const
 
 export type JobLane = (typeof JOB_LANES)[number];
 
-export const JOB_LANE_LABELS: Record<JobLane, string> = {
-  active: "In progress",
+/**
+ * Segmented-control titles. iOS sizes every segment to the widest label and
+ * truncates rather than wrapping, so four descriptive phrases turn into four
+ * ellipses; these are the short forms that actually fit four across.
+ */
+export const JOB_LANE_SEGMENT_LABELS: Record<JobLane, string> = {
+  active: "Active",
   closed: "Closed",
-  tendered: "Awaiting response",
-  unassigned: "Needs a driver",
+  tendered: "Awaiting",
+  unassigned: "No driver",
+};
+
+/**
+ * Empty-state tails. The lane labels are noun phrases, so dropping one into a
+ * sentence produced "Nothing in needs a driver."; these complete the clause.
+ */
+export const JOB_LANE_EMPTY_SUFFIX: Record<JobLane, string> = {
+  active: "in progress",
+  closed: "closed yet",
+  tendered: "awaiting a response",
+  unassigned: "waiting on a driver",
 };
 
 const ACTIVE_STATUSES = new Set<ShipmentStatus>([

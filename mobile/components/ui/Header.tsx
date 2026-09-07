@@ -1,16 +1,9 @@
 import type { ComponentProps, ReactNode } from "react";
 import Feather from "@expo/vector-icons/Feather";
-import {
-  Image,
-  StyleSheet,
-  Text,
-  View,
-  type StyleProp,
-  type ViewStyle,
-} from "react-native";
+import { Image, Text, View, type StyleProp, type ViewStyle } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { FONTS, makeStyles, SPACING, useTheme } from "../../theme";
+import { HAIRLINE, makeStyles, RADIUS, SPACE, TYPO, useTheme } from "../../theme";
 import { AnimatedPressable } from "./AnimatedPressable";
 import { NotificationButton } from "../notifications";
 
@@ -37,54 +30,41 @@ const useStyles = makeStyles((theme) => ({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: SPACING.xl,
-    paddingVertical: SPACING.sm,
-    minHeight: 56,
+    paddingHorizontal: SPACE.md,
+    paddingVertical: SPACE.xs,
+    minHeight: 52,
   },
   left: { flexDirection: "row", alignItems: "center", flex: 1, minWidth: 0 },
   right: { flexDirection: "row", alignItems: "center" },
-  back: { marginRight: SPACING.sm, minWidth: 44, minHeight: 44, alignItems: "center", justifyContent: "center" },
-  leftAction: { marginRight: SPACING.sm },
-  logoRow: { flexDirection: "row", alignItems: "center", gap: SPACING.sm, flex: 1, minWidth: 0 },
-  logo: { width: 40, height: 40, borderRadius: 10 },
-  brandName: {
-    fontFamily: FONTS.bold,
-    fontSize: 20,
-    color: theme.text,
-    letterSpacing: 0.5,
-  },
-  brandSub: {
-    fontFamily: FONTS.medium,
-    fontSize: 11,
-    color: theme.textSecondary,
-    letterSpacing: 0.3,
-  },
-  titleRow: { flexDirection: "row", alignItems: "center", gap: SPACING.sm },
+  back: { marginRight: SPACE.xxs, minWidth: 44, minHeight: 44, alignItems: "center", justifyContent: "center" },
+  leftAction: { marginRight: SPACE.xs },
+  logoRow: { flexDirection: "row", alignItems: "center", gap: SPACE.sm, flex: 1, minWidth: 0 },
+  logo: { width: 36, height: 36, borderRadius: RADIUS.sm },
+  brandName: { ...TYPO.heading, color: theme.text },
+  brandSub: { ...TYPO.caption, color: theme.textSecondary },
+  titleRow: { flexDirection: "row", alignItems: "center", gap: SPACE.xs, minWidth: 0 },
   titleBlock: { flexShrink: 1, minWidth: 0 },
-  subtitle: {
-    marginTop: 2,
-    fontFamily: FONTS.regular,
-    fontSize: 11,
-    color: theme.textSecondary,
-  },
-  centeredBlock: { alignItems: "center", flex: 1 },
-  centeredTitle: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: SPACING.sm },
+  subtitle: { ...TYPO.caption, marginTop: 1, color: theme.textSecondary },
+  centeredBlock: { alignItems: "center", flex: 1, minWidth: 0 },
+  /**
+   * A centred title sizes to its content, which would let a long one spill out
+   * of the block and slide under the trailing actions. Stretching it to the
+   * block's own width keeps the truncation inside the space that is actually free.
+   */
+  centeredTitleBlock: { alignSelf: "stretch", minWidth: 0 },
+  centeredTitle: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: SPACE.xs },
   centeredSubtitle: { textAlign: "center" },
   titleIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
+    width: 30,
+    height: 30,
+    borderRadius: RADIUS.sm,
     backgroundColor: theme.tint.primary.muted,
     alignItems: "center",
     justifyContent: "center",
   },
-  title: {
-    fontFamily: FONTS.bold,
-    fontSize: 20,
-    color: theme.text,
-    letterSpacing: 0.3,
-  },
-  border: { height: StyleSheet.hairlineWidth, backgroundColor: theme.border },
+  /** iOS inline navigation-bar titles are Headline (17pt semibold), not display type. */
+  title: { ...TYPO.cardTitle, color: theme.text, flexShrink: 1, minWidth: 0 },
+  border: { height: HAIRLINE, backgroundColor: theme.separator },
 }));
 
 /**
@@ -125,7 +105,7 @@ export function Header({
 
   return (
     <View style={[styles.container, { paddingTop: topPadding }, style]}>
-      <View style={[styles.inner, { paddingLeft: Math.max(insets.left, SPACING.xl), paddingRight: Math.max(insets.right, SPACING.xl) }]}>
+      <View style={[styles.inner, { paddingLeft: Math.max(insets.left, SPACE.md), paddingRight: Math.max(insets.right, SPACE.md) }]}>
         {centered ? backButton : (
           <View style={styles.left}>
             {leftAction ? <View style={styles.leftAction}>{leftAction}</View> : null}
@@ -164,16 +144,16 @@ function TitleBlock({
   const styles = useStyles();
   const theme = useTheme();
   return (
-    <View style={styles.titleBlock}>
+    <View style={[styles.titleBlock, centered && styles.centeredTitleBlock]}>
       <View style={[styles.titleRow, centered && styles.centeredTitle]}>
         {icon ? (
           <View style={styles.titleIcon}>
             <Feather color={theme.primaryLight} name={icon} size={18} />
           </View>
         ) : null}
-        <Text accessibilityRole="header" style={styles.title}>{title}</Text>
+        <Text accessibilityRole="header" numberOfLines={1} style={styles.title}>{title}</Text>
       </View>
-      {subtitle ? <Text style={[styles.subtitle, centered && styles.centeredSubtitle]}>{subtitle}</Text> : null}
+      {subtitle ? <Text numberOfLines={1} style={[styles.subtitle, centered && styles.centeredSubtitle]}>{subtitle}</Text> : null}
     </View>
   );
 }

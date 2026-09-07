@@ -1,9 +1,9 @@
 import Feather from "@expo/vector-icons/Feather";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Text, View } from "react-native";
 
-import { DriverAvatar, PayoutRailLogo } from "@/components/operations";
+import { DriverAvatar } from "@/components/operations";
 import {
   AnimatedButton,
   Card,
@@ -12,20 +12,17 @@ import {
   KeyValueRow,
   Screen,
   SectionHeader,
-  Sheet,
-  statusLabel,
   StatusBadge,
 } from "@/components/ui";
-import { PAYOUT_RAILS, type PayoutRail } from "@/domain/types";
-import {
-  PAYOUT_STATUS_LABELS,
-  formatPeriod,
-  presentationFor,
-} from "@/route-support/driver-payments/utils";
+import type { PayoutRail } from "@/domain/types";
+import { PAYOUT_STATUS_LABELS, formatPeriod, presentationFor } from "@/route-support/driver-payments/utils";
+import { PayoutLineItems } from "@/route-support/payouts/_components/PayoutLineItems";
+import { RecordPaidSheet } from "@/route-support/payouts/_components/RecordPaidSheet";
+import { styles } from "@/route-support/payouts/detailStyles";
 import { driverFullName } from "@/route-support/schedule/utils";
 import { formatCents } from "@/route-support/trip-history/utils";
 import { useOperations } from "@/store";
-import { ICON, RADIUS, SPACE, TYPO, useTheme } from "@/theme";
+import { ICON, useTheme } from "@/theme";
 
 export default function PayoutDetailScreen() {
   const router = useRouter();
@@ -95,37 +92,7 @@ export default function PayoutDetailScreen() {
         </Card>
 
         <SectionHeader title="Line items" />
-        <Card padding="none">
-          {payout.lineItems.map((lineItem, index) => (
-            <View
-              key={lineItem.id}
-              style={[
-                styles.lineItem,
-                index < payout.lineItems.length - 1 && {
-                  borderBottomColor: theme.border,
-                  borderBottomWidth: 1,
-                },
-              ]}
-            >
-              <View style={styles.grow}>
-                <Text style={[styles.lineItemText, { color: theme.text }]}>
-                  {lineItem.description}
-                </Text>
-                <Text style={[styles.lineItemKind, { color: theme.textMuted }]}>
-                  {statusLabel(lineItem.kind)}
-                </Text>
-              </View>
-              <Text
-                style={[
-                  styles.lineItemAmount,
-                  { color: lineItem.amountCents < 0 ? theme.danger : theme.text },
-                ]}
-              >
-                {lineItem.amountCents < 0 ? "−" : ""}{formatCents(Math.abs(lineItem.amountCents))}
-              </Text>
-            </View>
-          ))}
-        </Card>
+        <PayoutLineItems lineItems={payout.lineItems} />
 
         <Card padding="none">
           <KeyValueRow label="Gross" value={formatCents(payout.grossCents)} />
@@ -167,60 +134,12 @@ export default function PayoutDetailScreen() {
       </Screen>
 
       {recording ? (
-        <Sheet onClose={() => setRecording(false)} title="Which rail was it sent on?" visible>
-          <View style={styles.sheetBody}>
-            <Text style={[styles.sheetNote, { color: theme.textSecondary }]}>
-              This records that a transfer already happened. MF Superior moves no money, and the
-              driver&apos;s handle is never shown here.
-            </Text>
-            {PAYOUT_RAILS.map((rail) => {
-              const presentation = presentationFor(rail);
-              return (
-                <AnimatedButton
-                  accessibilityLabel={`Record as paid on ${presentation.label}`}
-                  disabled={busy}
-                  fullWidth
-                  key={rail}
-                  onPress={() => void markPaid(rail)}
-                  icon={<PayoutRailLogo rail={rail} size="sm" />}
-                  title={presentation.label}
-                  variant="outline"
-                />
-              );
-            })}
-          </View>
-        </Sheet>
+        <RecordPaidSheet
+          busy={busy}
+          onClose={() => setRecording(false)}
+          onRecord={(rail) => void markPaid(rail)}
+        />
       ) : null}
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  content: { gap: SPACE.md, paddingBottom: SPACE.xxl },
-  fill: { flex: 1 },
-  grow: { flex: 1, minWidth: 0 },
-  headRow: { alignItems: "center", flexDirection: "row", gap: SPACE.md },
-  lineItem: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: SPACE.sm,
-    paddingHorizontal: SPACE.md,
-    paddingVertical: SPACE.sm,
-  },
-  lineItemAmount: { ...TYPO.rowTitle },
-  lineItemKind: { ...TYPO.subtitle, marginTop: 2 },
-  lineItemText: { ...TYPO.body },
-  net: { ...TYPO.metric },
-  netLabel: { ...TYPO.metricLabel },
-  paidNote: {
-    alignItems: "center",
-    borderRadius: RADIUS.md,
-    borderWidth: 1,
-    flexDirection: "row",
-    gap: SPACE.sm,
-    padding: SPACE.md,
-  },
-  paidText: { ...TYPO.caption, flex: 1 },
-  sheetBody: { gap: SPACE.xs, paddingBottom: SPACE.md },
-  sheetNote: { ...TYPO.caption, marginBottom: SPACE.xs },
-});

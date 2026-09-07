@@ -8,7 +8,7 @@ import { AnimatedButton, Sheet } from "@/components/ui";
 import { getAuthRuntimeMode, getProductionAuthService } from "@/features/auth/runtime-service";
 import { toAuthFailure } from "@/lib/auth";
 import { useOperations } from "@/store";
-import { FONTS, RADIUS_LEGACY, SPACE, SPACING, TYPO, useTheme } from "@/theme";
+import { FONTS, RADIUS, RADIUS_DENSE, SPACE, SPACING, TYPO, useTheme } from "@/theme";
 
 type SheetMode = "sign-in" | "sign-up";
 type Completion = "verify-email" | "pending-approval" | null;
@@ -153,11 +153,11 @@ const styles = StyleSheet.create({
   completionIcon: { alignItems: "center", borderRadius: 36, borderWidth: 1, height: 72, justifyContent: "center", width: 72 },
   completionTitle: { ...TYPO.heading },
   container: { flexGrow: 1, paddingHorizontal: SPACING.xl },
-  createButton: { alignItems: "center", borderRadius: RADIUS_LEGACY.lg, borderWidth: 1, flexDirection: "row", gap: SPACE.sm, justifyContent: "center", minHeight: 54 },
+  createButton: { alignItems: "center", borderRadius: RADIUS.md, borderWidth: 1, flexDirection: "row", gap: SPACE.sm, justifyContent: "center", minHeight: 54 },
   createButtonText: { ...TYPO.cardTitle, fontSize: 15 },
   demoAccess: { gap: SPACE.sm, marginTop: SPACE.sm },
   demoAccessLabel: { ...TYPO.metricLabel },
-  demoButton: { alignItems: "center", borderRadius: RADIUS_LEGACY.md, borderWidth: 1, flex: 1, flexDirection: "row", gap: 5, justifyContent: "center", minHeight: 44 },
+  demoButton: { alignItems: "center", borderRadius: RADIUS.sm, borderWidth: 1, flex: 1, flexDirection: "row", gap: 5, justifyContent: "center", minHeight: 44 },
   demoButtons: { flexDirection: "row", gap: SPACE.xs },
   demoButtonText: { ...TYPO.captionStrong, textTransform: "capitalize" },
   demoDot: { borderRadius: 3, height: 6, width: 6 },
@@ -165,7 +165,7 @@ const styles = StyleSheet.create({
   demoPill: { alignItems: "center", borderRadius: 13, borderWidth: 1, flexDirection: "row", gap: 6, marginTop: SPACE.lg, minHeight: 28, paddingHorizontal: 10 },
   demoText: { ...TYPO.metricLabel },
   divider: { alignItems: "center", flexDirection: "row", gap: SPACING.md },
-  errorBox: { alignItems: "flex-start", borderRadius: RADIUS_LEGACY.sm, flexDirection: "row", gap: 8, padding: SPACE.md },
+  errorBox: { alignItems: "flex-start", borderRadius: RADIUS_DENSE.sm, flexDirection: "row", gap: 8, padding: SPACE.md },
   errorText: { ...TYPO.captionStrong, flex: 1 },
   field: { gap: 6 },
   eye: { alignItems: "center", justifyContent: "center", minWidth: 44, minHeight: 44 },
@@ -173,7 +173,7 @@ const styles = StyleSheet.create({
   forgotText: { ...TYPO.captionStrong },
   input: { ...TYPO.body, fontSize: 16, flex: 1, minWidth: 0, minHeight: 50, paddingVertical: 12 },
   inputLabel: { ...TYPO.captionStrong, marginLeft: 3 },
-  inputWrap: { alignItems: "center", borderRadius: RADIUS_LEGACY.md, borderWidth: 1, flexDirection: "row", gap: SPACE.sm, minHeight: 54, paddingHorizontal: SPACE.md },
+  inputWrap: { alignItems: "center", borderRadius: RADIUS.sm, borderWidth: 1, flexDirection: "row", gap: SPACE.sm, minHeight: 54, paddingHorizontal: SPACE.md },
   inviteNote: { ...TYPO.caption, lineHeight: 18, textAlign: "center" },
   line: { flex: 1, height: 1 },
   logo: { height: 118, width: 118 },
@@ -181,12 +181,12 @@ const styles = StyleSheet.create({
   or: { ...TYPO.caption },
   pendingNote: { ...TYPO.caption, lineHeight: 18, textAlign: "center" },
   pressed: { opacity: 0.68, transform: [{ scale: 0.98 }] },
-  quickAccess: { borderRadius: RADIUS_LEGACY.lg, borderWidth: 1, gap: SPACE.sm, padding: SPACE.md },
+  quickAccess: { borderRadius: RADIUS.md, borderWidth: 1, gap: SPACE.sm, padding: SPACE.md },
   quickAccessCopy: { gap: 3 },
   quickAccessSubtitle: { ...TYPO.caption, lineHeight: 17 },
   quickAccessTitle: { ...TYPO.cardTitle, fontSize: 14 },
   quickAccessTitleRow: { alignItems: "center", flexDirection: "row", gap: 7 },
-  quickButton: { alignItems: "center", borderRadius: RADIUS_LEGACY.md, borderWidth: 1, flex: 1, flexDirection: "row", gap: 5, justifyContent: "center", minHeight: 44, minWidth: 100, paddingHorizontal: 6 },
+  quickButton: { alignItems: "center", borderRadius: RADIUS.sm, borderWidth: 1, flex: 1, flexDirection: "row", gap: 5, justifyContent: "center", minHeight: 44, minWidth: 100, paddingHorizontal: 6 },
   quickButtonText: { ...TYPO.captionStrong, textTransform: "capitalize" },
   quickButtons: { flexDirection: "row", flexWrap: "wrap", gap: SPACE.xs },
   sheetContent: { gap: SPACE.md, paddingBottom: SPACE.xl },

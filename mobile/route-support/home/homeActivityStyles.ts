@@ -1,6 +1,6 @@
 import { StyleSheet } from "react-native";
 
-import { FONTS, RADIUS_LEGACY as RADIUS, SPACING, THEME } from "@/theme";
+import { FONTS, RADIUS, SPACING, THEME } from "@/theme";
 
 export const homeActivityStyles = StyleSheet.create({
   activityRow: {
@@ -31,7 +31,7 @@ export const homeActivityStyles = StyleSheet.create({
   activityBadge: {
     paddingHorizontal: SPACING.sm,
     paddingVertical: 3,
-    borderRadius: RADIUS.full,
+    borderRadius: RADIUS.pill,
   },
   activityBadgeText: {
     fontFamily: FONTS.semibold,
@@ -39,7 +39,7 @@ export const homeActivityStyles = StyleSheet.create({
     textTransform: "capitalize",
   },
   partOrderBadge: {
-    backgroundColor: "#EF4444",
+    backgroundColor: "#FF3B30",
     borderRadius: 10,
     width: 18,
     height: 18,
@@ -53,7 +53,7 @@ export const homeActivityStyles = StyleSheet.create({
     backgroundColor: `${THEME.danger}08`,
     borderWidth: 1,
     borderColor: `${THEME.danger}20`,
-    borderRadius: RADIUS.lg,
+    borderRadius: RADIUS.md,
     padding: SPACING.md,
     marginBottom: SPACING.lg,
   },
@@ -82,5 +82,5 @@ export const homeActivityStyles = StyleSheet.create({
   loadVehicleImage: { borderRadius: 8, height: 36, width: 48 },
   loadAssetLabel: { fontFamily: FONTS.semibold, fontSize: 8, color: THEME.textMuted, letterSpacing: 0.6 },
   loadAssetName: { fontFamily: FONTS.semibold, fontSize: 10, color: THEME.text, maxWidth: 100 },
-  attentionTruck: { borderRadius: RADIUS.md, height: 48, width: 64 },
+  attentionTruck: { borderRadius: RADIUS.sm, height: 48, width: 64 },
 });

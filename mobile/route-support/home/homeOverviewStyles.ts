@@ -1,6 +1,6 @@
 import { StyleSheet } from "react-native";
 
-import { CARD_SHADOW_SM, FONTS, RADIUS_LEGACY as RADIUS, SPACING, THEME } from "@/theme";
+import { CARD_SHADOW_SM, FONTS, RADIUS, RADIUS_DENSE, SPACING, THEME } from "@/theme";
 
 export const homeOverviewStyles = StyleSheet.create({
   container: { flex: 1, backgroundColor: THEME.background },
@@ -72,7 +72,7 @@ export const homeOverviewStyles = StyleSheet.create({
     alignItems: "center",
     gap: SPACING.sm,
     backgroundColor: THEME.surface,
-    borderRadius: RADIUS.lg,
+    borderRadius: RADIUS.md,
     padding: SPACING.md,
     borderWidth: 1,
     borderColor: THEME.border,
@@ -81,7 +81,7 @@ export const homeOverviewStyles = StyleSheet.create({
   statDot: {
     width: 32,
     height: 32,
-    borderRadius: RADIUS.md,
+    borderRadius: RADIUS.sm,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -103,14 +103,14 @@ export const homeOverviewStyles = StyleSheet.create({
     backgroundColor: `${THEME.orange}08`,
     borderWidth: 1,
     borderColor: `${THEME.orange}25`,
-    borderRadius: RADIUS.lg,
+    borderRadius: RADIUS.md,
     padding: SPACING.md,
     marginBottom: SPACING.lg,
   },
   alertIconBg: {
     width: 28,
     height: 28,
-    borderRadius: RADIUS.sm,
+    borderRadius: RADIUS_DENSE.sm,
     backgroundColor: `${THEME.orange}18`,
     alignItems: "center",
     justifyContent: "center",

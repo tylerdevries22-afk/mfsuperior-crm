@@ -82,7 +82,7 @@ export function UnifiedScheduleScreen({ mode }: UnifiedScheduleScreenProps) {
           })}
         </ScrollView>
       ) : null}
-      <View style={styles.metricsRow}>
+      <View style={[styles.metricsRow, { borderColor: theme.separator }]}>
         <Metric label="Gaps" value={String(gapCount)} tone={gapCount > 0 ? theme.warning : theme.primary} />
         <Metric label="Conflicts" value={String(conflictCount)} tone={conflictCount > 0 ? theme.danger : theme.primary} />
         <Metric label="Target sync" value={String(pendingSyncCount)} tone={pendingSyncCount > 0 ? theme.warning : theme.primary} />
@@ -113,7 +113,7 @@ export function UnifiedScheduleScreen({ mode }: UnifiedScheduleScreenProps) {
         </ScrollView>
         <View style={styles.legendRow}>
           <LegendDot color={theme.primary} label="Shift" theme={theme} />
-          <LegendDot color="#7DD3FC" label="Load" theme={theme} />
+          <LegendDot color="#32ADE6" label="Load" theme={theme} />
           <LegendDot color={theme.danger} label="Blocked" theme={theme} />
           <Text style={[styles.legendHint, { color: theme.textMuted }]}>Tap an empty cell to add</Text>
         </View>

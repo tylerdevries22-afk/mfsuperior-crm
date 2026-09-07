@@ -4,7 +4,6 @@ import {
   FONTS,
   makeStyles,
   RADIUS,
-  RADIUS_LEGACY,
   SPACE,
   TYPO,
   useTheme,
@@ -55,16 +54,19 @@ const useStyles = makeStyles((theme) => ({
   warning: toneColors(theme, "warning"),
   danger: toneColors(theme, "danger"),
   info: toneColors(theme, "info"),
+  // Same capsule as Badge: these two render the same kind of status chip, and
+  // a rounded rectangle beside a capsule read as two different components.
   statusBadge: {
     alignSelf: "flex-start",
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: RADIUS_LEGACY.sm,
-    gap: 5,
+    minHeight: 22,
+    paddingHorizontal: SPACE.xs,
+    paddingVertical: SPACE.xxs,
+    borderRadius: RADIUS.pill,
+    gap: SPACE.xxs,
   },
-  statusBadgeMd: { paddingHorizontal: 10, paddingVertical: 5 },
+  statusBadgeMd: { minHeight: 26, paddingHorizontal: SPACE.sm, paddingVertical: 6 },
   statusText: {
     fontFamily: FONTS.semibold,
     fontSize: 11,

@@ -27,17 +27,6 @@ export const SPACING = {
   xxxl: 32,
 } as const;
 
-/** @deprecated Prefer `RADIUS` or `RADIUS_DENSE`. */
-export const RADIUS_LEGACY = {
-  xs: 4,
-  sm: 6,
-  md: 10,
-  lg: 14,
-  xl: 18,
-  xxl: 22,
-  full: 999,
-} as const;
-
 /** @deprecated Prefer the role-based `TYPO` scale. */
 export const TYPO_LEGACY = {
   hero: { fontFamily: FONTS.bold, fontSize: 28, lineHeight: 36, letterSpacing: -0.3 },
