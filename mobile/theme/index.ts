@@ -10,6 +10,16 @@ export {
   THEME,
   TYPO_LEGACY,
 } from "./legacy";
+export {
+  HAIRLINE,
+  MATERIAL_INTENSITY,
+  materialShadow,
+  materialTint,
+  materialWash,
+  refractionBorder,
+  specularHighlight,
+  type MaterialLevel,
+} from "./materials";
 export { makeStyles, makeThemed } from "./makeStyles";
 export {
   DARK_THEME,

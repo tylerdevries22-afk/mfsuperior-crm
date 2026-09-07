@@ -10,10 +10,16 @@ export type SectionHeaderProps = {
 };
 
 const useStyles = makeStyles((theme) => ({
-  header: { marginTop: SPACE.md, flexDirection: "row", alignItems: "center", gap: SPACE.md },
+  header: { marginTop: SPACE.lg, flexDirection: "row", alignItems: "center", gap: SPACE.sm },
   title: { ...TYPO.section, color: theme.text, flex: 1 },
-  actionButton: { minWidth: SIZE.hit, alignItems: "center", justifyContent: "center", paddingHorizontal: SPACE.xs },
-  action: { ...TYPO.captionStrong, color: theme.primaryLight },
+  actionButton: {
+    minWidth: SIZE.hit,
+    minHeight: SIZE.hit,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: SPACE.xxs,
+  },
+  action: { ...TYPO.callout, color: theme.primaryLight },
 }));
 
 /** Section title with an optional trailing text action. */

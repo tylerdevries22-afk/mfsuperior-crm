@@ -29,7 +29,11 @@ const useStyles = makeStyles((theme) => ({
   safeArea: { flex: 1, backgroundColor: theme.background },
   keyboard: { flex: 1 },
   content: { flex: 1 },
-  padded: { paddingHorizontal: SPACE.lg, paddingVertical: SPACE.md, gap: SPACE.md },
+  /**
+   * 16pt is the iPhone layout margin every system view uses; the ported 24pt
+   * left content visibly inset from the navigation bar and tab bar above it.
+   */
+  padded: { paddingHorizontal: SPACE.md, paddingVertical: SPACE.md, gap: SPACE.md },
   scrollContent: { flexGrow: 1 },
 }));
 

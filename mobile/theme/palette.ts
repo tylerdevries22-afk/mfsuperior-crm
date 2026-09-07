@@ -26,6 +26,20 @@ export type ThemePalette = {
   surfaceBright: string;
   border: string;
   borderLight: string;
+  /** Hairline rule between rows and sections, translucent like iOS separators. */
+  separator: string;
+  /** Opaque separator for surfaces that cannot composite translucency. */
+  separatorOpaque: string;
+  /**
+   * Apple's system fill ramp: neutral translucent washes for the backgrounds of
+   * controls and chips, so they read against any surface without a fixed colour.
+   */
+  fill: {
+    primary: string;
+    secondary: string;
+    tertiary: string;
+    quaternary: string;
+  };
   text: string;
   textSecondary: string;
   textMuted: string;
@@ -82,6 +96,14 @@ export const DARK_THEME: ThemePalette = withTints({
   surfaceBright: "#292A23",
   border: "#303229",
   borderLight: "#414338",
+  separator: "rgba(200,204,186,0.28)",
+  separatorOpaque: "#38392F",
+  fill: {
+    primary: "rgba(198,202,184,0.20)",
+    secondary: "rgba(198,202,184,0.16)",
+    tertiary: "rgba(198,202,184,0.12)",
+    quaternary: "rgba(198,202,184,0.08)",
+  },
 
   text: "#F5F6F0",
   textSecondary: "#C0C2B6",
@@ -124,6 +146,14 @@ export const LIGHT_THEME: ThemePalette = withTints({
   surfaceBright: "#E5E7DB",
   border: "#DDDED3",
   borderLight: "#CBCDC0",
+  separator: "rgba(60,62,52,0.24)",
+  separatorOpaque: "#C9CABE",
+  fill: {
+    primary: "rgba(96,100,84,0.16)",
+    secondary: "rgba(96,100,84,0.12)",
+    tertiary: "rgba(96,100,84,0.08)",
+    quaternary: "rgba(96,100,84,0.05)",
+  },
 
   text: "#171813",
   textSecondary: "#50534B",
