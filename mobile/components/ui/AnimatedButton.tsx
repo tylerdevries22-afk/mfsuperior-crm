@@ -3,16 +3,14 @@ import { styles } from "./animatedButtonStyles";
 import type { ReactNode } from "react";
 import {
   ActivityIndicator,
-  StyleSheet,
   Text,
-  View,
   type GestureResponderEvent,
   type StyleProp,
   type TextStyle,
   type ViewStyle,
 } from "react-native";
 
-import { RADIUS_LEGACY, SPACING, useTheme } from "../../theme";
+import { RADIUS, SPACING, useTheme } from "../../theme";
 import {
   AnimatedPressable,
   type HapticStrength,
@@ -42,15 +40,15 @@ const MIN_TOUCH_TARGET = 44;
 
 const SIZE_CONFIG: Record<AnimatedButtonSize, { height: number; paddingHorizontal: number; fontSize: number }> = {
   sm: { height: 36, paddingHorizontal: SPACING.md, fontSize: 13 },
-  md: { height: 48, paddingHorizontal: SPACING.xl, fontSize: 15 },
-  lg: { height: 56, paddingHorizontal: SPACING.xxl, fontSize: 16 },
+  md: { height: 48, paddingHorizontal: SPACING.xl, fontSize: 17 },
+  lg: { height: 56, paddingHorizontal: SPACING.xxl, fontSize: 17 },
 };
 
 /**
- * Appliance Diagnostic Systems' metallic button geometry, ported from commit
- * 480991b7eb0036e4e85c37d3784b2de2ca97d10d and recolored in MF lime/olive.
- * Layered native views preserve the five-stop treatment without adding a
- * gradient runtime dependency.
+ * A filled capsule in the tint colour, the way iOS draws a prominent action.
+ * This replaced a ported five-band metallic treatment: stacked skewed colour
+ * stops under a white bevel and a hard drop shadow, which read as two-tone in
+ * light mode because its base stop was the dark olive `primaryLight`.
  */
 export function AnimatedButton({
   title,
@@ -73,7 +71,7 @@ export function AnimatedButton({
   const isDisabled = disabled || loading;
   const containerStyle: ViewStyle = {
     height: sizeConfig.height,
-    borderRadius: RADIUS_LEGACY.lg,
+    borderRadius: RADIUS.pill,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -96,16 +94,9 @@ export function AnimatedButton({
         hitSlop={hitSlop}
         onPress={onPress}
         scaleValue={0.96}
-        style={[containerStyle, styles.metalShadow, fullWidth && styles.fullWidth, style]}
+        style={[containerStyle, { backgroundColor: theme.primary }, fullWidth && styles.fullWidth, style]}
         testID={testID}
       >
-        <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: theme.primaryLight }]} />
-        <View pointerEvents="none" style={[styles.gradientStop, styles.stopTwo, { backgroundColor: theme.primary }]} />
-        <View pointerEvents="none" style={[styles.gradientStop, styles.stopThree, { backgroundColor: theme.accent }]} />
-        <View pointerEvents="none" style={[styles.gradientStop, styles.stopFour, { backgroundColor: theme.primaryDark }]} />
-        <View pointerEvents="none" style={[styles.gradientStop, styles.stopFive, { backgroundColor: theme.steel }]} />
-        <View pointerEvents="none" style={styles.topHighlight} />
-        <View pointerEvents="none" style={[styles.metalBorder, { borderColor: theme.tint.primaryLight.strong }]} />
         {loading ? <ActivityIndicator color={theme.primaryForeground} /> : null}
         {!loading && iconPosition === "left" ? icon : null}
         {!loading ? (
@@ -174,7 +165,7 @@ function variantAppearance(
   }
   if (variant === "outline") {
     return {
-      container: { backgroundColor: "transparent", borderWidth: 1.5, borderColor: theme.primary },
+      container: { backgroundColor: "transparent", borderWidth: 1, borderColor: theme.primary },
       text: { color: theme.primaryLight },
     };
   }
