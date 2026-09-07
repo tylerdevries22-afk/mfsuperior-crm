@@ -1,6 +1,6 @@
 import { Text, View, type StyleProp, type ViewStyle } from "react-native";
 
-import { makeStyles, RADIUS, SPACE, TYPO } from "../../theme";
+import { HAIRLINE, makeStyles, RADIUS, SPACE, TYPO } from "../../theme";
 import { PressableSurface } from "./PressableSurface";
 
 export type StatTileProps = {
@@ -19,7 +19,11 @@ const useStyles = makeStyles((theme) => ({
     flexBasis: "46%",
     minHeight: 96,
     borderRadius: RADIUS.md,
-    backgroundColor: theme.tint.primary.muted,
+    // Neutral card surface: colour carries meaning here (deltas), so the
+    // container itself stays out of the way.
+    backgroundColor: theme.surface,
+    borderWidth: HAIRLINE,
+    borderColor: theme.separator,
     padding: SPACE.md,
     gap: 2,
     justifyContent: "center",

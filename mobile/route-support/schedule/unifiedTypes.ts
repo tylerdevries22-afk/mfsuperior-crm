@@ -8,7 +8,7 @@ import { useOperations } from "@/store";
 
 export const DAY_WIDTH = 128;
 
-export const DRIVER_LABEL_WIDTH = 122;
+export const DRIVER_LABEL_WIDTH = 134;
 
 export const DEFAULT_START = 8 * 60;
 
