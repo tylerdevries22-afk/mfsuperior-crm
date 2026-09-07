@@ -12,7 +12,7 @@ import type { FreightCollectionSpec, FreightRecord } from "./types";
 
 function MetricRow({ metrics }: { readonly metrics: NonNullable<FreightCollectionSpec["metrics"]> }) {
   const theme = useTheme();
-  return <View style={styles.metrics}>{metrics.map((metric) => <View key={metric.label} style={[styles.metric, { backgroundColor: theme.surface, borderColor: theme.border }]}><Text style={[styles.metricValue, { color: toneColor(theme, metric.tone ?? "brand") }]}>{metric.value}</Text><Text style={[styles.metricLabel, { color: theme.textMuted }]}>{metric.label}</Text>{metric.detail ? <Text numberOfLines={1} style={[styles.metricDetail, { color: theme.textSecondary }]}>{metric.detail}</Text> : null}</View>)}</View>;
+  return <View style={styles.metrics}>{metrics.map((metric) => <View key={metric.label} style={[styles.metric, { backgroundColor: theme.surface, borderColor: theme.border }]}><Text style={[styles.metricValue, { color: toneColor(theme, metric.tone ?? "brand") }]}>{metric.value}</Text><Text style={[styles.metricLabel, { color: theme.textMuted }]}>{metric.label}</Text>{metric.detail ? <Text numberOfLines={2} style={[styles.metricDetail, { color: theme.textSecondary }]}>{metric.detail}</Text> : null}</View>)}</View>;
 }
 
 function RecordRow({ record, isLast }: { readonly record: FreightRecord; readonly isLast: boolean }) {
@@ -43,7 +43,7 @@ const styles = StyleSheet.create({
   fabText: { ...TYPO.captionStrong },
   hero: { gap: SPACE.sm },
   list: { borderRadius: RADIUS.lg, borderWidth: 1, overflow: "hidden" },
-  metric: { borderRadius: RADIUS.md, borderWidth: 1, flex: 1, gap: 2, minWidth: 100, padding: 14 },
+  metric: { borderRadius: RADIUS.md, borderWidth: 1, flex: 1, gap: 2, minWidth: 100, padding: SPACE.sm },
   metricDetail: { ...TYPO.subtitle },
   metricLabel: { ...TYPO.metricLabel },
   metricValue: { ...TYPO.metric },

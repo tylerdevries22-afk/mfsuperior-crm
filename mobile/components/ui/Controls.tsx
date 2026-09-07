@@ -22,24 +22,35 @@ const useStyles = makeStyles((theme) => ({
   copy: { flex: 1, minWidth: 0 },
   label: { ...TYPO.rowTitle, color: theme.text },
   description: { ...TYPO.caption, color: theme.textSecondary, marginTop: 2 },
+  /**
+   * iOS draws the track as a plain tinted fill with no outline; the outline
+   * competed with the selected segment for the eye.
+   */
   segments: {
     minHeight: SIZE.button.sm,
     flexDirection: "row",
     gap: SPACE.xxs,
-    padding: SPACE.xxs,
+    padding: 2,
     borderRadius: RADIUS_DENSE.lg,
-    backgroundColor: theme.surfaceElevated,
-    borderWidth: 1,
-    borderColor: theme.border,
+    backgroundColor: theme.fill.tertiary,
   },
   segment: {
     flex: 1,
+    minWidth: 0,
     alignItems: "center",
     justifyContent: "center",
     borderRadius: RADIUS_DENSE.md,
-    paddingHorizontal: SPACE.sm,
+    paddingHorizontal: SPACE.xs,
   },
-  selected: { backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.borderLight },
+  /** The selected segment lifts off the track with a shadow rather than a border. */
+  selected: {
+    backgroundColor: theme.surface,
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.12,
+    shadowRadius: 3,
+    elevation: 2,
+  },
   segmentLabel: { ...TYPO.captionStrong, color: theme.textSecondary, textAlign: "center" },
   selectedLabel: { color: theme.text },
 }));
@@ -101,7 +112,9 @@ export function SegmentedControl<Value extends string>({ options, value, onChang
             onPress={() => onChange(option.value)}
             style={[styles.segment, selected && styles.selected]}
           >
-            <Text style={[styles.segmentLabel, selected && styles.selectedLabel]}>{option.label}</Text>
+            <Text numberOfLines={1} style={[styles.segmentLabel, selected && styles.selectedLabel]}>
+              {option.label}
+            </Text>
           </PressableSurface>
         );
       })}

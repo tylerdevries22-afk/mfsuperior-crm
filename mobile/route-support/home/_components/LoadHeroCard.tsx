@@ -45,19 +45,14 @@ export function LoadHeroCard({
   const delivery = stops.findLast?.((stop) => stop.type === "delivery") ?? stops[stops.length - 1];
 
   return (
-    <AnimatedPressable
-      accessibilityLabel={`Load ${shipment.loadNumber}`}
-      accessibilityRole="button"
-      haptic="selection"
-      onPress={onPress}
-      style={[s.nextJobCard, style]}
-    >
+    <View style={[s.nextJobCard, style]}>
       <LinearGradient
         colors={[`${THEME.primary}12`, `${THEME.primary}04`]}
         end={{ x: 1, y: 1 }}
         start={{ x: 0, y: 0 }}
         style={s.nextJobGradient}
       >
+        <AnimatedPressable accessibilityLabel={`Load ${shipment.loadNumber}`} accessibilityRole="button" haptic="selection" onPress={onPress}>
         <View style={s.nextJobTop}>
           <View style={s.nextJobTimeBadge}>
             <Feather color={THEME.primary} name="clock" size={12} />
@@ -91,6 +86,7 @@ export function LoadHeroCard({
           </View>
         ) : null}
 
+        </AnimatedPressable>
         <View style={s.nextJobActions}>
           <View style={{ flex: 1 }} />
           <AnimatedPressable haptic="light" onPress={onPress} style={s.nextJobBtn}>
@@ -99,7 +95,7 @@ export function LoadHeroCard({
           </AnimatedPressable>
         </View>
       </LinearGradient>
-    </AnimatedPressable>
+    </View>
   );
 }
 

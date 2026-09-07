@@ -1,3 +1,4 @@
+import { normalizeVehicle } from "./vehicleCompatibility";
 import type {
   AvailabilityBlock,
   AvailabilityRule,
@@ -57,7 +58,7 @@ const accounts: readonly DemoAccount[] = [
   {
     id: "account-admin",
     role: "admin",
-    displayName: "Morgan Brooks",
+    displayName: "Marcus Ford",
     email: DEMO_ACCOUNT_CREDENTIALS.admin.email,
     demoPin: DEMO_ACCOUNT_CREDENTIALS.admin.pin,
     companyName: "MF Superior Products",
@@ -366,7 +367,7 @@ const shipments: readonly Shipment[] = [
 ];
 
 /**
- * The demo fleet. Two tractors and two trailers is the smallest set that still
+ * The demo fleet. Two trucks and two trailers is the smallest set that still
  * shows every state the fleet screens have to render: an assigned unit, a unit
  * in the shop behind an open repair, and a spare with no driver on it.
  */
@@ -374,7 +375,7 @@ const vehicles: readonly Vehicle[] = [
   {
     id: "vehicle-t101",
     unitNumber: "T-101",
-    type: "tractor",
+    type: "truck",
     vin: "1FUJGLDR8CLBP8834",
     make: "Freightliner",
     model: "Cascadia",
@@ -390,7 +391,7 @@ const vehicles: readonly Vehicle[] = [
   {
     id: "vehicle-t102",
     unitNumber: "T-102",
-    type: "tractor",
+    type: "truck",
     vin: "3AKJHHDR9LSLL4471",
     make: "Kenworth",
     model: "T680",
@@ -1304,6 +1305,13 @@ export function reanchorDemoState(
   persisted: DemoOperationsState,
   now: Date = new Date(),
 ): DemoOperationsState {
+  if (persisted.accounts.some((account) => account.id === "account-admin" && account.email === DEMO_ACCOUNT_CREDENTIALS.admin.email && account.displayName !== "Marcus Ford")) {
+    persisted = { ...persisted, accounts: persisted.accounts.map((account) => account.id === "account-admin" && account.email === DEMO_ACCOUNT_CREDENTIALS.admin.email ? { ...account, displayName: "Marcus Ford" } : account) };
+  }
+  const normalizedVehicles = persisted.vehicles.map(normalizeVehicle);
+  if (normalizedVehicles.some((vehicle, index) => vehicle !== persisted.vehicles[index])) {
+    persisted = { ...persisted, vehicles: normalizedVehicles };
+  }
   const canonical = createDemoOperationsState();
   const reference = canonical.shipments[0];
   const saved = reference

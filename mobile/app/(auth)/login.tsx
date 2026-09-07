@@ -8,7 +8,7 @@ import { AnimatedButton, Sheet } from "@/components/ui";
 import { getAuthRuntimeMode, getProductionAuthService } from "@/features/auth/runtime-service";
 import { toAuthFailure } from "@/lib/auth";
 import { useOperations } from "@/store";
-import { FONTS, RADIUS_LEGACY, SPACE, SPACING, TYPO, useTheme } from "@/theme";
+import { FONTS, RADIUS, RADIUS_DENSE, SPACE, SPACING, TYPO, useTheme } from "@/theme";
 
 type SheetMode = "sign-in" | "sign-up";
 type Completion = "verify-email" | "pending-approval" | null;
@@ -46,7 +46,7 @@ export default function LoginScreen() {
     setSheetVisible(true);
   };
 
-  return <View style={[styles.container, { backgroundColor: theme.background, paddingBottom: insets.bottom + SPACE.lg }]}><View style={styles.center}><View style={[styles.logoFrame, { backgroundColor: theme.surface, borderColor: theme.border }]}><Image accessibilityLabel="MF Superior Products" source={logo} style={styles.logo} /></View><Text style={[styles.title, { color: theme.text }]}>MF Superior Products</Text><Text style={[styles.subtitle, { color: theme.textSecondary }]}>Freight capacity &amp; operations</Text>{runtimeMode === "demo" ? <View style={[styles.demoPill, { backgroundColor: theme.primaryMuted, borderColor: theme.tint.primary.medium }]}><View style={[styles.demoDot, { backgroundColor: theme.primaryLight }]} /><Text style={[styles.demoText, { color: theme.primaryLight }]}>DEMO WORKSPACE</Text></View> : null}</View><View style={styles.bottom}><AnimatedButton fullWidth icon={<Feather color={theme.primaryForeground} name="log-in" size={18} />} iconPosition="right" onPress={() => openSheet("sign-in")} size="lg" title="Sign In" />{runtimeMode === "demo" ? <QuickDemoAccess accounts={accounts} onSelect={openDemoLogin} /> : null}<View style={styles.divider}><View style={[styles.line, { backgroundColor: theme.border }]} /><Text style={[styles.or, { color: theme.textMuted }]}>or</Text><View style={[styles.line, { backgroundColor: theme.border }]} /></View><Pressable accessibilityRole="button" onPress={() => openSheet("sign-up")} style={({ pressed }) => [styles.createButton, { backgroundColor: theme.surfaceElevated, borderColor: theme.border }, pressed && styles.pressed]}><Feather color={theme.primaryLight} name="user-plus" size={18} /><Text style={[styles.createButtonText, { color: theme.text }]}>Create customer account</Text></Pressable><Text style={[styles.inviteNote, { color: theme.textMuted }]}>Admins and drivers join by invitation. Google Workspace connects from Profile after sign-in.</Text><Text style={[styles.terms, { color: theme.textMuted }]}>By continuing, you agree to our Terms of Service and Privacy Policy.</Text></View><AuthSheet busy={busy} completion={completion} email={email} error={error} fullName={fullName} mode={mode} onClose={() => setSheetVisible(false)} onEmail={setEmail} onError={setError} onFullName={setFullName} onMode={setMode} onPassword={setPassword} onSetBusy={setBusy} onSetCompletion={setCompletion} onShowPassword={() => setShowPassword((current) => !current)} password={password} showPassword={showPassword} visible={sheetVisible} /></View>;
+  return <ScrollView style={{ flex: 1, backgroundColor: theme.background }} contentContainerStyle={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom + SPACE.lg }]}><View style={styles.center}><View style={[styles.logoFrame, { backgroundColor: theme.surface, borderColor: theme.border }]}><Image accessibilityLabel="MF Superior Products" source={logo} style={styles.logo} /></View><Text style={[styles.title, { color: theme.text }]}>MF Superior Products</Text><Text style={[styles.subtitle, { color: theme.textSecondary }]}>Freight capacity &amp; operations</Text>{runtimeMode === "demo" ? <View style={[styles.demoPill, { backgroundColor: theme.primaryMuted, borderColor: theme.tint.primary.medium }]}><View style={[styles.demoDot, { backgroundColor: theme.primaryLight }]} /><Text style={[styles.demoText, { color: theme.primaryLight }]}>DEMO WORKSPACE</Text></View> : null}</View><View style={styles.bottom}><AnimatedButton fullWidth icon={<Feather color={theme.primaryForeground} name="log-in" size={18} />} iconPosition="right" onPress={() => openSheet("sign-in")} size="lg" title="Sign In" />{runtimeMode === "demo" ? <QuickDemoAccess accounts={accounts} onSelect={openDemoLogin} /> : null}<View style={styles.divider}><View style={[styles.line, { backgroundColor: theme.border }]} /><Text style={[styles.or, { color: theme.textMuted }]}>or</Text><View style={[styles.line, { backgroundColor: theme.border }]} /></View><Pressable accessibilityRole="button" onPress={() => openSheet("sign-up")} style={({ pressed }) => [styles.createButton, { backgroundColor: theme.surfaceElevated, borderColor: theme.border }, pressed && styles.pressed]}><Feather color={theme.primaryLight} name="user-plus" size={18} /><Text style={[styles.createButtonText, { color: theme.text }]}>Create customer account</Text></Pressable><Text style={[styles.inviteNote, { color: theme.textMuted }]}>Admins and drivers join by invitation. Google Workspace connects from Profile after sign-in.</Text><Text style={[styles.terms, { color: theme.textMuted }]}>By continuing, you agree to our Terms of Service and Privacy Policy.</Text></View><AuthSheet busy={busy} completion={completion} email={email} error={error} fullName={fullName} mode={mode} onClose={() => setSheetVisible(false)} onEmail={setEmail} onError={setError} onFullName={setFullName} onMode={setMode} onPassword={setPassword} onSetBusy={setBusy} onSetCompletion={setCompletion} onShowPassword={() => setShowPassword((current) => !current)} password={password} showPassword={showPassword} visible={sheetVisible} /></ScrollView>;
 }
 
 interface AuthSheetProps {
@@ -105,12 +105,12 @@ function AuthSheet(props: AuthSheetProps) {
     finally { props.onSetBusy(false); }
   };
 
-  return <Sheet onClose={props.onClose} testID="login-sheet" title={props.mode === "sign-in" ? "Welcome back" : "Create customer account"} visible={props.visible}><KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined}><ScrollView contentContainerStyle={styles.sheetContent} keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>{props.completion ? <CompletionState completion={props.completion} email={props.email} /> : <><Image source={logo} style={styles.sheetLogo} />{props.mode === "sign-up" ? <AuthInput icon="user" label="Full name" onChangeText={props.onFullName} placeholder="Your name" value={props.fullName} /> : null}<AuthInput autoCapitalize="none" icon="mail" keyboardType="email-address" label="Email" onChangeText={(value) => { props.onEmail(value); props.onError(null); }} placeholder="name@company.com" value={props.email} /><AuthInput autoCapitalize="none" icon="lock" label="Password" onChangeText={(value) => { props.onPassword(value); props.onError(null); }} onEye={props.onShowPassword} placeholder="12 characters minimum" secureTextEntry={!props.showPassword} value={props.password} />{props.error ? <View accessibilityLiveRegion="polite" accessibilityRole="alert" style={[styles.errorBox, { backgroundColor: theme.dangerMuted }]}><Feather color={theme.danger} name="alert-circle" size={15} /><Text style={[styles.errorText, { color: theme.danger }]}>{props.error}</Text></View> : null}{props.mode === "sign-in" ? <Pressable accessibilityRole="button" disabled={props.busy} onPress={() => void resetPassword()} style={styles.forgot}><Text style={[styles.forgotText, { color: theme.primaryLight }]}>Forgot your password?</Text></Pressable> : null}<AnimatedButton disabled={!props.email.trim() || props.password.length < (isDemo ? 4 : 12)} fullWidth loading={props.busy} onPress={() => void submit()} size="lg" title={props.mode === "sign-in" ? "Sign In" : "Create Account"} />{isDemo && props.mode === "sign-in" ? <DemoAccess accounts={accounts} onEmail={props.onEmail} onPassword={props.onPassword} /> : null}<Pressable accessibilityRole="button" onPress={() => { props.onMode(props.mode === "sign-in" ? "sign-up" : "sign-in"); props.onError(null); }} style={styles.switch}><Text style={[styles.switchText, { color: theme.textSecondary }]}>{props.mode === "sign-in" ? "Don’t have an account? " : "Already have an account? "}<Text style={{ color: theme.primaryLight, fontFamily: FONTS.semibold }}>{props.mode === "sign-in" ? "Create one" : "Sign in"}</Text></Text></Pressable>{props.mode === "sign-up" ? <Text style={[styles.pendingNote, { color: theme.textMuted }]}>Customers can request access immediately. Shipment visibility begins only after an admin links your company.</Text> : null}</>}</ScrollView></KeyboardAvoidingView></Sheet>;
+  return <Sheet onClose={props.onClose} testID="login-sheet" title={props.mode === "sign-in" ? "Welcome back" : "Create customer account"} visible={props.visible}><KeyboardAvoidingView style={{ flexShrink: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}><ScrollView contentContainerStyle={styles.sheetContent} keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>{props.completion ? <CompletionState completion={props.completion} email={props.email} /> : <><Image source={logo} style={styles.sheetLogo} />{props.mode === "sign-up" ? <AuthInput icon="user" label="Full name" onChangeText={props.onFullName} placeholder="Your name" value={props.fullName} /> : null}<AuthInput autoCapitalize="none" icon="mail" keyboardType="email-address" label="Email" onChangeText={(value) => { props.onEmail(value); props.onError(null); }} placeholder="name@company.com" value={props.email} /><AuthInput autoCapitalize="none" icon="lock" label="Password" onChangeText={(value) => { props.onPassword(value); props.onError(null); }} onEye={props.onShowPassword} placeholder="12 characters minimum" secureTextEntry={!props.showPassword} value={props.password} />{props.error ? <View accessibilityLiveRegion="polite" accessibilityRole="alert" style={[styles.errorBox, { backgroundColor: theme.dangerMuted }]}><Feather color={theme.danger} name="alert-circle" size={15} /><Text style={[styles.errorText, { color: theme.danger }]}>{props.error}</Text></View> : null}{props.mode === "sign-in" ? <Pressable accessibilityRole="button" disabled={props.busy} onPress={() => void resetPassword()} style={styles.forgot}><Text style={[styles.forgotText, { color: theme.primaryLight }]}>Forgot your password?</Text></Pressable> : null}<AnimatedButton disabled={!props.email.trim() || props.password.length < (isDemo ? 4 : 12)} fullWidth loading={props.busy} onPress={() => void submit()} size="lg" title={props.mode === "sign-in" ? "Sign In" : "Create Account"} />{isDemo && props.mode === "sign-in" ? <DemoAccess accounts={accounts} onEmail={props.onEmail} onPassword={props.onPassword} /> : null}<Pressable accessibilityRole="button" onPress={() => { props.onMode(props.mode === "sign-in" ? "sign-up" : "sign-in"); props.onError(null); }} style={styles.switch}><Text style={[styles.switchText, { color: theme.textSecondary }]}>{props.mode === "sign-in" ? "Don’t have an account? " : "Already have an account? "}<Text style={{ color: theme.primaryLight, fontFamily: FONTS.semibold }}>{props.mode === "sign-in" ? "Create one" : "Sign in"}</Text></Text></Pressable>{props.mode === "sign-up" ? <Text style={[styles.pendingNote, { color: theme.textMuted }]}>Customers can request access immediately. Shipment visibility begins only after an admin links your company.</Text> : null}</>}</ScrollView></KeyboardAvoidingView></Sheet>;
 }
 
 function AuthInput({ icon, label, onEye, ...inputProps }: { readonly icon: "user" | "mail" | "lock"; readonly label: string; readonly onEye?: () => void } & React.ComponentProps<typeof TextInput>) {
   const theme = useTheme();
-  return <View style={styles.field}><Text style={[styles.inputLabel, { color: theme.textSecondary }]}>{label}</Text><View style={[styles.inputWrap, { backgroundColor: theme.surfaceElevated, borderColor: theme.border }]}><Feather color={theme.textMuted} name={icon} size={18} /><TextInput accessibilityLabel={label} placeholderTextColor={theme.textMuted} style={[styles.input, { color: theme.text }]} {...inputProps} />{onEye ? <Pressable accessibilityLabel="Toggle password visibility" accessibilityRole="button" hitSlop={8} onPress={onEye}><Feather color={theme.textMuted} name={inputProps.secureTextEntry ? "eye" : "eye-off"} size={18} /></Pressable> : null}</View></View>;
+  return <View style={styles.field}><Text style={[styles.inputLabel, { color: theme.textSecondary }]}>{label}</Text><View style={[styles.inputWrap, { backgroundColor: theme.surfaceElevated, borderColor: theme.border }]}><Feather color={theme.textMuted} name={icon} size={18} /><TextInput accessibilityLabel={label} placeholderTextColor={theme.textMuted} style={[styles.input, { color: theme.text }]} {...inputProps} />{onEye ? <Pressable accessibilityLabel="Toggle password visibility" accessibilityRole="button" hitSlop={8} onPress={onEye} style={styles.eye}><Feather color={theme.textMuted} name={inputProps.secureTextEntry ? "eye" : "eye-off"} size={18} /></Pressable> : null}</View></View>;
 }
 
 function QuickDemoAccess({ accounts, onSelect }: { readonly accounts: readonly ReturnType<typeof useOperations>["accounts"][number][]; readonly onSelect: (account: ReturnType<typeof useOperations>["accounts"][number]) => void }) {
@@ -147,17 +147,17 @@ function CompletionState({ completion, email }: { readonly completion: Exclude<C
 
 const styles = StyleSheet.create({
   bottom: { gap: SPACING.md },
-  center: { alignItems: "center", flex: 1, justifyContent: "center" },
+  center: { alignItems: "center", flexGrow: 1, minHeight: 280, justifyContent: "center" },
   completion: { alignItems: "center", gap: SPACE.md, paddingBottom: SPACE.xl, paddingTop: SPACE.md },
   completionBody: { ...TYPO.body, lineHeight: 23, textAlign: "center" },
   completionIcon: { alignItems: "center", borderRadius: 36, borderWidth: 1, height: 72, justifyContent: "center", width: 72 },
   completionTitle: { ...TYPO.heading },
-  container: { flex: 1, paddingHorizontal: SPACING.xl },
-  createButton: { alignItems: "center", borderRadius: RADIUS_LEGACY.lg, borderWidth: 1, flexDirection: "row", gap: SPACE.sm, justifyContent: "center", minHeight: 54 },
+  container: { flexGrow: 1, paddingHorizontal: SPACING.xl },
+  createButton: { alignItems: "center", borderRadius: RADIUS.md, borderWidth: 1, flexDirection: "row", gap: SPACE.sm, justifyContent: "center", minHeight: 54 },
   createButtonText: { ...TYPO.cardTitle, fontSize: 15 },
   demoAccess: { gap: SPACE.sm, marginTop: SPACE.sm },
   demoAccessLabel: { ...TYPO.metricLabel },
-  demoButton: { alignItems: "center", borderRadius: RADIUS_LEGACY.md, borderWidth: 1, flex: 1, flexDirection: "row", gap: 5, justifyContent: "center", minHeight: 42 },
+  demoButton: { alignItems: "center", borderRadius: RADIUS.sm, borderWidth: 1, flex: 1, flexDirection: "row", gap: 5, justifyContent: "center", minHeight: 44 },
   demoButtons: { flexDirection: "row", gap: SPACE.xs },
   demoButtonText: { ...TYPO.captionStrong, textTransform: "capitalize" },
   demoDot: { borderRadius: 3, height: 6, width: 6 },
@@ -165,14 +165,15 @@ const styles = StyleSheet.create({
   demoPill: { alignItems: "center", borderRadius: 13, borderWidth: 1, flexDirection: "row", gap: 6, marginTop: SPACE.lg, minHeight: 28, paddingHorizontal: 10 },
   demoText: { ...TYPO.metricLabel },
   divider: { alignItems: "center", flexDirection: "row", gap: SPACING.md },
-  errorBox: { alignItems: "flex-start", borderRadius: RADIUS_LEGACY.sm, flexDirection: "row", gap: 8, padding: SPACE.md },
+  errorBox: { alignItems: "flex-start", borderRadius: RADIUS_DENSE.sm, flexDirection: "row", gap: 8, padding: SPACE.md },
   errorText: { ...TYPO.captionStrong, flex: 1 },
   field: { gap: 6 },
+  eye: { alignItems: "center", justifyContent: "center", minWidth: 44, minHeight: 44 },
   forgot: { alignSelf: "flex-end", minHeight: 44, justifyContent: "center" },
   forgotText: { ...TYPO.captionStrong },
-  input: { ...TYPO.body, flex: 1, minHeight: 50, paddingVertical: 12 },
+  input: { ...TYPO.body, fontSize: 16, flex: 1, minWidth: 0, minHeight: 50, paddingVertical: 12 },
   inputLabel: { ...TYPO.captionStrong, marginLeft: 3 },
-  inputWrap: { alignItems: "center", borderRadius: RADIUS_LEGACY.md, borderWidth: 1, flexDirection: "row", gap: SPACE.sm, minHeight: 54, paddingHorizontal: SPACE.md },
+  inputWrap: { alignItems: "center", borderRadius: RADIUS.sm, borderWidth: 1, flexDirection: "row", gap: SPACE.sm, minHeight: 54, paddingHorizontal: SPACE.md },
   inviteNote: { ...TYPO.caption, lineHeight: 18, textAlign: "center" },
   line: { flex: 1, height: 1 },
   logo: { height: 118, width: 118 },
@@ -180,14 +181,14 @@ const styles = StyleSheet.create({
   or: { ...TYPO.caption },
   pendingNote: { ...TYPO.caption, lineHeight: 18, textAlign: "center" },
   pressed: { opacity: 0.68, transform: [{ scale: 0.98 }] },
-  quickAccess: { borderRadius: RADIUS_LEGACY.lg, borderWidth: 1, gap: SPACE.sm, padding: SPACE.md },
+  quickAccess: { borderRadius: RADIUS.md, borderWidth: 1, gap: SPACE.sm, padding: SPACE.md },
   quickAccessCopy: { gap: 3 },
   quickAccessSubtitle: { ...TYPO.caption, lineHeight: 17 },
   quickAccessTitle: { ...TYPO.cardTitle, fontSize: 14 },
   quickAccessTitleRow: { alignItems: "center", flexDirection: "row", gap: 7 },
-  quickButton: { alignItems: "center", borderRadius: RADIUS_LEGACY.md, borderWidth: 1, flex: 1, flexDirection: "row", gap: 5, justifyContent: "center", minHeight: 42, paddingHorizontal: 6 },
+  quickButton: { alignItems: "center", borderRadius: RADIUS.sm, borderWidth: 1, flex: 1, flexDirection: "row", gap: 5, justifyContent: "center", minHeight: 44, minWidth: 100, paddingHorizontal: 6 },
   quickButtonText: { ...TYPO.captionStrong, textTransform: "capitalize" },
-  quickButtons: { flexDirection: "row", gap: SPACE.xs },
+  quickButtons: { flexDirection: "row", flexWrap: "wrap", gap: SPACE.xs },
   sheetContent: { gap: SPACE.md, paddingBottom: SPACE.xl },
   sheetLogo: { alignSelf: "center", borderRadius: 14, height: 58, width: 58 },
   subtitle: { ...TYPO.body, textAlign: "center" },

@@ -1,7 +1,8 @@
 import Feather from "@expo/vector-icons/Feather";
 import { useRouter, type Href } from "expo-router";
 import { useMemo, useState } from "react";
-import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { OperationsMessage } from "@/domain/types";
 import { useOptionalOperations } from "@/store";
@@ -21,6 +22,7 @@ type ActivityNotification = {
 export function NotificationButton() {
   const router = useRouter();
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
   const operations = useOptionalOperations();
   const actions = operations?.actions;
   const currentAccount = operations?.currentAccount;
@@ -90,11 +92,13 @@ export function NotificationButton() {
       {unread.length ? <View style={[styles.badge, { backgroundColor: theme.danger }]}><Text style={styles.badgeText}>{unread.length > 99 ? "99+" : unread.length}</Text></View> : null}
     </Pressable>
     <Modal animationType="fade" onRequestClose={() => setOpen(false)} transparent visible={open}>
-      <Pressable onPress={() => setOpen(false)} style={styles.backdrop}>
+      <Pressable onPress={() => setOpen(false)} style={[styles.backdrop, { paddingTop: insets.top + SPACE.md, paddingBottom: insets.bottom + SPACE.md, paddingLeft: insets.left + SPACE.md, paddingRight: insets.right + SPACE.md }]}>
         <Pressable onPress={() => undefined} style={[styles.panel, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          <View style={styles.panelHeader}><View><Text style={[styles.title, { color: theme.text }]}>Notifications</Text><Text style={[styles.subtitle, { color: theme.textMuted }]}>{unread.length} unread · updates live</Text></View><Pressable accessibilityLabel="Close notifications" hitSlop={8} onPress={() => setOpen(false)}><Feather color={theme.textMuted} name="x" size={20} /></Pressable></View>
+          <View style={styles.panelHeader}><View style={styles.copy}><Text style={[styles.title, { color: theme.text }]}>Notifications</Text><Text style={[styles.subtitle, { color: theme.textMuted }]}>{unread.length} unread · updates live</Text></View><Pressable accessibilityLabel="Close notifications" accessibilityRole="button" hitSlop={8} onPress={() => setOpen(false)} style={styles.close}><Feather color={theme.textMuted} name="x" size={20} /></Pressable></View>
+          <ScrollView style={styles.list}>
           {notifications.slice(0, 6).map((item) => <Pressable key={item.id} onPress={() => openNotification(item)} style={[styles.row, { borderTopColor: theme.border }, item.unread && { backgroundColor: theme.primaryMuted }]}><View style={[styles.dot, { backgroundColor: item.unread ? theme.primaryLight : theme.textMuted }]} /><View style={styles.copy}><Text numberOfLines={2} style={[styles.body, { color: theme.text }]}>{item.body}</Text><Text style={[styles.time, { color: theme.textMuted }]}>{new Date(item.sentAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</Text></View></Pressable>)}
           {!notifications.length ? <Text style={[styles.empty, { color: theme.textSecondary }]}>You’re all caught up.</Text> : null}
+          </ScrollView>
           <Pressable onPress={() => { setOpen(false); router.push("/messages"); }} style={[styles.viewAll, { borderTopColor: theme.border }]}><Text style={[styles.viewAllText, { color: theme.primaryLight }]}>View all activity</Text></Pressable>
         </Pressable>
       </Pressable>
@@ -103,12 +107,14 @@ export function NotificationButton() {
 }
 
 const styles = StyleSheet.create({
-  backdrop: { backgroundColor: "rgba(0,0,0,0.45)", flex: 1, paddingHorizontal: SPACE.md, paddingTop: 106 },
+  backdrop: { backgroundColor: "rgba(0,0,0,0.45)", flex: 1 },
   badge: { alignItems: "center", borderRadius: 9, minHeight: 18, minWidth: 18, paddingHorizontal: 4, position: "absolute", right: -4, top: -4 },
   badgeText: { color: "#fff", fontSize: 10, fontWeight: "800", lineHeight: 18 },
   body: { ...TYPO.captionStrong }, button: { alignItems: "center", borderRadius: 22, height: 44, justifyContent: "center", width: 44 },
   copy: { flex: 1, gap: 3 }, dot: { borderRadius: 4, height: 8, marginTop: 5, width: 8 }, empty: { ...TYPO.body, padding: SPACE.lg, textAlign: "center" },
-  panel: { alignSelf: "flex-end", borderRadius: RADIUS.lg, borderWidth: 1, maxWidth: 390, overflow: "hidden", width: "92%" },
+  close: { alignItems: "center", justifyContent: "center", minHeight: 44, minWidth: 44 },
+  list: { flexShrink: 1 },
+  panel: { alignSelf: "flex-end", borderRadius: RADIUS.lg, borderWidth: 1, maxHeight: "100%", maxWidth: 390, overflow: "hidden", width: "100%", flexShrink: 1 },
   panelHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", padding: SPACE.md },
   row: { borderTopWidth: StyleSheet.hairlineWidth, flexDirection: "row", gap: SPACE.sm, padding: SPACE.md }, subtitle: { ...TYPO.subtitle }, time: { ...TYPO.subtitle }, title: { ...TYPO.heading },
   viewAll: { alignItems: "center", borderTopWidth: StyleSheet.hairlineWidth, padding: SPACE.md }, viewAllText: { ...TYPO.captionStrong },

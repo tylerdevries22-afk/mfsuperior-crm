@@ -53,7 +53,7 @@ export function DriverRow({
         return (
           <Pressable
             accessibilityLabel={`${driverFullName(driver)} ${dateKey}${hasEvents ? " schedule" : " empty schedule slot"}`}
-            accessibilityRole={hasEvents ? undefined : "button"}
+            role={hasEvents ? "group" : "button"}
             key={`${driver.id}-${dateKey}`}
             delayLongPress={220}
             onLongPress={hasEvents ? undefined : () => onCellPress(dateKey)}
@@ -73,7 +73,7 @@ export function DriverRow({
 }
 
 export function EventChip({ label, onPress, tone, theme }: { readonly label: string; readonly onPress: () => void; readonly tone: "shift" | "load" | "blocked"; readonly theme: ReturnType<typeof useTheme> }) {
-  const toneColor = tone === "shift" ? theme.primary : tone === "load" ? "#7DD3FC" : theme.danger;
+  const toneColor = tone === "shift" ? theme.primary : tone === "load" ? "#32ADE6" : theme.danger;
   return <Pressable accessibilityLabel={label} accessibilityRole="button" onPress={onPress} style={[styles.eventChip, { backgroundColor: `${toneColor}22`, borderColor: `${toneColor}70` }]}><View style={[styles.eventDot, { backgroundColor: toneColor }]} /><Text numberOfLines={1} style={[styles.eventText, { color: theme.text }]}>{label}</Text></Pressable>;
 }
 
@@ -83,7 +83,8 @@ export function DayHeader({ date, onPress, selected, theme }: { readonly date: D
 }
 
 export function Metric({ label, tone, value }: { readonly label: string; readonly tone: string; readonly value: string }) {
-  return <View style={styles.metric}><Text style={[styles.metricValue, { color: tone }]}>{value}</Text><Text style={styles.metricLabel}>{label}</Text></View>;
+  const theme = useTheme();
+  return <View style={styles.metric}><Text style={[styles.metricValue, { color: tone }]}>{value}</Text><Text style={[styles.metricLabel, { color: theme.textSecondary }]}>{label}</Text></View>;
 }
 
 export function LegendDot({ color, label, theme }: { readonly color: string; readonly label: string; readonly theme: ReturnType<typeof useTheme> }) {

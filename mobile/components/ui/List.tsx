@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { Text, View, type StyleProp, type ViewStyle } from "react-native";
 import Feather from "@expo/vector-icons/Feather";
 
-import { ICON, makeStyles, RADIUS, SIZE, SPACE, TYPO, useTheme } from "../../theme";
+import { HAIRLINE, ICON, makeStyles, RADIUS, SIZE, SPACE, TYPO, useTheme } from "../../theme";
 import { PressableSurface } from "./PressableSurface";
 
 export type ListProps = {
@@ -50,9 +50,13 @@ const useStyles = makeStyles((theme) => ({
   title: { ...TYPO.rowTitle, color: theme.text, flex: 1 },
   meta: { ...TYPO.captionStrong, color: theme.textSecondary },
   subtitle: { ...TYPO.caption, color: theme.textSecondary, marginTop: 2 },
-  leading: { alignItems: "center", justifyContent: "center" },
+  // Fixed leading column so every row's text starts on the same x, whatever
+  // accessory the caller passes.
+  leading: { width: ICON.xl, alignItems: "center", justifyContent: "center" },
   trailing: { minWidth: ICON.md, alignItems: "flex-end", justifyContent: "center" },
-  divider: { height: 1, backgroundColor: theme.border, marginLeft: SPACE.md },
+  divider: { height: HAIRLINE, backgroundColor: theme.separator, marginLeft: SPACE.md },
+  // Separators align with the label, not the icon, on rows that have one.
+  dividerInset: { marginLeft: SPACE.md + ICON.xl + SPACE.sm },
   keyValue: {
     minHeight: SIZE.hit,
     paddingHorizontal: SPACE.md,
@@ -113,7 +117,7 @@ export function ListRow({
           {content}
         </PressableSurface>
       ) : <View accessible accessibilityLabel={label} style={rowStyle}>{content}</View>}
-      {!isLast ? <View style={styles.divider} /> : null}
+      {!isLast ? <View style={[styles.divider, leading ? styles.dividerInset : null]} /> : null}
     </>
   );
 }

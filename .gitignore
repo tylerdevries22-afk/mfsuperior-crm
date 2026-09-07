@@ -54,3 +54,11 @@ next-env.d.ts
 /.codex/
 /.adaptive-context/
 /.claude-flow/
+
+# UI audit loop artifacts (local only)
+.ui-audit-loop/
+
+# Agent tooling artifacts
+.claude-flow/
+**/.claude/proven-config.json
+**/.claude/.proven-config-version

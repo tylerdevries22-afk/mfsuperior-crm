@@ -1,29 +1,26 @@
 import Feather from "@expo/vector-icons/Feather";
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Text, View } from "react-native";
 
 import {
   Card,
   EmptyState,
   Header,
-  ListRow,
   Screen,
   SectionHeader,
   SegmentedControl,
 } from "@/components/ui";
+import { DocumentRow } from "@/route-support/licensing/_components/DocumentRow";
+import { styles } from "@/route-support/licensing/styles";
 import {
-  DOCUMENT_KIND_LABELS,
   EXPIRY_BUCKET_LABELS,
   buildComplianceEntries,
   countNeedingAttention,
-  describeRemaining,
   groupByBucket,
-  type ComplianceEntry,
-  type ExpiryBucket,
 } from "@/route-support/licensing/utils";
 import { useOperations } from "@/store";
-import { ICON, RADIUS, SPACE, TYPO, useTheme } from "@/theme";
+import { ICON, useTheme } from "@/theme";
 
 type SubjectFilter = "all" | "vehicle" | "driver";
 
@@ -32,13 +29,6 @@ const FILTER_OPTIONS = [
   { label: "Vehicles", value: "vehicle" as const },
   { label: "Drivers", value: "driver" as const },
 ];
-
-const BUCKET_TONE: Record<ExpiryBucket, "danger" | "warning" | "info" | "muted"> = {
-  expired: "danger",
-  ok: "muted",
-  soon: "info",
-  urgent: "warning",
-};
 
 export default function LicensingScreen() {
   const router = useRouter();
@@ -156,67 +146,3 @@ export default function LicensingScreen() {
     </View>
   );
 }
-
-function DocumentRow({
-  entry,
-  isLast,
-  onPress,
-}: {
-  readonly entry: ComplianceEntry;
-  readonly isLast: boolean;
-  readonly onPress?: () => void;
-}) {
-  const theme = useTheme();
-  const tone = BUCKET_TONE[entry.bucket];
-  const color = tone === "muted" ? theme.textMuted : theme[tone];
-
-  return (
-    <ListRow
-      isLast={isLast}
-      leading={
-        <View style={[styles.kindWell, { backgroundColor: theme.surfaceElevated }]}>
-          <Feather
-            color={color}
-            name={entry.document.subjectType === "vehicle" ? "truck" : "user"}
-            size={ICON.md}
-          />
-        </View>
-      }
-      onPress={onPress}
-      rich
-      subtitle={`${entry.subjectLabel} · ${entry.document.identifier}`}
-      title={DOCUMENT_KIND_LABELS[entry.document.kind]}
-      trailing={
-        <View style={styles.trailing}>
-          <Text style={[styles.remaining, { color }]}>
-            {describeRemaining(entry.daysRemaining)}
-          </Text>
-          <Text style={[styles.expiryDate, { color: theme.textMuted }]}>
-            {new Date(entry.document.expiresOn).toLocaleDateString()}
-          </Text>
-        </View>
-      }
-    />
-  );
-}
-
-const styles = StyleSheet.create({
-  banner: {
-    alignItems: "flex-start",
-    borderRadius: RADIUS.md,
-    borderWidth: 1,
-    flexDirection: "row",
-    gap: SPACE.sm,
-    padding: SPACE.md,
-  },
-  bannerBody: { ...TYPO.caption, marginTop: 2 },
-  bannerTitle: { ...TYPO.captionStrong },
-  content: { gap: SPACE.md, paddingBottom: SPACE.xxl },
-  expiryDate: { ...TYPO.subtitle },
-  fill: { flex: 1 },
-  group: { gap: SPACE.xs },
-  grow: { flex: 1, minWidth: 0 },
-  kindWell: { alignItems: "center", borderRadius: 12, height: 40, justifyContent: "center", width: 40 },
-  remaining: { ...TYPO.captionStrong, textAlign: "right" },
-  trailing: { alignItems: "flex-end", gap: 2, maxWidth: 128 },
-});

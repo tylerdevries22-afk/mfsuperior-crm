@@ -1,0 +1,130 @@
+import { StyleSheet } from "react-native";
+
+import { CARD_SHADOW, CARD_SHADOW_SM, FONTS, RADIUS, SPACING, THEME } from "@/theme";
+
+export const homeLoadStyles = StyleSheet.create({
+  sectionLabel: {
+    fontFamily: FONTS.semibold,
+    fontSize: 11,
+    color: THEME.textMuted,
+    letterSpacing: 1.2,
+    marginBottom: SPACING.sm,
+    marginTop: SPACING.sm,
+  },
+  sectionHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: SPACING.sm,
+    marginBottom: SPACING.sm,
+  },
+  seeAllText: {
+    fontFamily: FONTS.semibold,
+    fontSize: 12,
+    color: THEME.primaryLight,
+  },
+  nextJobCard: {
+    borderRadius: RADIUS.lg,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: `${THEME.primary}25`,
+    ...CARD_SHADOW,
+  },
+  nextJobGradient: {
+    padding: SPACING.lg,
+  },
+  nextJobTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: SPACING.sm,
+  },
+  nextJobTimeBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: `${THEME.primary}18`,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 4,
+    borderRadius: RADIUS.pill,
+  },
+  nextJobTimeText: {
+    fontFamily: FONTS.semibold,
+    fontSize: 12,
+    color: THEME.primary,
+  },
+  nextJobCustomer: {
+    fontFamily: FONTS.bold,
+    fontSize: 18,
+    color: THEME.text,
+    marginBottom: 6,
+  },
+  nextJobMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 4,
+  },
+  nextJobAddress: {
+    fontFamily: FONTS.regular,
+    fontSize: 13,
+    color: THEME.textSecondary,
+    flex: 1,
+  },
+  nextJobActions: {
+    flexDirection: "row",
+    gap: SPACING.sm,
+    marginTop: SPACING.md,
+  },
+  nextJobBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: `${THEME.primary}15`,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    borderRadius: RADIUS.pill,
+  },
+  nextJobBtnText: {
+    fontFamily: FONTS.semibold,
+    fontSize: 13,
+    color: THEME.primary,
+  },
+  actionsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: SPACING.sm,
+    marginBottom: SPACING.lg,
+  },
+  actionCard: {
+    backgroundColor: THEME.surface,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    borderColor: THEME.border,
+    paddingVertical: SPACING.lg,
+    alignItems: "center",
+    gap: SPACING.sm,
+    ...CARD_SHADOW_SM,
+  },
+  actionIconBg: {
+    width: 44,
+    height: 44,
+    borderRadius: RADIUS.sm,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  actionLabel: {
+    fontFamily: FONTS.semibold,
+    fontSize: 11,
+    color: THEME.textSecondary,
+  },
+  activityList: {
+    backgroundColor: THEME.surface,
+    borderRadius: RADIUS.lg,
+    borderWidth: 1,
+    borderColor: THEME.border,
+    overflow: "hidden",
+    marginBottom: SPACING.lg,
+    ...CARD_SHADOW_SM,
+  },
+});

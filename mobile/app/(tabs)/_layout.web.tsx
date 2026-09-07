@@ -1,9 +1,18 @@
 import { Feather } from "@expo/vector-icons";
+import { BlurView } from "expo-blur";
 import { Redirect, Tabs, useSegments } from "expo-router";
 import type { ComponentProps } from "react";
+import { StyleSheet } from "react-native";
 
 import { useOperations } from "@/store";
-import { useTheme } from "@/theme";
+import {
+  HAIRLINE,
+  MATERIAL_INTENSITY,
+  materialTint,
+  materialWash,
+  TYPO,
+  useTheme,
+} from "@/theme";
 
 export default function WebTabLayout() {
   const theme = useTheme();
@@ -34,8 +43,25 @@ export default function WebTabLayout() {
     headerShown: false,
     tabBarActiveTintColor: theme.primaryLight,
     tabBarInactiveTintColor: theme.textMuted,
-    tabBarStyle: { backgroundColor: theme.surface, borderTopColor: theme.border, height: 68, paddingBottom: 8 },
-    tabBarLabelStyle: { fontSize: 11 },
+    /**
+     * Chrome material behind the bar, matching the native `NativeTabs`
+     * `systemChromeMaterial` effect the iOS build already uses.
+     */
+    tabBarBackground: () => (
+      <BlurView
+        intensity={MATERIAL_INTENSITY.chrome}
+        style={[StyleSheet.absoluteFill, { backgroundColor: materialWash(theme, "chrome") }]}
+        tint={materialTint(theme.mode, "chrome")}
+      />
+    ),
+    tabBarStyle: {
+      backgroundColor: "transparent",
+      borderTopColor: theme.separator,
+      borderTopWidth: HAIRLINE,
+      height: 60,
+      paddingBottom: 6,
+    },
+    tabBarLabelStyle: { ...TYPO.subtitle, fontSize: 11 },
     tabBarItemStyle: { minWidth: 0 },
   }}>
     {tabs.map(([name, title, icon, visible]) => <Tabs.Screen key={name} name={name} options={{

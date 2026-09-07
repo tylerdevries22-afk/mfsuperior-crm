@@ -47,12 +47,13 @@ export function UnifiedScheduleScreen({ mode }: UnifiedScheduleScreenProps) {
               : setBlockDateKey(selectedDateKey)}
             style={styles.headerAction}
           >
-            <Feather color={theme.primary} name="plus" size={21} />
+            <Feather color={theme.primaryLight} name="plus" size={21} />
           </Pressable>
         )}
         subtitle={currentMode === "admin" ? "Dispatch board · changes are live" : "Your shifts, loads, and blocked time"}
         title="Schedule"
       />
+      <ScrollView contentContainerStyle={styles.scheduleContent} showsVerticalScrollIndicator={false}>
       <View style={styles.weekControls}>
         <Pressable accessibilityLabel="Previous week" accessibilityRole="button" onPress={() => changeWeek(-1)} style={styles.arrowButton}>
           <Feather color={theme.text} name="chevron-left" size={19} />
@@ -66,27 +67,27 @@ export function UnifiedScheduleScreen({ mode }: UnifiedScheduleScreenProps) {
         </Pressable>
       </View>
       {currentMode === "admin" ? (
-        <ScrollView contentContainerStyle={styles.driverFilterContent} horizontal showsHorizontalScrollIndicator={false}>
-          <Pressable accessibilityRole="button" onPress={() => setSelectedDriverId(null)} style={[styles.driverFilter, !selectedDriverId && { backgroundColor: theme.primary, borderColor: theme.primary }]}>
+        <ScrollView style={styles.driverFilterScroll} contentContainerStyle={styles.driverFilterContent} horizontal showsHorizontalScrollIndicator={false}>
+          <Pressable accessibilityRole="button" accessibilityState={{ selected: !selectedDriverId }} onPress={() => setSelectedDriverId(null)} style={[styles.driverFilter, !selectedDriverId && { backgroundColor: theme.primary, borderColor: theme.primary }]}>
             <Text style={[styles.driverFilterText, { color: !selectedDriverId ? theme.primaryForeground : theme.textSecondary }]}>All drivers</Text>
           </Pressable>
           {drivers.map((driver) => {
             const selected = selectedDriverId === driver.id;
             return (
-              <Pressable accessibilityLabel={`Filter ${driverFullName(driver)}`} accessibilityRole="button" key={driver.id} onPress={() => setSelectedDriverId(selected ? null : driver.id)} style={[styles.driverFilter, { borderColor: theme.border }, selected && { backgroundColor: theme.tint.primary.medium, borderColor: theme.primaryLight }]}>
-                <DriverAvatar driver={driver} ring={false} size={18} />
+              <Pressable accessibilityLabel={`Filter ${driverFullName(driver)}`} accessibilityRole="button" accessibilityState={{ selected }} key={driver.id} onPress={() => setSelectedDriverId(selected ? null : driver.id)} style={[styles.driverFilter, { borderColor: theme.border }, selected && { backgroundColor: theme.tint.primary.medium, borderColor: theme.primaryLight }]}>
+                <DriverAvatar driver={driver} ring={false} size={24} />
                 <Text style={[styles.driverFilterText, { color: selected ? theme.text : theme.textSecondary }]}>{driver.firstName}</Text>
               </Pressable>
             );
           })}
         </ScrollView>
       ) : null}
-      <View style={styles.metricsRow}>
+      <View style={[styles.metricsRow, { borderColor: theme.separator }]}>
         <Metric label="Gaps" value={String(gapCount)} tone={gapCount > 0 ? theme.warning : theme.primary} />
         <Metric label="Conflicts" value={String(conflictCount)} tone={conflictCount > 0 ? theme.danger : theme.primary} />
         <Metric label="Target sync" value={String(pendingSyncCount)} tone={pendingSyncCount > 0 ? theme.warning : theme.primary} />
       </View>
-      <ScrollView contentContainerStyle={styles.boardScroll} showsVerticalScrollIndicator={false}>
+      <View style={styles.boardScroll}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           <View style={[styles.board, { borderColor: theme.border }]}>
             <View style={styles.boardHeader}>
@@ -112,7 +113,7 @@ export function UnifiedScheduleScreen({ mode }: UnifiedScheduleScreenProps) {
         </ScrollView>
         <View style={styles.legendRow}>
           <LegendDot color={theme.primary} label="Shift" theme={theme} />
-          <LegendDot color="#7DD3FC" label="Load" theme={theme} />
+          <LegendDot color="#32ADE6" label="Load" theme={theme} />
           <LegendDot color={theme.danger} label="Blocked" theme={theme} />
           <Text style={[styles.legendHint, { color: theme.textMuted }]}>Tap an empty cell to add</Text>
         </View>
@@ -126,6 +127,7 @@ export function UnifiedScheduleScreen({ mode }: UnifiedScheduleScreenProps) {
           theme={theme}
         />
         <View style={styles.bottomSpace} />
+      </View>
       </ScrollView>
       <ShiftEditorSheet
         busy={busy}

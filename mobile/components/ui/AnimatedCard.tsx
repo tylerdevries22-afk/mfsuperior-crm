@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { View, type GestureResponderEvent, type StyleProp, type ViewStyle } from "react-native";
 
-import { CARD_SHADOW_SM, RADIUS_LEGACY, SPACING, useTheme } from "../../theme";
+import { CARD_SHADOW_SM, RADIUS, SPACING, useTheme } from "../../theme";
 import { AnimatedPressable, type HapticStrength } from "./AnimatedPressable";
 
 export type CardElevation = "flat" | "sm" | "md";
@@ -37,7 +37,7 @@ export function AnimatedCard({
   const theme = useTheme();
   const baseStyle: ViewStyle = {
     backgroundColor: theme.surface,
-    borderRadius: RADIUS_LEGACY.lg,
+    borderRadius: RADIUS.md,
     padding: SPACING.lg,
     borderWidth: 1,
     borderColor: theme.border,

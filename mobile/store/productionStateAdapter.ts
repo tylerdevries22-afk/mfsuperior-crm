@@ -1,161 +1,27 @@
-import type {
-  AppRole,
-  AvailabilityBlock,
-  AvailabilityRule,
-  ComplianceDocument,
-  CustomerRequest,
-  DemoOperationsState,
-  Driver,
-  DriverShift,
-  EquipmentType,
-  ExceptionCategory,
-  ExceptionReport,
-  ExceptionSeverity,
-  IntegrationHealth,
-  MaintenanceOrder,
-  MessageThreadKind,
-  OperationsAccount,
-  OperationsMessage,
-  Payout,
-  ScheduleSyncStatus,
-  PostalAddress,
-  Shipment,
-  ShipmentStatus,
-  ShipmentStop,
-  ShiftCoverageRequest,
-  Vehicle,
-} from "../domain/types";
-import {
-  DEMO_STATE_VERSION,
-  EXCEPTION_CATEGORIES,
-  EXCEPTION_SEVERITIES,
-  SHIPMENT_STATUSES,
-} from "../domain/types";
+import { normalizeVehicle } from "../domain/vehicleCompatibility";
+import type { DemoOperationsState, OperationsAccount } from "../domain/types";
+import { DEMO_STATE_VERSION } from "../domain/types";
 import type { AuthIdentity } from "../lib/auth";
+import { mergeContacts, toDriver, toIntegration } from "./adapter/accountMappers";
+import {
+  toCustomerRequest,
+  toExceptionReport,
+  toOperationsMessage,
+} from "./adapter/activityMappers";
+import { titleForRole } from "./adapter/fieldCoercion";
+import { toShipment } from "./adapter/shipmentMappers";
+import type { MobileFreightRequestRow, ProductionHydrationInput } from "./adapter/rowTypes";
 
-export interface MobileBootstrapPayload {
-  readonly integrations: readonly {
-    readonly lastSucceededAt: string | null;
-    readonly provider: string;
-    readonly status: "connected" | "degraded" | "disabled" | "not_configured";
-  }[];
-  readonly organization: { readonly id: string; readonly name: string };
-  readonly referenceData: {
-    readonly contacts?: readonly MobileContactRow[];
-    readonly drivers: readonly MobileDriverRow[];
-  };
-  readonly user: {
-    readonly customerAccountId: string | null;
-    readonly displayName: string;
-    readonly driverId: string | null;
-    readonly email: string;
-    readonly id: string;
-    readonly role: AppRole;
-  };
-}
-
-export interface MobileContactRow {
-  readonly displayName: string;
-  readonly email: string;
-  readonly id: string;
-  readonly role: AppRole;
-}
-
-export interface MobileExceptionRow {
-  readonly category: string | null;
-  readonly description: string | null;
-  readonly id: string;
-  readonly photoUrls: unknown;
-  readonly reportedAt: string;
-  readonly reportedByDriverId: string | null;
-  readonly resolutionNote: string | null;
-  readonly resolvedAt: string | null;
-  readonly severity: string | null;
-  readonly shipmentId: string;
-  readonly status: "open" | "resolved";
-}
-
-export interface MobileMessageRow {
-  readonly body: string;
-  readonly id: string;
-  readonly readByUserIds: readonly string[];
-  readonly recipientUserIds: readonly string[];
-  readonly senderUserId: string;
-  readonly sentAt: string;
-  readonly shipmentId: string | null;
-  readonly threadKey: string;
-  readonly threadKind: MessageThreadKind;
-}
-
-export interface ProductionHydrationInput {
-  readonly bootstrap: MobileBootstrapPayload;
-  readonly exceptions: readonly MobileExceptionRow[];
-  readonly messages: readonly MobileMessageRow[];
-  readonly requests: readonly MobileFreightRequestRow[];
-  readonly shipments: readonly MobileShipmentRow[];
-  /**
-   * Fleet, calendar, shop, compliance, and settlement collections.
-   *
-   * Optional so a client pointed at a server that has not yet deployed these
-   * endpoints still hydrates, with the affected screens showing their empty
-   * state rather than the whole session failing.
-   */
-  readonly availabilityBlocks?: readonly AvailabilityBlock[];
-  readonly availabilityRules?: readonly AvailabilityRule[];
-  readonly driverShifts?: readonly DriverShift[];
-  readonly shiftCoverageRequests?: readonly ShiftCoverageRequest[];
-  readonly scheduleSyncStatuses?: readonly ScheduleSyncStatus[];
-  readonly complianceDocuments?: readonly ComplianceDocument[];
-  readonly maintenanceOrders?: readonly MaintenanceOrder[];
-  readonly payouts?: readonly Payout[];
-  readonly vehicles?: readonly Vehicle[];
-}
-
-export interface MobileDriverRow {
-  readonly currentLat: string | null;
-  readonly currentLng: string | null;
-  readonly email: string | null;
-  readonly firstName: string;
-  readonly id: string;
-  readonly lastName: string;
-  readonly licenseNumber: string | null;
-  readonly licenseState: string | null;
-  readonly locationUpdatedAt: string | null;
-  readonly phone: string | null;
-  readonly status: Driver["status"];
-}
-
-export interface MobileShipmentRow {
-  readonly bolNumber: string | null;
-  readonly commodity: string | null;
-  readonly destination: unknown;
-  readonly driverId: string | null;
-  readonly equipmentType: string | null;
-  readonly estimatedDeliveryAt: string | null;
-  readonly estimatedPickupAt: string | null;
-  readonly id: string;
-  readonly loadNumber: string | null;
-  readonly origin: unknown;
-  readonly palletCount: number | null;
-  readonly proNumber: string | null;
-  readonly specialInstructions: string | null;
-  readonly status: string;
-  readonly updatedAt: string;
-  readonly weightLbs: number | null;
-}
-
-export interface MobileFreightRequestRow {
-  readonly commodity: string | null;
-  readonly createdAt: string;
-  readonly customerAccountId: string | null;
-  readonly equipmentType: string | null;
-  readonly id: string;
-  readonly notes: string | null;
-  readonly referenceNumber: string | null;
-  readonly shipmentId: string | null;
-  readonly status: string;
-  readonly updatedAt: string;
-}
+export type {
+  MobileBootstrapPayload,
+  MobileContactRow,
+  MobileDriverRow,
+  MobileExceptionRow,
+  MobileFreightRequestRow,
+  MobileMessageRow,
+  MobileShipmentRow,
+  ProductionHydrationInput,
+} from "./adapter/rowTypes";
 
 /** Convert the versioned mobile API payload into the UI's normalized operations state. */
 export function buildProductionOperationsState(
@@ -208,73 +74,9 @@ export function buildProductionOperationsState(
     session: { accessState: "active", accountId: account.id, effectiveRole: account.role },
     shipments: input.shipments.map((shipment) => toShipment(shipment, customerId)),
     updatedAt: now,
-    vehicles: input.vehicles ?? [],
+    vehicles: (input.vehicles ?? []).map(normalizeVehicle),
     version: DEMO_STATE_VERSION,
   };
-}
-
-/**
- * The signed-in account stays first so session resolution never depends on
- * directory ordering. Contacts carry no demo credentials.
- */
-function mergeContacts(
-  account: OperationsAccount,
-  bootstrap: MobileBootstrapPayload,
-): readonly OperationsAccount[] {
-  const contacts = bootstrap.referenceData.contacts ?? [];
-  const merged: OperationsAccount[] = [account];
-  for (const contact of contacts) {
-    if (contact.id === account.id) continue;
-    merged.push({
-      companyName: bootstrap.organization.name,
-      displayName: contact.displayName,
-      email: contact.email,
-      id: contact.id,
-      role: contact.role,
-      title: titleForRole(contact.role),
-    });
-  }
-  return merged;
-}
-
-function toExceptionReport(row: MobileExceptionRow): ExceptionReport {
-  return {
-    attachmentUris: Array.isArray(row.photoUrls)
-      ? row.photoUrls.filter((value): value is string => typeof value === "string")
-      : [],
-    category: exceptionCategory(row.category),
-    description: row.description ?? "Exception reported.",
-    id: row.id,
-    reportedAt: validDate(row.reportedAt),
-    reportedByAccountId: row.reportedByDriverId ?? "",
-    resolutionNote: row.resolutionNote ?? undefined,
-    resolvedAt: row.resolvedAt ? validDate(row.resolvedAt) : undefined,
-    severity: exceptionSeverity(row.severity),
-    shipmentId: row.shipmentId,
-    status: row.status === "resolved" ? "resolved" : "open",
-  };
-}
-
-function toOperationsMessage(row: MobileMessageRow): OperationsMessage {
-  return {
-    body: row.body,
-    id: row.id,
-    readByAccountIds: [...row.readByUserIds],
-    recipientAccountIds: [...row.recipientUserIds],
-    senderAccountId: row.senderUserId,
-    sentAt: validDate(row.sentAt),
-    shipmentId: row.shipmentId ?? undefined,
-    threadId: row.threadKey,
-    threadKind: row.threadKind,
-  };
-}
-
-function exceptionCategory(value: string | null): ExceptionCategory {
-  return EXCEPTION_CATEGORIES.find((candidate) => candidate === value) ?? "other";
-}
-
-function exceptionSeverity(value: string | null): ExceptionSeverity {
-  return EXCEPTION_SEVERITIES.find((candidate) => candidate === value) ?? "medium";
 }
 
 /**
@@ -327,146 +129,4 @@ export function buildPendingCustomerOperationsState(
     vehicles: [],
     version: DEMO_STATE_VERSION,
   };
-}
-
-function toDriver(row: MobileDriverRow): Driver {
-  return {
-    currentLocation: {
-      latitude: finiteCoordinate(row.currentLat),
-      longitude: finiteCoordinate(row.currentLng),
-    },
-    email: row.email ?? "",
-    firstName: row.firstName,
-    id: row.id,
-    lastName: row.lastName,
-    licenseClass: "A",
-    licenseNumber: row.licenseNumber ?? "Pending",
-    licenseState: row.licenseState ?? "CO",
-    locationUpdatedAt: row.locationUpdatedAt ?? new Date(0).toISOString(),
-    phone: row.phone ?? "",
-    status: row.status,
-  };
-}
-
-function toShipment(row: MobileShipmentRow, customerId: string): Shipment {
-  const updatedAt = validDate(row.updatedAt);
-  const pickupAt = validDate(row.estimatedPickupAt ?? updatedAt);
-  const deliveryAt = validDate(row.estimatedDeliveryAt ?? updatedAt);
-  return {
-    assignedDriverId: row.driverId ?? undefined,
-    billOfLadingNumber: row.bolNumber ?? "Pending",
-    charges: { accessorialsCents: 0, currency: "USD", fuelSurchargeCents: 0, linehaulCents: 0 },
-    commodity: row.commodity ?? "Freight",
-    createdAt: updatedAt,
-    customerId,
-    distanceMiles: 0,
-    entityVersion: Date.parse(updatedAt),
-    equipmentType: equipmentType(row.equipmentType),
-    estimatedDurationMinutes: 0,
-    events: [],
-    id: row.id,
-    loadNumber: row.loadNumber?.trim() || `MF-${row.id.slice(0, 8).toUpperCase()}`,
-    palletCount: row.palletCount ?? 0,
-    proNumber: row.proNumber ?? "Pending",
-    purchaseOrderNumber: "Pending",
-    specialInstructions: row.specialInstructions ?? "",
-    status: shipmentStatus(row.status),
-    stops: [
-      toStop(`${row.id}:pickup`, 1, "pickup", row.origin, pickupAt),
-      toStop(`${row.id}:delivery`, 2, "delivery", row.destination, deliveryAt),
-    ],
-    updatedAt,
-    weightPounds: row.weightLbs ?? 0,
-  };
-}
-
-function toStop(
-  id: string,
-  sequence: number,
-  type: "delivery" | "pickup",
-  value: unknown,
-  startsAt: string,
-): ShipmentStop {
-  const address = postalAddress(value);
-  return {
-    address,
-    appointment: { endsAt: startsAt, startsAt, timeZone: "America/Denver" },
-    coordinates: { latitude: 0, longitude: 0 },
-    facilityName: stringProperty(value, "name") ?? `${address.city} ${type}`,
-    id,
-    instructions: "",
-    sequence,
-    status: "pending",
-    type,
-  };
-}
-
-function postalAddress(value: unknown): PostalAddress {
-  return {
-    city: stringProperty(value, "city") ?? "Unknown",
-    countryCode: "US",
-    line1: stringProperty(value, "addressLine1") ?? stringProperty(value, "line1") ?? "Address pending",
-    line2: stringProperty(value, "addressLine2") ?? stringProperty(value, "line2") ?? undefined,
-    postalCode: stringProperty(value, "postalCode") ?? "00000",
-    state: stringProperty(value, "state") ?? "CO",
-  };
-}
-
-function toCustomerRequest(row: MobileFreightRequestRow, fallbackCustomerId: string): CustomerRequest {
-  const closed = row.status === "declined" || row.status === "cancelled";
-  return {
-    customerId: row.customerAccountId ?? fallbackCustomerId,
-    details: row.notes ?? "Freight request submitted through the customer workspace.",
-    id: row.id,
-    requestedAt: validDate(row.createdAt),
-    shipmentId: row.shipmentId ?? undefined,
-    status: closed ? "closed" : row.status === "booked" ? "scheduled" : row.status === "reviewing" || row.status === "quoted" ? "reviewing" : "submitted",
-    subject: row.referenceNumber ?? row.commodity ?? "Freight request",
-    type: row.shipmentId ? "delivery" : "quote",
-    updatedAt: validDate(row.updatedAt),
-  };
-}
-
-function toIntegration(
-  row: MobileBootstrapPayload["integrations"][number],
-  now: string,
-): IntegrationHealth {
-  const status = row.status === "disabled" ? "not_configured" : row.status;
-  return {
-    id: row.provider,
-    isSimulation: false,
-    lastCheckedAt: row.lastSucceededAt ?? now,
-    name: row.provider,
-    status,
-    summary: status === "connected" ? "Connection verified" : status === "degraded" ? "Connection requires attention" : "Credentials required",
-  };
-}
-
-function shipmentStatus(value: string): ShipmentStatus {
-  return SHIPMENT_STATUSES.some((status) => status === value) ? value as ShipmentStatus : "exception";
-}
-
-function equipmentType(value: string | null): EquipmentType {
-  return value === "reefer" || value === "flatbed" ? value : "dry_van";
-}
-
-function finiteCoordinate(value: string | null): number {
-  const coordinate = Number(value);
-  return Number.isFinite(coordinate) ? coordinate : 0;
-}
-
-function validDate(value: string): string {
-  return Number.isNaN(Date.parse(value)) ? new Date(0).toISOString() : value;
-}
-
-function stringProperty(value: unknown, property: string): string | null {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
-  const candidate = (value as Record<string, unknown>)[property];
-  return typeof candidate === "string" && candidate.trim() ? candidate.trim() : null;
-}
-
-function titleForRole(role: AppRole): string {
-  if (role === "admin") return "Operations administrator";
-  if (role === "driver") return "Professional driver";
-  return "Customer account";
 }

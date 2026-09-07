@@ -2,6 +2,7 @@ import { useCallback, useState, type ReactNode } from "react";
 import * as Haptics from "expo-haptics";
 import {
   Pressable,
+  StyleSheet,
   type GestureResponderEvent,
   type PressableProps,
   type StyleProp,
@@ -54,6 +55,9 @@ export function AnimatedPressable({
 }: AnimatedPressableProps) {
   const [pressed, setPressed] = useState(false);
   const reduceMotion = useReducedMotion();
+  const resolvedStyle = StyleSheet.flatten(style);
+  const minHeight = resolvedStyle?.minHeight;
+  const minWidth = resolvedStyle?.minWidth;
 
   const handlePressIn = useCallback((event: GestureResponderEvent) => {
     setPressed(true);
@@ -74,6 +78,11 @@ export function AnimatedPressable({
     <Pressable
       {...rest}
       accessibilityRole={accessibilityRole ?? "button"}
+      aria-busy={rest["aria-busy"] ?? accessibilityState?.busy}
+      aria-checked={rest["aria-checked"] ?? accessibilityState?.checked}
+      aria-disabled={Boolean(disabled || rest["aria-disabled"] || accessibilityState?.disabled)}
+      aria-expanded={rest["aria-expanded"] ?? accessibilityState?.expanded}
+      aria-selected={rest["aria-selected"] ?? accessibilityState?.selected}
       accessibilityState={{
         ...accessibilityState,
         disabled: Boolean(disabled || accessibilityState?.disabled),
@@ -83,8 +92,11 @@ export function AnimatedPressable({
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
       style={[
-        ensureMinTarget && { minHeight: SIZE.hit, minWidth: SIZE.hit },
         style,
+        ensureMinTarget && {
+          minHeight: typeof minHeight === "number" ? Math.max(SIZE.hit, minHeight) : minHeight ?? SIZE.hit,
+          minWidth: typeof minWidth === "number" ? Math.max(SIZE.hit, minWidth) : minWidth ?? SIZE.hit,
+        },
         pressed && {
           opacity: opacityValue,
           transform: reduceMotion ? undefined : [{ scale: scaleValue }],
