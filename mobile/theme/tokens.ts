@@ -106,7 +106,10 @@ export const PRESSED_TEXT = { opacity: 0.72 } as const;
 export const SIZE = {
   button: { sm: 44, md: 48, lg: 56 },
   input: { default: 52, comfortable: 56 },
-  row: { compact: 56, default: 78, rich: 112 },
+  // Apple's table cells: 44 plain, 58 subtitle, ~72 once a row carries a
+  // stacked accessory. `rich` sat at 112, which padded every two-line row with
+  // about 36pt of dead space that read as a gap rather than as breathing room.
+  row: { compact: 56, default: 72, rich: 76 },
   hit: 44,
 } as const;
 
