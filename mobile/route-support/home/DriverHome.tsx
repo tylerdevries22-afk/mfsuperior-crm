@@ -1,10 +1,9 @@
 import { Feather } from "@expo/vector-icons";
-import { useRouter, type Href } from "expo-router";
+import { useRouter } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import { FlatList, Image, RefreshControl, ScrollView, Text, useWindowDimensions, View } from "react-native";
 
 import { AnimatedPressable, FadeInView, Header, WorkspaceCard } from "@/components/ui";
-import { formatDateKey, scheduledStart } from "@/route-support/schedule/utils";
 import { useOperations } from "@/store";
 import { SPACING, THEME } from "@/theme";
 
@@ -12,6 +11,8 @@ import { LoadHeroCard } from "./_components/LoadHeroCard";
 import { InlineError, PulseOrb, StatPill } from "./_components/HomePrimitives";
 import { formatCurrency, formattedDate, getGreeting } from "./homeUtils";
 import { adminS, s } from "./homeStyles";
+import { QUICK_ACTIONS } from "./quickActions";
+import { useDriverHomeData } from "./useDriverHomeData";
 
 /**
  * Ported from the Appliance Diagnostic Systems `TechAdminHome` at
@@ -19,24 +20,6 @@ import { adminS, s } from "./homeStyles";
  * pulsing live orb, a three-pill stat row, an inline error affordance, and a
  * snapping "UP NEXT" rail followed by quick actions and recent activity.
  */
-/** Mirrors the reference's `QUICK_ACTIONS` table, pointing at freight routes. */
-const QUICK_ACTIONS: readonly {
-  readonly key: string;
-  readonly icon: keyof typeof Feather.glyphMap;
-  readonly label: string;
-  readonly color: string;
-  readonly route: Href;
-}[] = [
-  { key: "hos", icon: "clock", label: "Duty Status", color: THEME.primary, route: "/hours-of-service" },
-  { key: "toolbox", icon: "tool", label: "Toolbox", color: THEME.success, route: "/driver-toolbox" },
-  { key: "exception", icon: "alert-triangle", label: "Report Issue", color: THEME.orange, route: "/exception-diagnostic" },
-  { key: "location", icon: "map-pin", label: "Location", color: "#AF52DE", route: "/location-tracker" },
-  { key: "messages", icon: "message-square", label: "Messages", color: THEME.primaryLight, route: "/messages" },
-  { key: "history", icon: "clock", label: "History", color: THEME.textMuted, route: "/history" },
-];
-
-const CLOSED = new Set(["delivered", "declined", "cancelled"]);
-
 export function DriverHome() {
   const router = useRouter();
   const { width: screenWidth } = useWindowDimensions();
@@ -50,40 +33,9 @@ export function DriverHome() {
   );
 
   const driverId = currentAccount?.driverId;
-  const driver = state.drivers.find((item) => item.id === driverId);
-  const vehicle = state.vehicles.find((item) => item.assignedDriverId === driverId);
-  const mine = useMemo(
-    () => (driverId ? shipments.filter((shipment) => shipment.assignedDriverId === driverId) : []),
-    [driverId, shipments],
-  );
+  const { completedToday, driver, offers, payCents, todayLoads, upNext, vehicle } =
+    useDriverHomeData(driverId, state.drivers, shipments, state.vehicles);
 
-  const todayKey = formatDateKey(new Date());
-  const todayLoads = useMemo(
-    () =>
-      mine.filter((shipment) => {
-        const start = scheduledStart(shipment);
-        return start !== null && formatDateKey(new Date(start)) === todayKey;
-      }),
-    [mine, todayKey],
-  );
-  const completedToday = todayLoads.filter((shipment) => shipment.status === "delivered").length;
-  const upNext = useMemo(
-    () =>
-      [...mine]
-        .filter((shipment) => !CLOSED.has(shipment.status) && scheduledStart(shipment) !== null)
-        .sort((a, b) => (scheduledStart(a) ?? "").localeCompare(scheduledStart(b) ?? "")),
-    [mine],
-  );
-  const payCents = useMemo(
-    () =>
-      todayLoads.reduce(
-        (total, { charges }) =>
-          total + charges.linehaulCents + charges.fuelSurchargeCents + charges.accessorialsCents,
-        0,
-      ),
-    [todayLoads],
-  );
-  const offers = useMemo(() => mine.filter((shipment) => shipment.status === "accepted"), [mine]);
   const acceptOffer = useCallback(async (shipmentId: string) => {
     await actions.transitionShipment(shipmentId, "dispatched");
   }, [actions]);

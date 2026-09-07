@@ -1,36 +1,32 @@
-import Feather from "@expo/vector-icons/Feather";
 import { useRouter } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { View } from "react-native";
 
-import { DriverAvatar, PayoutRailLogo, PayoutRailMosaic } from "@/components/operations";
+import { PayoutRailMosaic } from "@/components/operations";
 import {
   AnimatedButton,
-  Card,
   EmptyState,
   Header,
-  ListRow,
   Screen,
   SectionHeader,
-  Sheet,
-  StatusBadge,
 } from "@/components/ui";
-import { buildPayoutLineItems, summarizePayout } from "@/domain/payouts";
-import type { SettlementPeriod } from "@/route-support/payouts/utils";
+import { IssueSettlementsSheet } from "@/route-support/payouts/_components/IssueSettlementsSheet";
 import {
-  PAYOUT_STATUS_LABELS,
-  formatPeriod,
-  sortPayouts,
-} from "@/route-support/driver-payments/utils";
+  IssueErrorNotice,
+  PayoutTotalsCard,
+} from "@/route-support/payouts/_components/PayoutTotalsCard";
+import { SettlementList } from "@/route-support/payouts/_components/SettlementList";
+import { styles } from "@/route-support/payouts/styles";
+import { useIssueDrafts } from "@/route-support/payouts/useIssueDrafts";
 import {
   earliestOpenPeriod,
   formatSettlementPeriod,
-  nextPeriodForDriver,
+  type SettlementPeriod,
 } from "@/route-support/payouts/utils";
-import { driverFullName } from "@/route-support/schedule/utils";
+import { sortPayouts } from "@/route-support/driver-payments/utils";
 import { formatCents } from "@/route-support/trip-history/utils";
 import { useOperations } from "@/store";
-import { ICON, RADIUS, SPACE, TYPO, useTheme } from "@/theme";
+import { useTheme } from "@/theme";
 
 export default function PayoutsScreen() {
   const router = useRouter();
@@ -56,27 +52,7 @@ export default function PayoutsScreen() {
     return { paidCents, pendingCents };
   }, [payouts]);
 
-  /**
-   * Each driver's own next period, previewed with the same builder the
-   * repository uses so the sheet cannot disagree with what issuing produces.
-   * Periods are per-driver because they run on from each driver's last
-   * settlement, and two drivers rarely settled on the same day.
-   */
-  const drafts = useMemo(() => state.drivers.map((driver) => {
-    const period = nextPeriodForDriver(shipments, payouts, driver.id);
-    if (!period) {
-      return { driver, lineItems: [], period: null, totals: summarizePayout([]) };
-    }
-    let sequence = 0;
-    const lineItems = buildPayoutLineItems({
-      driverId: driver.id,
-      nextId: () => { sequence += 1; return `preview-${driver.id}-${sequence}`; },
-      periodEnd: period.end,
-      periodStart: period.start,
-      shipments,
-    });
-    return { driver, lineItems, period, totals: summarizePayout(lineItems) };
-  }), [payouts, shipments, state.drivers]);
+  const drafts = useIssueDrafts(state.drivers, payouts, shipments);
 
   const issue = useCallback(async (driverId: string, period: SettlementPeriod) => {
     setBusy(driverId);
@@ -123,155 +99,25 @@ export default function PayoutsScreen() {
         title="Payouts & payments"
       />
       <Screen contentContainerStyle={styles.content} safeEdges={["left", "right", "bottom"]} scroll>
-        <Card>
-          <View style={styles.totalsRow}>
-            <Total label="Outstanding" tone="warning" value={formatCents(totals.pendingCents)} />
-            <Total label="Paid to date" tone="success" value={formatCents(totals.paidCents)} />
-          </View>
-          <View style={[styles.privacy, { borderTopColor: theme.border }]}>
-            <Feather color={theme.info} name="lock" size={ICON.sm} />
-            <Text style={[styles.privacyText, { color: theme.textMuted }]}>
-              Recording a settlement as paid is a ledger entry. It moves no money, and a driver&apos;s
-              payout handle is never shown here — only the rail it went out on.
-            </Text>
-          </View>
-        </Card>
-
-        {issueError ? (
-          <View
-            accessibilityRole="alert"
-            style={[
-              styles.error,
-              { backgroundColor: theme.dangerMuted, borderColor: theme.tint.danger.medium },
-            ]}
-          >
-            <Feather color={theme.danger} name="alert-circle" size={ICON.sm} />
-            <Text style={[styles.errorText, { color: theme.text }]}>{issueError}</Text>
-          </View>
-        ) : null}
+        <PayoutTotalsCard paidCents={totals.paidCents} pendingCents={totals.pendingCents} />
+        {issueError ? <IssueErrorNotice message={issueError} /> : null}
 
         <SectionHeader title="Settlements" />
-        {ordered.length === 0 ? (
-          <EmptyState
-            icon={<Feather color={theme.textMuted} name="file-text" size={36} />}
-            message="Issue a settlement to start the ledger."
-            title="No settlements yet"
-          />
-        ) : (
-          <Card padding="none">
-            {ordered.map((payout, index) => {
-              const driver = state.drivers.find((candidate) => candidate.id === payout.driverId);
-              return (
-                <ListRow
-                  isLast={index === ordered.length - 1}
-                  key={payout.id}
-                  leading={payout.rail
-                    ? <PayoutRailLogo rail={payout.rail} size="sm" />
-                    : driver
-                    ? <DriverAvatar driver={driver} ring={false} size={36} />
-                    : <Feather color={theme.textMuted} name="user" size={ICON.md} />}
-                  onPress={() => router.push({
-                    params: { id: payout.id },
-                    pathname: "/payouts/[id]",
-                  })}
-                  rich
-                  subtitle={`${formatPeriod(payout)} · ${payout.lineItems.length} line items`}
-                  title={driver ? driverFullName(driver) : "Unknown driver"}
-                  trailing={
-                    <View style={styles.trailing}>
-                      <Text style={[styles.net, { color: theme.text }]}>
-                        {formatCents(payout.netCents)}
-                      </Text>
-                      <StatusBadge size="sm" status={PAYOUT_STATUS_LABELS[payout.status]} />
-                    </View>
-                  }
-                />
-              );
-            })}
-          </Card>
-        )}
+        <SettlementList
+          drivers={state.drivers}
+          onOpen={(id) => router.push({ params: { id }, pathname: "/payouts/[id]" })}
+          payouts={ordered}
+        />
       </Screen>
 
       {issuing ? (
-        <Sheet onClose={() => setIssuing(false)} title="Issue settlements" visible>
-          <View style={styles.sheetBody}>
-            {drafts.map((draft, index) => (
-              <ListRow
-                disabled={busy !== null || draft.period === null}
-                isLast={index === drafts.length - 1}
-                key={draft.driver.id}
-                leading={<DriverAvatar driver={draft.driver} ring={false} size={36} />}
-                onPress={draft.period
-                  ? () => void issue(draft.driver.id, draft.period)
-                  : undefined}
-                rich
-                subtitle={draft.period
-                  ? `${formatSettlementPeriod(draft.period)} · ${draft.lineItems.length} line items`
-                  : "Everything delivered is already settled"}
-                title={driverFullName(draft.driver)}
-                trailing={
-                  <Text
-                    style={[
-                      styles.net,
-                      { color: draft.period ? theme.text : theme.textMuted },
-                    ]}
-                  >
-                    {formatCents(draft.totals.netCents)}
-                  </Text>
-                }
-              />
-            ))}
-          </View>
-        </Sheet>
+        <IssueSettlementsSheet
+          busyDriverId={busy}
+          drafts={drafts}
+          onClose={() => setIssuing(false)}
+          onIssue={(driverId, period) => void issue(driverId, period)}
+        />
       ) : null}
     </View>
   );
 }
-
-function Total({
-  label,
-  tone,
-  value,
-}: {
-  readonly label: string;
-  readonly tone: "warning" | "success";
-  readonly value: string;
-}) {
-  const theme = useTheme();
-  return (
-    <View accessibilityLabel={`${label} ${value}`} style={styles.total}>
-      <Text
-        adjustsFontSizeToFit
-        minimumFontScale={0.7}
-        numberOfLines={1}
-        style={[styles.totalValue, { color: theme[tone] }]}
-      >
-        {value}
-      </Text>
-      <Text style={[styles.totalLabel, { color: theme.textMuted }]}>{label}</Text>
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  content: { gap: SPACE.md, paddingBottom: SPACE.xxl },
-  error: {
-    alignItems: "flex-start",
-    borderRadius: RADIUS.md,
-    borderWidth: 1,
-    flexDirection: "row",
-    gap: SPACE.sm,
-    padding: SPACE.md,
-  },
-  errorText: { ...TYPO.caption, flex: 1 },
-  fill: { flex: 1 },
-  net: { ...TYPO.rowTitle },
-  privacy: { alignItems: "flex-start", borderTopWidth: 1, flexDirection: "row", gap: SPACE.xs, paddingTop: SPACE.sm },
-  privacyText: { ...TYPO.subtitle, flex: 1, lineHeight: 16 },
-  sheetBody: { paddingBottom: SPACE.md },
-  total: { flex: 1, gap: 2 },
-  totalLabel: { ...TYPO.metricLabel },
-  totalValue: { ...TYPO.metric, fontSize: 24, lineHeight: 28 },
-  totalsRow: { flexDirection: "row", gap: SPACE.md },
-  trailing: { alignItems: "flex-end", gap: SPACE.xxs },
-});
