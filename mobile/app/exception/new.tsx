@@ -2,23 +2,16 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
-import { Image, StyleSheet, Text, View } from "react-native";
+import { Text, View } from "react-native";
 
-import { BottomSheet, Button, Card, EmptyState, Header, ListRow, Screen, SegmentedControl, TextArea } from "@/components/ui";
+import { Button, Card, EmptyState, Header, ListRow, Screen, SegmentedControl, TextArea } from "@/components/ui";
 import type { ExceptionCategory, ExceptionSeverity } from "@/domain/types";
 import { formatStatus } from "@/lib/operations-format";
+import { CategorySheet, StopSheet } from "@/route-support/exception/_components/ExceptionSheets";
+import { PhotoAttachments } from "@/route-support/exception/_components/PhotoAttachments";
+import { styles } from "@/route-support/exception/styles";
 import { useOperations } from "@/store";
-import { ICON, RADIUS, SPACE, TYPO, useTheme } from "@/theme";
-
-const CATEGORIES: readonly ExceptionCategory[] = [
-  "delay",
-  "equipment",
-  "temperature",
-  "cargo_damage",
-  "refused_delivery",
-  "route",
-  "other",
-];
+import { ICON, useTheme } from "@/theme";
 
 export default function NewExceptionScreen() {
   const router = useRouter();
@@ -132,21 +125,12 @@ export default function NewExceptionScreen() {
           </View>
         </Card>
 
-        <Card title="Photos">
-          <Text style={[styles.body, { color: theme.textSecondary }]}>Attach up to three local photos. They remain on this device.</Text>
-          {attachmentUris.length ? (
-            <View style={styles.attachmentGrid}>
-              {attachmentUris.map((uri, index) => (
-                <View key={uri} style={styles.attachment}>
-                  <Image accessibilityLabel={`Exception attachment ${index + 1}`} source={{ uri }} style={styles.attachmentImage} />
-                  <Button onPress={() => setAttachmentUris((current) => current.filter((candidate) => candidate !== uri))} size="sm" title="Remove" variant="ghost" />
-                </View>
-              ))}
-            </View>
-          ) : null}
-          <Button disabled={attachmentUris.length >= 3} icon={<Ionicons color={theme.text} name="images-outline" size={ICON.md} />} onPress={() => void addAttachment()} title="Choose photos" variant="secondary" />
-          {permissionError ? <Text accessibilityRole="alert" style={[styles.errorText, { color: theme.danger }]}>{permissionError}</Text> : null}
-        </Card>
+        <PhotoAttachments
+          onAdd={() => void addAttachment()}
+          onRemove={(uri) => setAttachmentUris((current) => current.filter((candidate) => candidate !== uri))}
+          permissionError={permissionError}
+          uris={attachmentUris}
+        />
 
         <View style={[styles.escalation, { backgroundColor: theme.dangerMuted, borderColor: theme.tint.danger.medium }]}>
           <Ionicons color={theme.danger} name="call-outline" size={ICON.md} />
@@ -157,49 +141,20 @@ export default function NewExceptionScreen() {
         <Button disabled={!canSubmit} fullWidth loading={isSubmitting} onPress={() => void submit()} title="Submit local exception" variant="danger" />
       </Screen>
 
-      <BottomSheet onClose={() => setCategoryVisible(false)} title="Exception category" visible={categoryVisible}>
-        <View style={styles.sheetList}>
-          {CATEGORIES.map((candidate) => (
-            <ListRow
-              isLast={candidate === CATEGORIES.at(-1)}
-              key={candidate}
-              onPress={() => { setCategory(candidate); setCategoryVisible(false); }}
-              title={formatStatus(candidate)}
-              trailing={candidate === category ? <Ionicons color={theme.success} name="checkmark-circle" size={ICON.lg} /> : undefined}
-            />
-          ))}
-        </View>
-      </BottomSheet>
+      <CategorySheet
+        onClose={() => setCategoryVisible(false)}
+        onSelect={(candidate) => { setCategory(candidate); setCategoryVisible(false); }}
+        selected={category}
+        visible={categoryVisible}
+      />
 
-      <BottomSheet onClose={() => setStopVisible(false)} title="Related stop" visible={stopVisible}>
-        <View style={styles.sheetList}>
-          <ListRow isLast={shipment.stops.length === 0} onPress={() => { setStopId(undefined); setStopVisible(false); }} title="No specific stop" />
-          {shipment.stops.map((stop, index) => (
-            <ListRow
-              isLast={index === shipment.stops.length - 1}
-              key={stop.id}
-              onPress={() => { setStopId(stop.id); setStopVisible(false); }}
-              subtitle={`${stop.address.city}, ${stop.address.state}`}
-              title={stop.facilityName}
-              trailing={stop.id === stopId ? <Ionicons color={theme.success} name="checkmark-circle" size={ICON.lg} /> : undefined}
-            />
-          ))}
-        </View>
-      </BottomSheet>
+      <StopSheet
+        onClose={() => setStopVisible(false)}
+        onSelect={(nextStopId) => { setStopId(nextStopId); setStopVisible(false); }}
+        selectedStopId={stopId}
+        stops={shipment.stops}
+        visible={stopVisible}
+      />
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  attachment: { alignItems: "center", flexBasis: "30%", flexGrow: 1, gap: SPACE.xs },
-  attachmentGrid: { flexDirection: "row", flexWrap: "wrap", gap: SPACE.sm },
-  attachmentImage: { borderRadius: RADIUS.sm, height: 104, width: "100%" },
-  body: { ...TYPO.body },
-  content: { gap: SPACE.md, paddingBottom: SPACE.xxl },
-  errorText: { ...TYPO.captionStrong },
-  escalation: { alignItems: "flex-start", borderRadius: RADIUS.md, borderWidth: 1, flexDirection: "row", gap: SPACE.sm, padding: SPACE.md },
-  escalationText: { ...TYPO.caption, flex: 1 },
-  fill: { flex: 1 },
-  form: { gap: SPACE.md },
-  sheetList: { paddingBottom: SPACE.sm },
-});
