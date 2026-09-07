@@ -1,0 +1,49 @@
+goal_id: mfsuperior-apple-ui-2026-09-06
+objective: >
+  Apply Apple's UI/UX philosophy (HIG type ramp, semantic system colors, 8pt grid,
+  continuous corner radii, liquid-glass surfaces) across every mobile screen, fused
+  with 200-line module-size compliance, verified by screenshots and the existing
+  gates, then squash-merged to main and redeployed.
+scope:
+  includes: [mobile/theme, mobile/components, mobile/route-support, mobile/app, mobile/store]
+  excludes: [src/ (web CRM), physical-device verification, Supabase wiring]
+constraints:
+  - Preserve each oversized file's public API via a barrel; never edit consumers
+  - New/edited source modules at or below 200 lines
+  - Zero lint warnings; 46 suites / 351 tests must stay green
+  - SDK 57 unchanged; no dependency major bumps
+baseline:
+  typecheck: pass
+  lint: pass (--max-warnings=0)
+  tests: 46 suites / 351 tests pass
+  head: f1b0248679c3
+tasks:
+  - id: H1
+    name: Quarantine superseded non-canonical worktree
+    status: in_progress
+    evidence: All 11 files verified superseded by main (identical or main strictly newer)
+  - id: H2
+    name: Sync dev to main after merge
+    status: blocked
+    depends_on: [M1]
+  - id: D1
+    name: Apple HIG token layer (typography, color, spacing, radii, elevation)
+    status: pending
+    files: [mobile/theme/tokens.ts, mobile/theme/palette.ts]
+  - id: D2
+    name: Liquid-glass surface primitives via expo-blur
+    status: pending
+    files: [mobile/components/ui/GlassCard.tsx, mobile/components/ui/Screen.tsx]
+  - id: S1
+    name: Baseline screenshots of all reachable pages
+    status: pending
+  - id: R1
+    name: Per-screen Apple polish fused with 200-line split
+    status: pending
+    note: 37 mobile files over 200 lines; fixtures/tests recorded as exemptions
+  - id: V1
+    name: Verify gates + after-screenshots + a11y re-check
+    status: pending
+  - id: M1
+    name: Squash-merge to main and redeploy
+    status: pending
